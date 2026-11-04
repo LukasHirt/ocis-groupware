@@ -19,6 +19,13 @@ over file, file wins over defaults.
 `/healthz` and `/metrics` are served unauthenticated on `GROUPWARE_HTTP_ADDR`
 (default `:8080`).
 
+## Docker
+
+```sh
+docker build -t ocis-groupware:dev .
+docker run --rm -p 8080:8080 ocis-groupware:dev
+```
+
 ## License
 
 [Apache License 2.0](LICENSE).
