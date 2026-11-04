@@ -65,14 +65,23 @@ func TestMiddlewarePublicPathsSkipAuth(t *testing.T) {
 
 func TestMiddlewareProtectedPathsRequireToken(t *testing.T) {
 	for _, path := range []string{
-		"/dav/calendars/alice/personal/",
 		"/graph/v1.0/me/events",
+		"/groupware/v1/app-passwords",
+		// The router matches escaped paths, so encoded dot segments must not
+		// borrow a public or a self-authenticated prefix.
+		"/graph/..%2Fweb/x",
+		"/graph/..%2Fdav/x",
+		"/graph/%2e%2e/dav/x",
+		"/dav%2F..%2Fgraph/x",
+		"/davx",
+		"/dav../x",
 		"/healthzx",
 		"/metrics/extra",
 		"/web",
 		"/webx/groupware.js",
 		"/.well-known",
-		"/web/../dav/calendars/alice/",
+		"/web/../graph/v1.0/me",
+		"/dav/../graph/v1.0/me",
 		"/",
 	} {
 		t.Run(path, func(t *testing.T) {
@@ -101,7 +110,7 @@ func TestMiddlewareRejectsNonBearerAuthorization(t *testing.T) {
 	} {
 		t.Run(header, func(t *testing.T) {
 			v := &fakeVerifier{}
-			req := httptest.NewRequest(http.MethodGet, "/dav/calendars/alice/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/graph/v1.0/me/events", nil)
 			req.Header.Set("Authorization", header)
 			rec, reached, _ := serve(t, v, req)
 			if reached || rec.Code != http.StatusUnauthorized {
@@ -111,6 +120,43 @@ func TestMiddlewareRejectsNonBearerAuthorization(t *testing.T) {
 				t.Errorf("verifier called %d times for a malformed header", v.calls)
 			}
 		})
+	}
+}
+
+// TestMiddlewareLeavesDAVToItsHandler checks that requests below /dav pass
+// through untouched, whatever their Authorization header: the DAV handler
+// authenticates them itself, with Basic or Bearer.
+func TestMiddlewareLeavesDAVToItsHandler(t *testing.T) {
+	for _, path := range []string{
+		"/dav",
+		"/dav/",
+		"/dav/calendars/alice/personal/",
+		"/dav/addressbooks/alice/contacts/x.vcf",
+		"/dav/..%2Fweb/x",
+		"/web/../dav/calendars/alice/",
+	} {
+		for _, header := range []string{"", "Basic YWxpY2U6c2VjcmV0", "Bearer tok"} {
+			t.Run(path+" "+header, func(t *testing.T) {
+				v := &fakeVerifier{}
+				req := httptest.NewRequest("PROPFIND", path, nil)
+				if header != "" {
+					req.Header.Set("Authorization", header)
+				}
+				rec, reached, got := serve(t, v, req)
+				if !reached || rec.Code != http.StatusNoContent {
+					t.Fatalf("status = %d, reached = %v; want the request to pass through", rec.Code, reached)
+				}
+				if v.calls != 0 {
+					t.Errorf("verifier called %d times", v.calls)
+				}
+				if got != (Claims{}) {
+					t.Errorf("claims %+v attached to a DAV request", got)
+				}
+				if req.Header.Get("Authorization") != header {
+					t.Error("Authorization header changed")
+				}
+			})
+		}
 	}
 }
 
