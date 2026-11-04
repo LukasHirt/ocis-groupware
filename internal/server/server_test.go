@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -28,6 +29,38 @@ func TestHealthz(t *testing.T) {
 	}
 	if got := rec.Body.String(); !strings.Contains(got, `"status":"ok"`) {
 		t.Errorf("body = %q, want it to contain %q", got, `"status":"ok"`)
+	}
+}
+
+func TestHealthzReadiness(t *testing.T) {
+	calls := 0
+	var readyErr error
+	s := New(":0", testLogger(), nil, WithReadiness(func(context.Context) error {
+		calls++
+		return readyErr
+	}))
+	get := func() *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		s.httpServer.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+		return rec
+	}
+
+	if rec := get(); rec.Code != http.StatusOK {
+		t.Fatalf("ready: status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	readyErr = errors.New("open /secret/path: read-only")
+	rec := get()
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("not ready: status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+	if got := rec.Body.String(); strings.Contains(got, "read-only") || strings.Contains(got, "error") {
+		t.Errorf("body = %q, must not contain error text", got)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+	if calls != 2 {
+		t.Errorf("readiness called %d times, want once per request (2)", calls)
 	}
 }
 

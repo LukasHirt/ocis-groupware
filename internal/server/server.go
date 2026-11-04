@@ -16,12 +16,30 @@ type Server struct {
 	addr       string
 }
 
+// Option customizes a Server.
+type Option func(*options)
+
+type options struct {
+	ready func(context.Context) error
+}
+
+// WithReadiness sets the function /healthz calls on every request. A non-nil
+// error turns the response into a 503.
+func WithReadiness(fn func(context.Context) error) Option {
+	return func(o *options) { o.ready = fn }
+}
+
 // New builds a Server listening on addr, logging through logger. When authn is
 // non-nil, every request passes through it before reaching the router, so
 // paths that aren't registered yet fail closed instead of returning 404.
-func New(addr string, logger *slog.Logger, authn func(http.Handler) http.Handler) *Server {
+func New(addr string, logger *slog.Logger, authn func(http.Handler) http.Handler, opts ...Option) *Server {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", healthzHandler)
+	mux.HandleFunc("GET /healthz", healthzHandler(logger, o.ready))
 	mux.HandleFunc("GET /metrics", metricsHandler())
 
 	var handler http.Handler = mux

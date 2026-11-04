@@ -9,7 +9,7 @@ Requires Go 1.26.10 and [go-task](https://taskfile.dev).
 ```sh
 task build
 task test
-GROUPWARE_OIDC_ISSUER=https://ocis.localhost task run
+GROUPWARE_OIDC_ISSUER=https://ocis.localhost GROUPWARE_DATA_DIR=$(mktemp -d) task run
 ```
 
 Run `task --list-all` for the full list, or `task check` to run fmt/vet/lint/test
@@ -25,6 +25,17 @@ over file, file wins over defaults.
 | `GROUPWARE_OIDC_ISSUER` | `oidc_issuer` | **Required.** The oCIS public URL, which is also the OIDC issuer |
 | `GROUPWARE_OIDC_AUDIENCE` | `oidc_audience` | Optional. If set, tokens must carry it in `aud`; oCIS sets that to the client ID of the requesting app, e.g. `web` |
 | `GROUPWARE_OIDC_CA_FILE` | `oidc_ca_file` | Optional PEM bundle of extra CAs to trust when contacting the issuer |
+| `GROUPWARE_DATA_DIR` | `data_dir` | **Required.** Directory that holds all service state. The image sets it to `/data` |
+
+## Data directory
+
+ocis-groupware keeps its state in one directory, `GROUPWARE_DATA_DIR`, and opens it with
+an exclusive lock: a second process on the same directory fails to start. The directory
+is created if missing and must be writable by the service. `/healthz` returns `503` when it is not.
+
+The image runs as uid 65532 and declares `/data` as a volume owned by that user. The
+compose stack mounts the named volume `groupware-data` there. When you bind-mount a host
+directory instead, give uid 65532 write access to it.
 
 ## Authentication
 

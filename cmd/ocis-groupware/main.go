@@ -3,12 +3,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/LukasHirt/groupkit/store/filestore"
 
 	"github.com/owncloud/ocis-groupware/internal/auth"
 	"github.com/owncloud/ocis-groupware/internal/config"
@@ -53,6 +56,50 @@ func run() error {
 		return err
 	}
 
-	srv := server.New(cfg.HTTPAddr, logger, auth.Middleware(verifier, logger))
+	store, err := openStore(cfg.DataDir, logger)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := store.Close(); err != nil {
+			logger.Error("closing the file store", "error", err)
+		}
+	}()
+
+	srv := server.New(cfg.HTTPAddr, logger, auth.Middleware(verifier, logger),
+		server.WithReadiness(dataDirWritable(cfg.DataDir)))
 	return srv.Run(ctx)
+}
+
+// openStore opens the file store in dir. The error from a directory held by
+// another process already names the lock file, so the path is not repeated.
+func openStore(dir string, logger *slog.Logger) (*filestore.Store, error) {
+	store, err := filestore.Open(dir, filestore.WithLogger(logger))
+	if err != nil {
+		if errors.Is(err, filestore.ErrLocked) {
+			return nil, fmt.Errorf("data directory in use by another process: %w", err)
+		}
+		return nil, fmt.Errorf("opening data directory %s: %w", dir, err)
+	}
+	return store, nil
+}
+
+// dataDirWritable returns a readiness check that creates and removes a temp
+// file in dir, which fails when the directory is gone, full or read-only.
+func dataDirWritable(dir string) func(context.Context) error {
+	return func(context.Context) error {
+		f, err := os.CreateTemp(dir, ".ready-*")
+		if err != nil {
+			return fmt.Errorf("data directory not writable: %w", err)
+		}
+		name := f.Name()
+		closeErr := f.Close()
+		if err := os.Remove(name); err != nil {
+			return fmt.Errorf("data directory not writable: %w", err)
+		}
+		if closeErr != nil {
+			return fmt.Errorf("data directory not writable: %w", closeErr)
+		}
+		return nil
+	}
 }
