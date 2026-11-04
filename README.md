@@ -44,6 +44,13 @@ against the keys the oCIS identity provider publishes. The exceptions are
 `/healthz`, `/metrics`, `/.well-known/*` and `/web/*`. The token's `sub` claim
 identifies the user.
 
+CalDAV and CardDAV are served under `/dav`. There a request can also carry
+`Authorization: Basic` with the username and an app password, which is how DAV
+clients sign in. A request under `/dav` without valid credentials gets `401` with
+`WWW-Authenticate: Basic realm="ocis-groupware"`. Each user reaches only their own
+calendars and address books. A user's first request with a bearer token creates
+their default address book and calendar.
+
 ocis-groupware contacts the issuer on the first authenticated request, and retries after
 a failure, so it can start before oCIS is ready. While the issuer is
 unreachable, authenticated requests get `503`.

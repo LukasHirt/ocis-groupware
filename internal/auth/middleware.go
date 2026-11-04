@@ -46,11 +46,12 @@ func ClaimsFromContext(ctx context.Context) (Claims, bool) {
 
 // Middleware requires a valid "Authorization: Bearer" token on every request
 // except the public paths, and stores the verified claims in the request
-// context.
+// context. Requests below /dav pass through untouched: the DAV handler
+// authenticates them itself, with an app password or a bearer token.
 func Middleware(v Verifier, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if isPublic(r.URL.Path) {
+			if p := routedPath(r); isPublic(p) || isDAV(p) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -77,15 +78,30 @@ func Middleware(v Verifier, logger *slog.Logger) func(http.Handler) http.Handler
 	}
 }
 
-// isPublic reports whether path is served without authentication. The path is
-// cleaned first so that "/web/../dav/..." can't borrow a public prefix.
+// routedPath returns the path the router picks a handler by: the escaped
+// path, cleaned. The router matches escaped segments, so "/graph/..%2Fweb/x"
+// goes to the handler of /graph/, and the decoded path must not decide here.
+// A path with dot segments or double slashes is redirected to its clean form
+// by the router, so "/web/../dav/..." can't borrow a public prefix either.
+// CONNECT is the exception: the router neither cleans nor redirects it, so
+// the server refuses CONNECT before this middleware runs.
+func routedPath(r *http.Request) string {
+	return path.Clean(r.URL.EscapedPath())
+}
+
+// isPublic reports whether the cleaned path p is served without
+// authentication.
 func isPublic(p string) bool {
-	p = path.Clean(p)
 	switch p {
 	case "/healthz", "/metrics":
 		return true
 	}
 	return strings.HasPrefix(p, "/.well-known/") || strings.HasPrefix(p, "/web/")
+}
+
+// isDAV reports whether the cleaned path p belongs to the DAV handler.
+func isDAV(p string) bool {
+	return p == "/dav" || strings.HasPrefix(p, "/dav/")
 }
 
 func bearerToken(r *http.Request) (string, bool) {

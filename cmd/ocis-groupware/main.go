@@ -15,7 +15,9 @@ import (
 
 	"github.com/owncloud/ocis-groupware/internal/auth"
 	"github.com/owncloud/ocis-groupware/internal/config"
+	"github.com/owncloud/ocis-groupware/internal/davmount"
 	"github.com/owncloud/ocis-groupware/internal/logging"
+	"github.com/owncloud/ocis-groupware/internal/principals"
 	"github.com/owncloud/ocis-groupware/internal/server"
 )
 
@@ -66,8 +68,23 @@ func run() error {
 		}
 	}()
 
+	registry, err := principals.NewRegistry(cfg.DataDir, store, store.OwnerDir, logger)
+	if err != nil {
+		return err
+	}
+	dav, wellKnown, err := davmount.New(davmount.Config{
+		Store:    store,
+		Registry: registry,
+		Verifier: verifier,
+		Logger:   logger,
+	})
+	if err != nil {
+		return err
+	}
+
 	srv := server.New(cfg.HTTPAddr, logger, auth.Middleware(verifier, logger),
-		server.WithReadiness(dataDirWritable(cfg.DataDir)))
+		server.WithReadiness(dataDirWritable(cfg.DataDir)),
+		server.WithDAV(dav, wellKnown))
 	return srv.Run(ctx)
 }
 

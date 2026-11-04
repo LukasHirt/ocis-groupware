@@ -20,13 +20,24 @@ type Server struct {
 type Option func(*options)
 
 type options struct {
-	ready func(context.Context) error
+	ready          func(context.Context) error
+	dav, wellKnown http.Handler
 }
 
 // WithReadiness sets the function /healthz calls on every request. A non-nil
 // error turns the response into a 503.
 func WithReadiness(fn func(context.Context) error) Option {
 	return func(o *options) { o.ready = fn }
+}
+
+// WithDAV mounts the DAV handler at /dav and /dav/, and the discovery handler
+// at /.well-known/caldav and /.well-known/carddav. The DAV handler must
+// authenticate requests itself: the authn middleware passes /dav through.
+func WithDAV(dav, wellKnown http.Handler) Option {
+	return func(o *options) {
+		o.dav = dav
+		o.wellKnown = wellKnown
+	}
 }
 
 // New builds a Server listening on addr, logging through logger. When authn is
@@ -41,11 +52,21 @@ func New(addr string, logger *slog.Logger, authn func(http.Handler) http.Handler
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthzHandler(logger, o.ready))
 	mux.HandleFunc("GET /metrics", metricsHandler())
+	if o.dav != nil {
+		// Both, because the mux would otherwise answer /dav with a redirect.
+		mux.Handle("/dav/", o.dav)
+		mux.Handle("/dav", o.dav)
+	}
+	if o.wellKnown != nil {
+		mux.Handle("/.well-known/caldav", o.wellKnown)
+		mux.Handle("/.well-known/carddav", o.wellKnown)
+	}
 
 	var handler http.Handler = mux
 	if authn != nil {
 		handler = authn(handler)
 	}
+	handler = refuseConnect(handler)
 
 	return &Server{
 		httpServer: &http.Server{
@@ -85,6 +106,26 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 }
 
+// allowedMethods is the Allow header of the 405 that answers CONNECT: the
+// methods the service's HTTP and DAV endpoints use.
+const allowedMethods = "OPTIONS, GET, HEAD, POST, PUT, DELETE, PROPFIND, PROPPATCH, REPORT, MKCOL, MKCALENDAR"
+
+// refuseConnect answers every CONNECT with 405 before it reaches the
+// authentication middleware or the router. The service never needs CONNECT,
+// and ServeMux neither cleans nor redirects CONNECT paths: it would route
+// "/graph/../dav/x" by the raw path while the middleware classifies the
+// cleaned one.
+func refuseConnect(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodConnect {
+			w.Header().Set("Allow", allowedMethods)
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func withRequestLogging(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -113,3 +154,7 @@ func (r *statusRecorder) WriteHeader(status int) {
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
 }
+
+// Unwrap returns the wrapped writer, so that http.ResponseController can
+// flush streamed DAV responses.
+func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
