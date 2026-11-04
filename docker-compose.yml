@@ -80,6 +80,7 @@ services:
       GROUPWARE_OIDC_CA_FILE: /certs/cert.pem
     volumes:
       - certs:/certs:ro
+      - groupware-data:/data
     depends_on:
       - ocis
       - traefik
@@ -103,5 +104,6 @@ services:
 
 volumes:
   certs:
+  groupware-data:
   ocis-config:
   ocis-data:

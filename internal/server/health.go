@@ -1,15 +1,26 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 )
 
-// healthzHandler reports liveness. There is no database yet to check for
-// readiness; once one exists, this handler can add a DB ping and return 503
-// on failure without changing the response shape.
-func healthzHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+// healthzHandler reports readiness. When ready is non-nil it runs on every
+// request. A failure is logged and produces a 503 with a generic body, so
+// paths and error text do not reach clients.
+func healthzHandler(logger *slog.Logger, ready func(context.Context) error) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if ready != nil {
+			if err := ready(r.Context()); err != nil {
+				logger.Error("readiness check failed", "error", err)
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
+				return
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

@@ -22,6 +22,8 @@ type Config struct {
 	// OIDCCAFile is an optional PEM bundle of extra CAs trusted when
 	// contacting the issuer.
 	OIDCCAFile string `yaml:"oidc_ca_file"`
+	// DataDir is the directory that holds all service state. It must be writable.
+	DataDir string `yaml:"data_dir"`
 }
 
 // Default returns the built-in configuration defaults.
@@ -64,6 +66,9 @@ func Load(path string) (Config, error) {
 	if v, ok := os.LookupEnv("GROUPWARE_OIDC_CA_FILE"); ok {
 		cfg.OIDCCAFile = v
 	}
+	if v, ok := os.LookupEnv("GROUPWARE_DATA_DIR"); ok {
+		cfg.DataDir = v
+	}
 
 	return cfg, nil
 }
@@ -78,6 +83,9 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.OIDCIssuer == "" {
 		return fmt.Errorf("config: oidc_issuer must be set (GROUPWARE_OIDC_ISSUER)")
+	}
+	if cfg.DataDir == "" {
+		return fmt.Errorf("config: data_dir must be set (GROUPWARE_DATA_DIR)")
 	}
 	return nil
 }

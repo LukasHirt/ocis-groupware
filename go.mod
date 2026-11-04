@@ -3,6 +3,7 @@ module github.com/owncloud/ocis-groupware
 go 1.26.10
 
 require (
+	github.com/LukasHirt/groupkit v0.1.0
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/go-jose/go-jose/v4 v4.1.6
 	github.com/prometheus/client_golang v1.25.0

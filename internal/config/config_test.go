@@ -51,6 +51,7 @@ func TestLoadEnvOverridesFileAndDefaults(t *testing.T) {
 	t.Setenv("GROUPWARE_OIDC_ISSUER", "https://idp.example.com")
 	t.Setenv("GROUPWARE_OIDC_AUDIENCE", "groupware")
 	t.Setenv("GROUPWARE_OIDC_CA_FILE", "/etc/groupware/ca.pem")
+	t.Setenv("GROUPWARE_DATA_DIR", "/var/lib/groupware")
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -70,6 +71,24 @@ func TestLoadEnvOverridesFileAndDefaults(t *testing.T) {
 	}
 	if cfg.OIDCCAFile != "/etc/groupware/ca.pem" {
 		t.Errorf("OIDCCAFile = %q, want env value", cfg.OIDCCAFile)
+	}
+	if cfg.DataDir != "/var/lib/groupware" {
+		t.Errorf("DataDir = %q, want env value", cfg.DataDir)
+	}
+}
+
+func TestLoadFileReadsDataDir(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "groupware.yaml")
+	if err := os.WriteFile(path, []byte("data_dir: /srv/groupware\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load(%q): unexpected error: %v", path, err)
+	}
+	if cfg.DataDir != "/srv/groupware" {
+		t.Errorf("DataDir = %q, want %q", cfg.DataDir, "/srv/groupware")
 	}
 }
 
@@ -101,10 +120,11 @@ func TestValidate(t *testing.T) {
 		cfg     Config
 		wantErr bool
 	}{
-		{"valid", Config{HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example"}, false},
-		{"empty addr", Config{HTTPAddr: "", LogLevel: "info", OIDCIssuer: "https://ocis.example"}, true},
-		{"bad level", Config{HTTPAddr: ":8080", LogLevel: "bogus", OIDCIssuer: "https://ocis.example"}, true},
-		{"missing issuer", Config{HTTPAddr: ":8080", LogLevel: "info"}, true},
+		{"valid", Config{HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, false},
+		{"empty addr", Config{HTTPAddr: "", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
+		{"bad level", Config{HTTPAddr: ":8080", LogLevel: "bogus", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
+		{"missing issuer", Config{HTTPAddr: ":8080", LogLevel: "info", DataDir: "/data"}, true},
+		{"missing data dir", Config{HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example"}, true},
 	}
 
 	for _, tc := range cases {
