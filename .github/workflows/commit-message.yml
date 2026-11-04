@@ -1,0 +1,12 @@
+name: Validate commit message
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    uses: owncloud/reusable-workflows/.github/workflows/semantic-git-message.yml@04aafe2344ca6b71fbef67c94785266563553b4c # main
