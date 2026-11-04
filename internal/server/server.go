@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/owncloud/ocis-groupware/internal/api"
 )
 
 // Server wraps the HTTP server serving ocis-groupware's endpoints.
@@ -22,6 +24,7 @@ type Option func(*options)
 type options struct {
 	ready          func(context.Context) error
 	dav, wellKnown http.Handler
+	appPasswords   http.Handler
 }
 
 // WithReadiness sets the function /healthz calls on every request. A non-nil
@@ -38,6 +41,12 @@ func WithDAV(dav, wellKnown http.Handler) Option {
 		o.dav = dav
 		o.wellKnown = wellKnown
 	}
+}
+
+// WithAppPasswords serves the app password API at /groupware/v1/app-passwords.
+// The handler runs behind the authn middleware, which requires a bearer token.
+func WithAppPasswords(h http.Handler) Option {
+	return func(o *options) { o.appPasswords = h }
 }
 
 // New builds a Server listening on addr, logging through logger. When authn is
@@ -60,6 +69,16 @@ func New(addr string, logger *slog.Logger, authn func(http.Handler) http.Handler
 	if o.wellKnown != nil {
 		mux.Handle("/.well-known/caldav", o.wellKnown)
 		mux.Handle("/.well-known/carddav", o.wellKnown)
+	}
+
+	if o.appPasswords != nil {
+		// No method in the patterns: the handler answers a wrong method with
+		// a JSON 405 and an Allow header, and the catch-all answers a JSON
+		// 404, both only after authentication.
+		mux.Handle("/groupware/v1/app-passwords", o.appPasswords)
+		mux.Handle("/groupware/v1/app-passwords/{id}", o.appPasswords)
+		mux.Handle("/groupware/", api.NotFound())
+		mux.Handle("/groupware", api.NotFound())
 	}
 
 	var handler http.Handler = mux

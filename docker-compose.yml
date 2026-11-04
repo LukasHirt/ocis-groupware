@@ -89,12 +89,15 @@ services:
       # Same-domain path routes for ocis-groupware; everything else falls through to oCIS.
       traefik.http.routers.ocis-groupware.rule: >-
         Host(`${OCIS_DOMAIN:-ocis.localhost}`) && (
+        Path(`/dav`) ||
+        Path(`/dav/`) ||
         PathPrefix(`/dav/calendars/`) ||
         PathPrefix(`/dav/addressbooks/`) ||
         PathPrefix(`/dav/principals/`) ||
         Path(`/.well-known/caldav`) ||
         Path(`/.well-known/carddav`) ||
         PathRegexp(`^/graph/v1\.0/me/(calendar|calendars|events|contact|contacts)`) ||
+        PathPrefix(`/groupware/`) ||
         PathPrefix(`/web/`) ||
         Path(`/healthz`) ||
         Path(`/metrics`))

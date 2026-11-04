@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -16,6 +17,7 @@ import (
 	"github.com/LukasHirt/groupkit/store/filestore"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/owncloud/ocis-groupware/internal/api"
 	"github.com/owncloud/ocis-groupware/internal/auth"
 	"github.com/owncloud/ocis-groupware/internal/davmount"
 	"github.com/owncloud/ocis-groupware/internal/principals"
@@ -190,7 +192,8 @@ func newDAVFixture(t *testing.T) *davFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := New(":0", testLogger(), auth.Middleware(v, testLogger()), WithDAV(dav, wk))
+	srv := New(":0", testLogger(), auth.Middleware(v, testLogger()), WithDAV(dav, wk),
+		WithAppPasswords(api.AppPasswords(reg, testLogger())))
 	return &davFixture{srv: srv, reg: reg, st: st, verifier: v}
 }
 
@@ -213,6 +216,9 @@ func (f *davFixture) do(method, target, authz, body string) *httptest.ResponseRe
 	}
 	if method == http.MethodPut {
 		req.Header.Set("Content-Type", "text/vcard")
+	}
+	if method == http.MethodPost {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	rec := httptest.NewRecorder()
 	f.srv.httpServer.Handler.ServeHTTP(rec, req)
@@ -425,5 +431,141 @@ func TestConnectGuardWithCatchAllRoutes(t *testing.T) {
 	guarded.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNoContent || len(reached) != 1 {
 		t.Fatalf("GET /graph/x: status = %d, reached %v", rec.Code, reached)
+	}
+}
+
+const appPasswordsPath = "/groupware/v1/app-passwords"
+
+// TestAppPasswordLifecycle creates an app password over the API and uses it
+// against the DAV handler, then revokes it, also after the credential cache
+// has seen it.
+func TestAppPasswordLifecycle(t *testing.T) {
+	f := newDAVFixture(t)
+	f.verifier.tokens["tok-alice"] = auth.Claims{Subject: "sub-alice", PreferredUsername: "alice"}
+
+	rec := f.do(http.MethodPost, appPasswordsPath, "Bearer tok-alice", `{"name":"Phone"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("POST: %d %q", rec.Code, rec.Body.String())
+	}
+	var created struct{ ID, Password string }
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	authz := basicAuth("alice", created.Password)
+
+	for i := 0; i < 2; i++ { // the second request is answered from the cache
+		if rec := f.do("PROPFIND", "/dav/", authz, ""); rec.Code != http.StatusMultiStatus {
+			t.Fatalf("PROPFIND %d with the new password: %d", i, rec.Code)
+		}
+	}
+
+	if rec := f.do(http.MethodDelete, appPasswordsPath+"/"+created.ID, "Bearer tok-alice", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("DELETE: %d %q", rec.Code, rec.Body.String())
+	}
+	rec = f.do("PROPFIND", "/dav/", authz, "")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("PROPFIND after revoke: %d, want 401", rec.Code)
+	}
+}
+
+// TestAppPasswordRoutes covers the routes' methods and the bearer-only rule.
+func TestAppPasswordRoutes(t *testing.T) {
+	f := newDAVFixture(t)
+	secret := f.user(t, "sub-alice", "alice")
+	f.verifier.tokens["tok-alice"] = auth.Claims{Subject: "sub-alice", PreferredUsername: "alice"}
+
+	tests := []struct {
+		name, method, path, authz string
+		want                      int
+	}{
+		{"list without credentials", "GET", appPasswordsPath, "", http.StatusUnauthorized},
+		{"create without credentials", "POST", appPasswordsPath, "", http.StatusUnauthorized},
+		{"delete without credentials", "DELETE", appPasswordsPath + "/x", "", http.StatusUnauthorized},
+		{"unknown path without credentials", "GET", "/groupware/v1/nope", "", http.StatusUnauthorized},
+		{"a Basic app password is not accepted", "GET", appPasswordsPath, basicAuth("alice", secret), http.StatusUnauthorized},
+		{"list", "GET", appPasswordsPath, "Bearer tok-alice", http.StatusOK},
+		{"trailing slash is not a route", "GET", appPasswordsPath + "/", "Bearer tok-alice", http.StatusNotFound},
+		{"PUT is not allowed", "PUT", appPasswordsPath, "Bearer tok-alice", http.StatusMethodNotAllowed},
+		{"HEAD is not allowed", "HEAD", appPasswordsPath, "Bearer tok-alice", http.StatusMethodNotAllowed},
+		{"OPTIONS is not allowed", "OPTIONS", appPasswordsPath, "Bearer tok-alice", http.StatusMethodNotAllowed},
+		{"unknown path with a token", "GET", "/groupware/v1/nope", "Bearer tok-alice", http.StatusNotFound},
+		{"bare prefix with a token", "GET", "/groupware", "Bearer tok-alice", http.StatusNotFound},
+		{"wrong method without credentials", "PUT", appPasswordsPath, "", http.StatusUnauthorized},
+		{"HEAD without credentials", "HEAD", appPasswordsPath, "", http.StatusUnauthorized},
+		{"PATCH is not allowed", "PATCH", appPasswordsPath + "/x", "Bearer tok-alice", http.StatusMethodNotAllowed},
+		{"GET of one id is not allowed", "GET", appPasswordsPath + "/x", "Bearer tok-alice", http.StatusMethodNotAllowed},
+		{"delete of an unknown id", "DELETE", appPasswordsPath + "/x", "Bearer tok-alice", http.StatusNotFound},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := f.do(tc.method, tc.path, tc.authz, "")
+			if rec.Code != tc.want {
+				t.Fatalf("status = %d, want %d; body %q", rec.Code, tc.want, rec.Body.String())
+			}
+			if tc.authz == "Bearer tok-alice" && tc.want != http.StatusOK && tc.want != http.StatusNoContent {
+				if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+					t.Errorf("Content-Type = %q, want application/json", ct)
+				}
+			}
+			if tc.want == http.StatusUnauthorized && !strings.HasPrefix(rec.Header().Get("WWW-Authenticate"), "Bearer") {
+				t.Errorf("WWW-Authenticate = %q", rec.Header().Get("WWW-Authenticate"))
+			}
+		})
+	}
+}
+
+// TestGroupwarePathTricks sends escaped paths that try to reach the API
+// without a bearer token, by way of a public prefix or the DAV handler, or to
+// reach another user's app passwords.
+func TestGroupwarePathTricks(t *testing.T) {
+	f := newDAVFixture(t)
+	alice := f.user(t, "sub-alice", "alice")
+	bob := f.user(t, "sub-bob", "bob")
+	f.verifier.tokens["tok-alice"] = auth.Claims{Subject: "sub-alice", PreferredUsername: "alice"}
+	bobs, err := f.reg.ListAppPasswords("sub-bob")
+	if err != nil || len(bobs) != 1 {
+		t.Fatalf("bob's passwords: %v %v", bobs, err)
+	}
+
+	var paths []string
+	for _, prefix := range []string{"/web", "/dav", "/.well-known"} {
+		paths = append(paths,
+			prefix+"/..%2Fgroupware/v1/app-passwords",
+			prefix+"/../groupware/v1/app-passwords",
+			prefix+"%2F..%2Fgroupware%2Fv1%2Fapp-passwords",
+		)
+	}
+	paths = append(paths,
+		"/groupware%2Fv1/app-passwords",
+		"/groupware/v1%2Fapp-passwords",
+		"/groupware//v1/app-passwords",
+		"//groupware/v1/app-passwords",
+		"/groupware/v1/x/../app-passwords",
+		"/groupware/v1/%2e%2e/v1/app-passwords",
+		"/GROUPWARE/v1/app-passwords",
+		"/groupware/v1/app-passwords%2F"+bobs[0].ID,
+		"/groupware/v1/app-passwords/..%2F"+bobs[0].ID,
+		"/groupware/v1/app-passwords/%2e%2e%2f"+bobs[0].ID,
+	)
+	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodDelete} {
+		for _, p := range paths {
+			for _, authz := range []string{"", basicAuth("alice", alice), basicAuth("bob", bob)} {
+				rec := f.do(method, p, authz, `{"name":"x"}`)
+				if rec.Code < 300 {
+					t.Errorf("%s %s (credentials: %t): status %d, body %q", method, p, authz != "", rec.Code, rec.Body.String())
+				}
+				if strings.Contains(rec.Body.String(), "app_passwords") || strings.Contains(rec.Body.String(), bobs[0].ID) {
+					t.Errorf("%s %s leaked: %q", method, p, rec.Body.String())
+				}
+			}
+		}
+	}
+
+	// With alice's token, no trick revokes bob's password.
+	for _, p := range paths {
+		f.do(http.MethodDelete, p, "Bearer tok-alice", "")
+	}
+	if left, _ := f.reg.ListAppPasswords("sub-bob"); len(left) != 1 {
+		t.Fatalf("bob's app password was revoked by a path trick")
 	}
 }
