@@ -55,7 +55,9 @@ to ocis-groupware; everything else goes to oCIS.
 task stack:up
 ```
 
-Then open <https://ocis.localhost> (self-signed certificate, `admin` / `admin`).
+Then open <https://ocis.localhost> (`admin` / `admin`). A `certs` service generates a
+self-signed certificate on each start. Your browser will warn about it; ocis-groupware
+trusts it through `GROUPWARE_OIDC_CA_FILE`.
 Set `OCIS_DOMAIN`, `OCIS_VERSION` or `IDM_ADMIN_PASSWORD` in the environment
 or a `.env` file to override the defaults. This stack is for development only.
 
