@@ -22,7 +22,6 @@ type Config struct {
 	// OIDCCAFile is an optional PEM bundle of extra CAs trusted when
 	// contacting the issuer.
 	OIDCCAFile string `yaml:"oidc_ca_file"`
-	DBDSN      string `yaml:"db_dsn"`
 }
 
 // Default returns the built-in configuration defaults.
@@ -64,9 +63,6 @@ func Load(path string) (Config, error) {
 	}
 	if v, ok := os.LookupEnv("GROUPWARE_OIDC_CA_FILE"); ok {
 		cfg.OIDCCAFile = v
-	}
-	if v, ok := os.LookupEnv("GROUPWARE_DB_DSN"); ok {
-		cfg.DBDSN = v
 	}
 
 	return cfg, nil

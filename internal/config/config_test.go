@@ -51,7 +51,6 @@ func TestLoadEnvOverridesFileAndDefaults(t *testing.T) {
 	t.Setenv("GROUPWARE_OIDC_ISSUER", "https://idp.example.com")
 	t.Setenv("GROUPWARE_OIDC_AUDIENCE", "groupware")
 	t.Setenv("GROUPWARE_OIDC_CA_FILE", "/etc/groupware/ca.pem")
-	t.Setenv("GROUPWARE_DB_DSN", "postgres://example")
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -71,9 +70,6 @@ func TestLoadEnvOverridesFileAndDefaults(t *testing.T) {
 	}
 	if cfg.OIDCCAFile != "/etc/groupware/ca.pem" {
 		t.Errorf("OIDCCAFile = %q, want env value", cfg.OIDCCAFile)
-	}
-	if cfg.DBDSN != "postgres://example" {
-		t.Errorf("DBDSN = %q, want env value", cfg.DBDSN)
 	}
 }
 
