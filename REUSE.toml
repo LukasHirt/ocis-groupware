@@ -1,0 +1,10 @@
+version = 1
+SPDX-PackageName = "ocis-groupware"
+SPDX-PackageSupplier = "ownCloud GmbH <devops@owncloud.com>"
+SPDX-PackageDownloadLocation = "https://github.com/owncloud/ocis-groupware"
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 ownCloud GmbH - A Kiteworks Company and ownCloud contributors"
+SPDX-License-Identifier = "Apache-2.0"
