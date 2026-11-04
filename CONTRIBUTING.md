@@ -63,6 +63,7 @@ Every PR is automatically checked for:
 
 - `go build`, `go vet`, `go test -race`, `golangci-lint run` and a Docker build
 - `govulncheck` for known vulnerabilities in the dependencies
+- `trivy` findings of high or critical severity in the built binary and the container image
 - REUSE compliance (`reuse lint`)
 - `zizmor` findings in the GitHub Actions workflows
 - DCO sign-off on every commit (the [DCO app](https://probot.github.io/apps/dco/))
