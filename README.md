@@ -90,6 +90,27 @@ ocis-groupware contacts the issuer on the first authenticated request, and retri
 a failure, so it can start before oCIS is ready. While the issuer is
 unreachable, authenticated requests get `503`.
 
+## Clients
+
+Tried by hand against the local stack, with an app password and the oCIS user `admin`:
+
+- **Apple Contacts** (macOS 26.6): add a CardDAV account with manual setup, the server address
+  `https://ocis.localhost`, the user name and the app password. Creating, renaming and deleting
+  a contact each reach the server, and the other client shows each change once.
+- **Apple Calendar** (macOS 26.6): the calendar syncs and an edited event comes through. Creating
+  and deleting events in it were not checked.
+- **Thunderbird** (contacts): the address book picks up what Apple Contacts changes. Calendars in
+  Thunderbird were not checked against the stack. groupkit's own checks cover Thunderbird against
+  its example server.
+
+Apple clients need HTTPS with a certificate the Mac trusts, and the certificate has to allow server
+authentication; the local stack's certificate does. The `certs` service makes a new certificate each
+time it runs, so after a restart that recreates it, trust the new one again. Until you do, Apple's
+sync fails with a certificate error and Calendar reports that it cannot update.
+
+A contact group made in Apple Contacts is stored as a card marked as a group. Thunderbird has no
+group support and shows it as a contact with a garbled name.
+
 ## Docker
 
 ```sh
