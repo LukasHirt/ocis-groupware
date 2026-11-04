@@ -51,6 +51,41 @@ clients sign in. A request under `/dav` without valid credentials gets `401` wit
 calendars and address books. A user's first request with a bearer token creates
 their default address book and calendar.
 
+## App passwords
+
+DAV clients sign in with an app password instead of an OIDC token. Create one with a
+bearer token for your user (`$TOKEN`):
+
+```sh
+curl -X POST https://ocis.localhost/groupware/v1/app-passwords \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name": "Phone"}'
+```
+
+The answer has status `201` and carries the `id`, the `name`, `created_at`, `expires_at`
+and the `password`. **The password is shown only once**: it is stored as a hash, and no
+request returns it again. An app password is valid for 365 days. A user can have at most
+50, and a name has at most 100 bytes.
+
+```sh
+# List your app passwords (without their secrets)
+curl -H "Authorization: Bearer $TOKEN" https://ocis.localhost/groupware/v1/app-passwords
+
+# Revoke one; clients that use it are refused from then on
+curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+  https://ocis.localhost/groupware/v1/app-passwords/<id>
+```
+
+The endpoint accepts bearer tokens only; an app password does not work there. A user
+sees and revokes only their own app passwords, and revoking an id that does not exist or
+belongs to someone else answers `404`.
+
+To add an account in a CalDAV or CardDAV client, enter the server address (for example
+`https://ocis.localhost`), your oCIS username (`preferred_username`) and the app password.
+Clients that discover the account themselves find `/dav/` through `/.well-known/caldav` and
+`/.well-known/carddav`. Use a separate app password for each device, so you can revoke one
+without touching the others.
+
 ocis-groupware contacts the issuer on the first authenticated request, and retries after
 a failure, so it can start before oCIS is ready. While the issuer is
 unreachable, authenticated requests get `503`.

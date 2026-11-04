@@ -52,6 +52,9 @@ var (
 	ErrInvalidCredentials = errors.New("principals: invalid credentials")
 	// ErrExpired means the password was right but its lifetime is over.
 	ErrExpired = errors.New("principals: app password expired")
+	// ErrInvalidAppPasswordName means the name given to IssueAppPassword is
+	// empty, too long or contains characters that are not allowed.
+	ErrInvalidAppPasswordName = errors.New("principals: invalid app password name")
 	// ErrTooManyAppPasswords means the principal has MaxAppPasswords app
 	// passwords already and must revoke one before issuing another.
 	ErrTooManyAppPasswords = fmt.Errorf("principals: a principal can have at most %d app passwords", MaxAppPasswords)
@@ -463,13 +466,13 @@ func newDummyHash(cost int) ([]byte, error) {
 func validateAppPasswordName(name string) error {
 	switch {
 	case strings.TrimSpace(name) == "":
-		return errors.New("principals: app password name is empty")
+		return fmt.Errorf("%w: it is empty", ErrInvalidAppPasswordName)
 	case len(name) > maxAppPasswordName:
-		return fmt.Errorf("principals: app password name is longer than %d bytes", maxAppPasswordName)
+		return fmt.Errorf("%w: it is longer than %d bytes", ErrInvalidAppPasswordName, maxAppPasswordName)
 	case !utf8.ValidString(name):
-		return errors.New("principals: app password name is not valid UTF-8")
+		return fmt.Errorf("%w: it is not valid UTF-8", ErrInvalidAppPasswordName)
 	case strings.ContainsFunc(name, func(c rune) bool { return unicode.IsControl(c) || unicode.Is(unicode.Cf, c) }):
-		return errors.New("principals: app password name contains a control or format character")
+		return fmt.Errorf("%w: it contains a control or format character", ErrInvalidAppPasswordName)
 	}
 	return nil
 }

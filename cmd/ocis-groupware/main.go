@@ -13,6 +13,7 @@ import (
 
 	"github.com/LukasHirt/groupkit/store/filestore"
 
+	"github.com/owncloud/ocis-groupware/internal/api"
 	"github.com/owncloud/ocis-groupware/internal/auth"
 	"github.com/owncloud/ocis-groupware/internal/config"
 	"github.com/owncloud/ocis-groupware/internal/davmount"
@@ -84,7 +85,8 @@ func run() error {
 
 	srv := server.New(cfg.HTTPAddr, logger, auth.Middleware(verifier, logger),
 		server.WithReadiness(dataDirWritable(cfg.DataDir)),
-		server.WithDAV(dav, wellKnown))
+		server.WithDAV(dav, wellKnown),
+		server.WithAppPasswords(api.AppPasswords(registry, logger)))
 	return srv.Run(ctx)
 }
 

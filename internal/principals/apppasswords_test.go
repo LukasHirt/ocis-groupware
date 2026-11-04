@@ -231,14 +231,14 @@ func TestIssueAppPasswordRejectsInvalidInput(t *testing.T) {
 		wantErr error
 	}{
 		{"unknown principal", "sub-9", "Phone", 0, ErrNotFound},
-		{"empty name", "sub-1", "", 0, nil},
-		{"blank name", "sub-1", " \t ", 0, nil},
-		{"name with right-to-left override", "sub-1", "Phone\u202egnp", 0, nil},
-		{"name with zero width joiner", "sub-1", "Ph\u200done", 0, nil},
-		{"name with BOM", "sub-1", "\ufeffPhone", 0, nil},
-		{"name too long", "sub-1", strings.Repeat("n", 101), 0, nil},
-		{"name not UTF-8", "sub-1", "Ph\xffone", 0, nil},
-		{"name with control character", "sub-1", "Ph\none", 0, nil},
+		{"empty name", "sub-1", "", 0, ErrInvalidAppPasswordName},
+		{"blank name", "sub-1", " \t ", 0, ErrInvalidAppPasswordName},
+		{"name with right-to-left override", "sub-1", "Phone\u202egnp", 0, ErrInvalidAppPasswordName},
+		{"name with zero width joiner", "sub-1", "Ph\u200done", 0, ErrInvalidAppPasswordName},
+		{"name with BOM", "sub-1", "\ufeffPhone", 0, ErrInvalidAppPasswordName},
+		{"name too long", "sub-1", strings.Repeat("n", 101), 0, ErrInvalidAppPasswordName},
+		{"name not UTF-8", "sub-1", "Ph\xffone", 0, ErrInvalidAppPasswordName},
+		{"name with control character", "sub-1", "Ph\none", 0, ErrInvalidAppPasswordName},
 		{"negative lifetime", "sub-1", "Phone", -time.Second, nil},
 	}
 	for _, tt := range tests {

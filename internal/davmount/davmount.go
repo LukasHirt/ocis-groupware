@@ -16,6 +16,7 @@ import (
 
 	"github.com/owncloud/ocis-groupware/internal/auth"
 	"github.com/owncloud/ocis-groupware/internal/principals"
+	"github.com/owncloud/ocis-groupware/internal/provision"
 )
 
 const (
@@ -182,18 +183,11 @@ func (a *authenticator) bearer(ctx context.Context, token string) (identity, int
 		return identity{}, http.StatusUnauthorized
 	}
 
-	username := claims.PreferredUsername
-	p, _, err := a.reg.Provision(ctx, claims.Subject, username, username)
-	switch {
-	case err == nil:
-		return identity{sub: p.Sub, username: p.Username}, 0
-	case errors.Is(err, store.ErrInvalidName):
-		a.logger.Warn("token names a user that cannot be served", "sub", claims.Subject, "error", err)
-		return identity{}, http.StatusForbidden
-	default:
-		a.logger.Error("could not provision principal", "sub", claims.Subject, "error", err)
-		return identity{}, http.StatusInternalServerError
+	p, status := provision.Principal(ctx, a.reg, claims, a.logger)
+	if status != 0 {
+		return identity{}, status
 	}
+	return identity{sub: p.Sub, username: p.Username}, 0
 }
 
 // cleanPath reports whether an escaped request path has no empty, "." or ".."
