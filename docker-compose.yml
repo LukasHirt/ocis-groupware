@@ -20,7 +20,9 @@ services:
         d=${OCIS_DOMAIN:-ocis.localhost}
         openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
           -keyout /certs/key.pem -out /certs/cert.pem \
-          -subj "/CN=$$d" -addext "subjectAltName=DNS:$$d"
+          -subj "/CN=$$d" -addext "subjectAltName=DNS:$$d" \
+          -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+          -addext "extendedKeyUsage=serverAuth"
         chmod 644 /certs/cert.pem
         printf '%s\n' 'tls:' '  stores:' '    default:' '      defaultCertificate:' \
           '        certFile: /certs/cert.pem' '        keyFile: /certs/key.pem' \
