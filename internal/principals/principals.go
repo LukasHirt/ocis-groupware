@@ -20,6 +20,7 @@ import (
 
 	"github.com/LukasHirt/groupkit"
 	"github.com/LukasHirt/groupkit/store"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // principalFileName is the name of the file that holds a principal, inside
@@ -66,8 +67,11 @@ func (rec record) principal() Principal {
 	return Principal{Sub: rec.Sub, Username: rec.Username, DisplayName: rec.DisplayName, CreatedAt: rec.CreatedAt}
 }
 
-// tempPrefix starts the name of a principal file that is being written.
-const tempPrefix = "." + principalFileName + ".tmp-"
+// tempPrefixes start the names of files that are being written.
+var tempPrefixes = []string{
+	"." + principalFileName + ".tmp-",
+	"." + appPasswordsFileName + ".tmp-",
+}
 
 // Registry keeps principals in <ownerDir(sub)>/principal.json and a username
 // index in memory. It is safe for concurrent use.
@@ -86,6 +90,20 @@ type Registry struct {
 	mu         sync.RWMutex
 	principals map[string]record // by sub
 	byUsername map[string]string // username to sub
+
+	// App passwords, see apppasswords.go.
+	bcryptCost int
+	compare    func(hash, password []byte) error
+	cache      *credentialCache
+	// dummyHash is compared against when a check has no stored hash, so
+	// that it costs the same as checking a wrong password.
+	dummyHash []byte
+	appsMu    sync.Mutex
+	apps      map[string]*appSet // by sub
+	// beforeCachePut, if set, runs in VerifyBasic between the last check of
+	// the app password and storing it in the cache. Tests use it to revoke
+	// the password in exactly that gap.
+	beforeCachePut func()
 }
 
 // Option configures a Registry.
@@ -121,10 +139,22 @@ func NewRegistry(dataDir string, st store.Store, ownerDir func(owner string) str
 		syncDir:    syncDir,
 		principals: make(map[string]record),
 		byUsername: make(map[string]string),
+		bcryptCost: defaultBcryptCost,
+		compare:    bcrypt.CompareHashAndPassword,
+		cache:      newCredentialCache(cacheTTL),
+		apps:       make(map[string]*appSet),
 	}
 	for _, opt := range opts {
 		opt(r)
 	}
+	if r.bcryptCost < bcrypt.MinCost || r.bcryptCost > bcrypt.MaxCost {
+		return nil, fmt.Errorf("principals: bcrypt cost %d is outside %d to %d", r.bcryptCost, bcrypt.MinCost, bcrypt.MaxCost)
+	}
+	dummy, err := newDummyHash(r.bcryptCost)
+	if err != nil {
+		return nil, err
+	}
+	r.dummyHash = dummy
 	if err := r.load(); err != nil {
 		return nil, err
 	}
@@ -185,8 +215,8 @@ func (r *Registry) load() error {
 	return nil
 }
 
-// removeTempFiles deletes temporary principal files in dir. Only a crash
-// during a write leaves them behind.
+// removeTempFiles deletes temporary principal and app password files in
+// dir. Only a crash during a write leaves them behind.
 func (r *Registry) removeTempFiles(dir string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -194,15 +224,15 @@ func (r *Registry) removeTempFiles(dir string) {
 		return
 	}
 	for _, e := range entries {
-		if !strings.HasPrefix(e.Name(), tempPrefix) {
+		if !slices.ContainsFunc(tempPrefixes, func(p string) bool { return strings.HasPrefix(e.Name(), p) }) {
 			continue
 		}
 		path := filepath.Join(dir, e.Name())
 		if err := os.Remove(path); err != nil {
-			r.logger.Warn("could not remove temporary principal file", "path", path, "error", err)
+			r.logger.Warn("could not remove temporary file", "path", path, "error", err)
 			continue
 		}
-		r.logger.Info("removed temporary principal file left by a crash", "path", path)
+		r.logger.Info("removed temporary file left by a crash", "path", path)
 	}
 }
 
