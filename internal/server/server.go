@@ -91,6 +91,13 @@ func New(addr string, logger *slog.Logger, authn func(http.Handler) http.Handler
 		httpServer: &http.Server{
 			Addr:    addr,
 			Handler: withRequestLogging(logger, handler),
+			// Without these, a client that opens a connection and sends nothing, or
+			// trickles a request, holds the connection and its goroutine forever.
+			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       2 * time.Minute,
+			WriteTimeout:      5 * time.Minute,
+			IdleTimeout:       2 * time.Minute,
+			MaxHeaderBytes:    64 << 10,
 		},
 		logger: logger,
 		addr:   addr,

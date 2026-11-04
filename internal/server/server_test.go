@@ -569,3 +569,26 @@ func TestGroupwarePathTricks(t *testing.T) {
 		t.Fatalf("bob's app password was revoked by a path trick")
 	}
 }
+
+func TestServerSetsTimeoutsAndHeaderLimit(t *testing.T) {
+	s := New(":0", testLogger(), nil)
+
+	cases := []struct {
+		name string
+		got  time.Duration
+		want time.Duration
+	}{
+		{"ReadHeaderTimeout", s.httpServer.ReadHeaderTimeout, 10 * time.Second},
+		{"ReadTimeout", s.httpServer.ReadTimeout, 2 * time.Minute},
+		{"WriteTimeout", s.httpServer.WriteTimeout, 5 * time.Minute},
+		{"IdleTimeout", s.httpServer.IdleTimeout, 2 * time.Minute},
+	}
+	for _, tc := range cases {
+		if tc.got != tc.want {
+			t.Errorf("%s = %v, want %v", tc.name, tc.got, tc.want)
+		}
+	}
+	if s.httpServer.MaxHeaderBytes != 64<<10 {
+		t.Errorf("MaxHeaderBytes = %d, want %d", s.httpServer.MaxHeaderBytes, 64<<10)
+	}
+}
