@@ -104,22 +104,30 @@ func (v *OIDCVerifier) Verify(ctx context.Context, rawToken string) (Claims, err
 
 	var extra struct {
 		PreferredUsername string `json:"preferred_username"`
-		// oCIS access tokens carry the login name here instead of in
-		// preferred_username.
+		Name              string `json:"name"`
+		// oCIS access tokens carry no preferred_username. The identity is in a
+		// claim whose name is literally "lg.i" (a flat key with a dot): un is the
+		// login name and dn the display name.
 		Login struct {
-			Identity struct {
-				Username string `json:"un"`
-			} `json:"i"`
-		} `json:"lg"`
+			Username    string `json:"un"`
+			DisplayName string `json:"dn"`
+		} `json:"lg.i"`
 	}
 	if err := token.Claims(&extra); err != nil {
 		return Claims{}, fmt.Errorf("%w: decoding claims: %w", ErrInvalidToken, err)
 	}
-	username := extra.PreferredUsername
-	if username == "" {
-		username = extra.Login.Identity.Username
+	claims := Claims{
+		Subject:           token.Subject,
+		PreferredUsername: extra.PreferredUsername,
+		DisplayName:       extra.Name,
 	}
-	return Claims{Subject: token.Subject, PreferredUsername: username}, nil
+	if claims.PreferredUsername == "" {
+		claims.PreferredUsername = extra.Login.Username
+	}
+	if claims.DisplayName == "" {
+		claims.DisplayName = extra.Login.DisplayName
+	}
+	return claims, nil
 }
 
 // idTokenVerifier returns the cached go-oidc verifier, running discovery

@@ -151,10 +151,11 @@ func TestOIDCVerifierUsernameFallsBackToOCISLoginClaim(t *testing.T) {
 	idp := newFakeIdP(t, false)
 	v := newVerifier(t, OIDCConfig{Issuer: idp.URL})
 
-	// oCIS access tokens carry no preferred_username; the login name sits
-	// in lg.i.un.
+	// oCIS access tokens carry no preferred_username. The identity sits in a
+	// claim whose name is literally "lg.i" (a flat key with a dot, not a nested
+	// object): un is the login name and dn the display name.
 	got, err := v.Verify(context.Background(), idp.token(t, map[string]any{
-		"lg": map[string]any{"i": map[string]any{"un": "einstein"}},
+		"lg.i": map[string]any{"id": "ownCloudUUID=1", "un": "einstein", "dn": "Albert Einstein"},
 	}))
 	if err != nil {
 		t.Fatalf("Verify: %v", err)
@@ -162,16 +163,33 @@ func TestOIDCVerifierUsernameFallsBackToOCISLoginClaim(t *testing.T) {
 	if got.PreferredUsername != "einstein" {
 		t.Errorf("PreferredUsername = %q, want %q", got.PreferredUsername, "einstein")
 	}
+	if got.DisplayName != "Albert Einstein" {
+		t.Errorf("DisplayName = %q, want %q", got.DisplayName, "Albert Einstein")
+	}
 
+	// The standard claims win when both are present.
 	got, err = v.Verify(context.Background(), idp.token(t, map[string]any{
 		"preferred_username": "alice",
-		"lg":                 map[string]any{"i": map[string]any{"un": "einstein"}},
+		"name":               "Alice Liddell",
+		"lg.i":               map[string]any{"un": "einstein", "dn": "Albert Einstein"},
 	}))
 	if err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
 	if got.PreferredUsername != "alice" {
 		t.Errorf("PreferredUsername = %q, want preferred_username to win", got.PreferredUsername)
+	}
+	if got.DisplayName != "Alice Liddell" {
+		t.Errorf("DisplayName = %q, want the name claim to win", got.DisplayName)
+	}
+
+	// A token with neither source has no names; the caller decides what to do.
+	got, err = v.Verify(context.Background(), idp.token(t, map[string]any{}))
+	if err != nil {
+		t.Fatalf("Verify: %v", err)
+	}
+	if got.PreferredUsername != "" || got.DisplayName != "" {
+		t.Errorf("names = %q, %q, want none", got.PreferredUsername, got.DisplayName)
 	}
 }
 

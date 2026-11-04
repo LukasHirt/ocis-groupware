@@ -56,6 +56,17 @@ func TestPrincipalUsesUsernameAsDisplayName(t *testing.T) {
 	}
 }
 
+func TestPrincipalUsesTheClaimsDisplayName(t *testing.T) {
+	reg, _, _, logger := fixture(t)
+	p, status := Principal(context.Background(), reg, auth.Claims{Subject: "sub-1", PreferredUsername: "alice", DisplayName: "Alice Liddell"}, logger)
+	if status != 0 {
+		t.Fatalf("status %d", status)
+	}
+	if p.Username != "alice" || p.DisplayName != "Alice Liddell" {
+		t.Errorf("principal %+v", p)
+	}
+}
+
 func TestPrincipalInvalidNameIsForbidden(t *testing.T) {
 	reg, _, logs, logger := fixture(t)
 	_, status := Principal(context.Background(), reg, auth.Claims{Subject: "sub-1", PreferredUsername: "a/b"}, logger)

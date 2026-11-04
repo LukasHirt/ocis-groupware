@@ -17,14 +17,18 @@ import (
 )
 
 // Principal provisions the principal of verified claims and returns it, which
-// creates it with its default collections on first use. The username and the
-// display name are both the preferred username.
+// creates it with its default collections on first use. The display name is the
+// one in the claims, or the username when the token has none.
 //
 // On failure it returns the HTTP status to refuse the request with: 403 for a
 // name that cannot be served, 500 for anything else. The faults are logged.
 func Principal(ctx context.Context, reg *principals.Registry, claims auth.Claims, logger *slog.Logger) (principals.Principal, int) {
 	username := claims.PreferredUsername
-	p, _, err := reg.Provision(ctx, claims.Subject, username, username)
+	displayName := claims.DisplayName
+	if displayName == "" {
+		displayName = username
+	}
+	p, _, err := reg.Provision(ctx, claims.Subject, username, displayName)
 	switch {
 	case err == nil:
 		return p, 0

@@ -27,8 +27,13 @@ type Claims struct {
 	// Subject is the stable user identifier (the "sub" claim). All ownership
 	// keys on it.
 	Subject string
-	// PreferredUsername is for display only.
+	// PreferredUsername is the login name: the preferred_username claim, or for
+	// oCIS access tokens the login name in the lg.i claim. Empty when the token
+	// carries neither.
 	PreferredUsername string
+	// DisplayName is the name to show for the user: the name claim, or for oCIS
+	// access tokens the display name in the lg.i claim. It can be empty.
+	DisplayName string
 }
 
 // Verifier checks a raw bearer token and returns the identity it carries.
