@@ -19,6 +19,7 @@ import (
 	"github.com/LukasHirt/groupkit/store"
 	"github.com/LukasHirt/groupkit/store/filestore"
 	"github.com/LukasHirt/groupkit/store/memory"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // testOwnerDir maps an owner to a directory below dataDir the way a file
@@ -76,7 +77,7 @@ func (f fixture) open(t *testing.T, logger *slog.Logger) *Registry {
 	if logger == nil {
 		logger = discardLogger()
 	}
-	r, err := NewRegistry(f.dataDir, f.st, testOwnerDir(f.dataDir), logger)
+	r, err := NewRegistry(f.dataDir, f.st, testOwnerDir(f.dataDir), logger, WithBcryptCost(bcrypt.MinCost))
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}

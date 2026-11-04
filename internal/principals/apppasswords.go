@@ -1,0 +1,517 @@
+package principals
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base32"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+	"unicode"
+	"unicode/utf8"
+
+	"golang.org/x/crypto/bcrypt"
+)
+
+// appPasswordsFileName is the file, in the owner's directory, that holds a
+// principal's app passwords.
+const appPasswordsFileName = "app_passwords.json"
+
+const (
+	// defaultBcryptCost is the bcrypt cost of new app passwords.
+	defaultBcryptCost = 10
+	// defaultAppPasswordLifetime applies when IssueAppPassword gets no
+	// lifetime.
+	defaultAppPasswordLifetime = 365 * 24 * time.Hour
+	// lastUsedInterval is the least time between two writes of an app
+	// password's last use.
+	lastUsedInterval = 10 * time.Minute
+	// maxAppPasswordName is the longest name of an app password, in bytes.
+	maxAppPasswordName = 100
+	// secretBytes is the number of random bytes in an app password.
+	secretBytes = 20
+	// secretLen is the length of an app password: secretBytes in base32.
+	secretLen = 32
+	// MaxAppPasswords is the most app passwords a principal can have,
+	// expired ones included.
+	MaxAppPasswords = 50
+)
+
+var (
+	// ErrInvalidCredentials means the username or the password is wrong.
+	// The two cases are not told apart.
+	ErrInvalidCredentials = errors.New("principals: invalid credentials")
+	// ErrExpired means the password was right but its lifetime is over.
+	ErrExpired = errors.New("principals: app password expired")
+	// ErrTooManyAppPasswords means the principal has MaxAppPasswords app
+	// passwords already and must revoke one before issuing another.
+	ErrTooManyAppPasswords = fmt.Errorf("principals: a principal can have at most %d app passwords", MaxAppPasswords)
+)
+
+// secretEncoding writes app passwords and ids: lowercase base32 without
+// padding, which is easy to type on a phone.
+var secretEncoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567").WithPadding(base32.NoPadding)
+
+// AppPassword describes an app password. The secret itself is shown once,
+// by IssueAppPassword, and kept only as a bcrypt hash.
+type AppPassword struct {
+	ID, Name   string
+	CreatedAt  time.Time
+	ExpiresAt  time.Time
+	LastUsedAt *time.Time
+}
+
+// appRecord is one app password in app_passwords.json.
+type appRecord struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Hash is the bcrypt hash of the secret.
+	Hash string `json:"hash"`
+	// Hint is the first two bytes of the secret's SHA-256, in hex. A check
+	// compares the bcrypt hash only of the records whose hint matches, so it
+	// costs one bcrypt compare however many app passwords the principal has,
+	// the same as for an unknown user. Sixteen bits of a hash of a 160 bit
+	// random secret give nothing useful away.
+	//
+	// The hint is part of the file format: a record without a hint, or with
+	// a wrong one, is never compared, so its password can never be verified.
+	Hint       string     `json:"hint"`
+	CreatedAt  time.Time  `json:"created_at"`
+	ExpiresAt  time.Time  `json:"expires_at"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+}
+
+func (rec appRecord) appPassword() AppPassword {
+	ap := AppPassword{ID: rec.ID, Name: rec.Name, CreatedAt: rec.CreatedAt, ExpiresAt: rec.ExpiresAt}
+	if rec.LastUsedAt != nil {
+		t := *rec.LastUsedAt
+		ap.LastUsedAt = &t
+	}
+	return ap
+}
+
+// appPasswordsFile is the content of app_passwords.json.
+type appPasswordsFile struct {
+	AppPasswords []appRecord `json:"app_passwords"`
+}
+
+// appSet holds one principal's app passwords in memory. mu serializes the
+// changes to the principal's file. records is replaced on every change and
+// never modified in place, so a copy of the slice taken under mu stays valid.
+type appSet struct {
+	mu      sync.Mutex
+	loaded  bool
+	records []appRecord
+}
+
+// WithClock sets the clock the registry reads the time from.
+func WithClock(now func() time.Time) Option {
+	return func(r *Registry) {
+		if now != nil {
+			r.now = now
+		}
+	}
+}
+
+// WithBcryptCost sets the bcrypt cost of new app passwords and of the
+// comparison made for unknown users. The default is 10. NewRegistry rejects
+// a cost outside bcrypt.MinCost to bcrypt.MaxCost.
+//
+// Stored hashes keep the cost they were made with; only the comparison for
+// unknown users follows a changed cost. Until the old app passwords are
+// replaced, a wrong guess that happens to share a stored password's hint
+// can take a different time than a guess for an unknown user.
+func WithBcryptCost(cost int) Option {
+	return func(r *Registry) {
+		r.bcryptCost = cost
+	}
+}
+
+// IssueAppPassword creates an app password for the principal and returns it
+// together with its secret. The secret is not stored and cannot be shown
+// again. A ttl of 0 means 365 days. It returns ErrTooManyAppPasswords when
+// the principal has MaxAppPasswords already.
+func (r *Registry) IssueAppPassword(ctx context.Context, sub, name string, ttl time.Duration) (AppPassword, string, error) {
+	if err := ctx.Err(); err != nil {
+		return AppPassword{}, "", err
+	}
+	if _, err := r.Get(sub); err != nil {
+		return AppPassword{}, "", fmt.Errorf("principals: issue app password: %w", err)
+	}
+	if err := validateAppPasswordName(name); err != nil {
+		return AppPassword{}, "", err
+	}
+	switch {
+	case ttl < 0:
+		return AppPassword{}, "", errors.New("principals: app password lifetime is negative")
+	case ttl == 0:
+		ttl = defaultAppPasswordLifetime
+	}
+
+	secret, err := newSecret()
+	if err != nil {
+		return AppPassword{}, "", err
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(secret), r.bcryptCost)
+	if err != nil {
+		return AppPassword{}, "", fmt.Errorf("principals: hash app password: %w", err)
+	}
+	id, err := newID()
+	if err != nil {
+		return AppPassword{}, "", err
+	}
+	now := r.now().UTC()
+	rec := appRecord{
+		ID:        id,
+		Name:      name,
+		Hash:      string(hash),
+		Hint:      secretHint(secret),
+		CreatedAt: now,
+		ExpiresAt: now.Add(ttl),
+	}
+
+	set := r.appSet(sub)
+	set.mu.Lock()
+	defer set.mu.Unlock()
+	if err := r.loadAppPasswords(sub, set); err != nil {
+		return AppPassword{}, "", err
+	}
+	if len(set.records) >= MaxAppPasswords {
+		return AppPassword{}, "", ErrTooManyAppPasswords
+	}
+	records := append(slices.Clone(set.records), rec)
+	if err := r.writeAppPasswords(sub, records); err != nil {
+		return AppPassword{}, "", err
+	}
+	set.records = records
+	return rec.appPassword(), secret, nil
+}
+
+// ListAppPasswords returns the principal's app passwords, oldest first,
+// expired ones included. It returns ErrNotFound for an unknown principal.
+func (r *Registry) ListAppPasswords(sub string) ([]AppPassword, error) {
+	if _, err := r.Get(sub); err != nil {
+		return nil, fmt.Errorf("principals: list app passwords: %w", err)
+	}
+	set := r.appSet(sub)
+	set.mu.Lock()
+	defer set.mu.Unlock()
+	if err := r.loadAppPasswords(sub, set); err != nil {
+		return nil, err
+	}
+	list := make([]AppPassword, 0, len(set.records))
+	for _, rec := range set.records {
+		list = append(list, rec.appPassword())
+	}
+	return list, nil
+}
+
+// RevokeAppPassword deletes an app password of the principal. Credentials
+// of the principal that were verified recently are forgotten, so the next
+// request with the revoked password fails. It returns ErrNotFound if the
+// principal has no app password with that id.
+func (r *Registry) RevokeAppPassword(ctx context.Context, sub, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if _, err := r.Get(sub); err != nil {
+		return fmt.Errorf("principals: revoke app password: %w", err)
+	}
+	set := r.appSet(sub)
+	set.mu.Lock()
+	err := r.removeAppPassword(sub, id, set)
+	set.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	r.cache.invalidate(sub)
+	return nil
+}
+
+// removeAppPassword deletes an app password. The caller holds set.mu.
+func (r *Registry) removeAppPassword(sub, id string, set *appSet) error {
+	if err := r.loadAppPasswords(sub, set); err != nil {
+		return err
+	}
+	i := slices.IndexFunc(set.records, func(rec appRecord) bool { return rec.ID == id })
+	if i < 0 {
+		return fmt.Errorf("principals: app password: %w", ErrNotFound)
+	}
+	records := slices.Delete(slices.Clone(set.records), i, i+1)
+	if err := r.writeAppPasswords(sub, records); err != nil {
+		return err
+	}
+	set.records = records
+	return nil
+}
+
+// VerifyBasic checks the username and app password of an HTTP Basic
+// Authorization header and returns the principal.
+//
+// It returns ErrInvalidCredentials for an unknown username and for a wrong
+// password alike, and both cost one bcrypt compare. ErrExpired means the
+// password was right but has expired. Other errors mean the app passwords
+// could not be read. No error contains the password.
+//
+// A credential that was verified in the last five minutes is accepted
+// without a bcrypt compare, unless its app password expired or was revoked
+// since or the username moved to another principal.
+func (r *Registry) VerifyBasic(ctx context.Context, username, password string) (Principal, error) {
+	if err := ctx.Err(); err != nil {
+		return Principal{}, err
+	}
+	now := r.now()
+	key := r.cache.key(basicHeader(username, password))
+	if e, ok := r.cache.get(key, now); ok {
+		if p, ok := r.principalByName(e.sub, username); ok && r.touch(e.sub, e.id, now) {
+			return p, nil
+		}
+	}
+
+	sub, ok := r.LookupUsername(username)
+	if !ok || !validSecret(password) {
+		r.dummyCompare()
+		return Principal{}, ErrInvalidCredentials
+	}
+	// Read the generation before the app passwords, so that a revoke that
+	// happens after the read keeps this verification out of the cache.
+	gen := r.cache.generation(sub)
+	records, err := r.appPasswordRecords(sub)
+	if err != nil {
+		r.dummyCompare()
+		return Principal{}, err
+	}
+
+	hint := secretHint(password)
+	var (
+		match    *appRecord
+		compared bool
+	)
+	for i := range records {
+		if records[i].Hint != hint {
+			continue
+		}
+		compared = true
+		if r.compare([]byte(records[i].Hash), []byte(password)) == nil {
+			match = &records[i]
+			break
+		}
+	}
+	if !compared {
+		r.dummyCompare()
+	}
+	if match == nil {
+		return Principal{}, ErrInvalidCredentials
+	}
+	if !now.Before(match.ExpiresAt) {
+		return Principal{}, ErrExpired
+	}
+	// The username may have moved, or the password been revoked, while the
+	// hash was compared.
+	p, ok := r.principalByName(sub, username)
+	if !ok || !r.touch(sub, match.ID, now) {
+		return Principal{}, ErrInvalidCredentials
+	}
+	if r.beforeCachePut != nil {
+		r.beforeCachePut()
+	}
+	r.cache.put(key, cacheEntry{sub: sub, id: match.ID, gen: gen, expires: match.ExpiresAt}, now)
+	return p, nil
+}
+
+// principalByName returns the principal for sub if it still holds username.
+func (r *Registry) principalByName(sub, username string) (Principal, bool) {
+	p, err := r.Get(sub)
+	if err != nil || p.Username != username {
+		return Principal{}, false
+	}
+	return p, true
+}
+
+// touch records a use of the app password and reports whether it still
+// exists. last_used_at is written at most every lastUsedInterval. A failed
+// write is logged: the time is kept in memory and saved with the next write.
+func (r *Registry) touch(sub, id string, now time.Time) bool {
+	set := r.appSet(sub)
+	set.mu.Lock()
+	defer set.mu.Unlock()
+	if !set.loaded {
+		return false
+	}
+	i := slices.IndexFunc(set.records, func(rec appRecord) bool { return rec.ID == id })
+	if i < 0 {
+		return false
+	}
+	if last := set.records[i].LastUsedAt; last != nil && now.Sub(*last) < lastUsedInterval {
+		return true
+	}
+	used := now.UTC()
+	records := slices.Clone(set.records)
+	records[i].LastUsedAt = &used
+	set.records = records
+	if err := r.writeAppPasswords(sub, records); err != nil {
+		r.logger.Warn("could not save the last use of an app password", "sub", sub, "id", id, "error", err)
+	}
+	return true
+}
+
+// appPasswordRecords returns the principal's app passwords. The slice must
+// not be modified.
+func (r *Registry) appPasswordRecords(sub string) ([]appRecord, error) {
+	set := r.appSet(sub)
+	set.mu.Lock()
+	defer set.mu.Unlock()
+	if err := r.loadAppPasswords(sub, set); err != nil {
+		return nil, err
+	}
+	return set.records, nil
+}
+
+// appSet returns the in-memory app passwords of sub, creating an empty,
+// unloaded set the first time.
+func (r *Registry) appSet(sub string) *appSet {
+	r.appsMu.Lock()
+	defer r.appsMu.Unlock()
+	set, ok := r.apps[sub]
+	if !ok {
+		set = &appSet{}
+		r.apps[sub] = set
+	}
+	return set
+}
+
+// loadAppPasswords reads the principal's file into set unless that was done
+// already. A missing file means no app passwords. A file that cannot be read
+// or decoded is an error, and set stays unloaded so that nothing overwrites
+// the file. The caller holds set.mu.
+func (r *Registry) loadAppPasswords(sub string, set *appSet) error {
+	if set.loaded {
+		return nil
+	}
+	dir := r.ownerDir(sub)
+	if dir == "" {
+		return fmt.Errorf("principals: no owner directory for sub %q", sub)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, appPasswordsFileName))
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		set.records, set.loaded = nil, true
+		return nil
+	case err != nil:
+		return fmt.Errorf("principals: read app passwords: %w", err)
+	}
+	var file appPasswordsFile
+	if err := json.Unmarshal(data, &file); err != nil {
+		return fmt.Errorf("principals: decode app passwords of sub %q: %w", sub, err)
+	}
+	set.records, set.loaded = file.AppPasswords, true
+	return nil
+}
+
+// writeAppPasswords replaces the principal's file atomically.
+func (r *Registry) writeAppPasswords(sub string, records []appRecord) error {
+	dir := r.ownerDir(sub)
+	if dir == "" {
+		return fmt.Errorf("principals: no owner directory for sub %q", sub)
+	}
+	if records == nil {
+		records = []appRecord{}
+	}
+	data, err := json.MarshalIndent(appPasswordsFile{AppPasswords: records}, "", "  ")
+	if err != nil {
+		return fmt.Errorf("principals: encode app passwords: %w", err)
+	}
+	data = append(data, '\n')
+	if err := r.mkdirAll(dir); err != nil {
+		return fmt.Errorf("principals: create owner directory: %w", err)
+	}
+	if err := r.writeFileAtomic(dir, appPasswordsFileName, data); err != nil {
+		return fmt.Errorf("principals: write app passwords: %w", err)
+	}
+	return nil
+}
+
+// dummyCompare spends the time of one bcrypt compare, for a check that has
+// no hash to compare against.
+func (r *Registry) dummyCompare() {
+	_ = r.compare(r.dummyHash, []byte("not an app password"))
+}
+
+// newDummyHash returns the bcrypt hash of a random secret at cost. NewRegistry
+// makes it once, so that no check pays for making it.
+func newDummyHash(cost int) ([]byte, error) {
+	secret, err := newSecret()
+	if err != nil {
+		return nil, err
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(secret), cost)
+	if err != nil {
+		return nil, fmt.Errorf("principals: hash for unknown users: %w", err)
+	}
+	return hash, nil
+}
+
+func validateAppPasswordName(name string) error {
+	switch {
+	case strings.TrimSpace(name) == "":
+		return errors.New("principals: app password name is empty")
+	case len(name) > maxAppPasswordName:
+		return fmt.Errorf("principals: app password name is longer than %d bytes", maxAppPasswordName)
+	case !utf8.ValidString(name):
+		return errors.New("principals: app password name is not valid UTF-8")
+	case strings.ContainsFunc(name, func(c rune) bool { return unicode.IsControl(c) || unicode.Is(unicode.Cf, c) }):
+		return errors.New("principals: app password name contains a control or format character")
+	}
+	return nil
+}
+
+// newSecret returns a new app password: 20 random bytes in lowercase base32.
+func newSecret() (string, error) {
+	b := make([]byte, secretBytes)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("principals: random secret: %w", err)
+	}
+	return secretEncoding.EncodeToString(b), nil
+}
+
+// newID returns a new app password id.
+func newID() (string, error) {
+	b := make([]byte, 10)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("principals: random id: %w", err)
+	}
+	return secretEncoding.EncodeToString(b), nil
+}
+
+// validSecret reports whether password has the form of an app password.
+func validSecret(password string) bool {
+	if len(password) != secretLen {
+		return false
+	}
+	for _, c := range []byte(password) {
+		if (c < 'a' || c > 'z') && (c < '2' || c > '7') {
+			return false
+		}
+	}
+	return true
+}
+
+func secretHint(secret string) string {
+	sum := sha256.Sum256([]byte(secret))
+	return hex.EncodeToString(sum[:2])
+}
+
+// basicHeader returns the Authorization header that carries the credentials
+// (RFC 7617). It is the input of the cache key and is not kept.
+func basicHeader(username, password string) string {
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
+}
