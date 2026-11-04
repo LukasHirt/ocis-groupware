@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/owncloud/ocis-groupware/internal/auth"
 	"github.com/owncloud/ocis-groupware/internal/config"
 	"github.com/owncloud/ocis-groupware/internal/logging"
 	"github.com/owncloud/ocis-groupware/internal/server"
@@ -43,6 +44,15 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	srv := server.New(cfg.HTTPAddr, logger)
+	verifier, err := auth.NewOIDCVerifier(auth.OIDCConfig{
+		Issuer:   cfg.OIDCIssuer,
+		Audience: cfg.OIDCAudience,
+		CAFile:   cfg.OIDCCAFile,
+	})
+	if err != nil {
+		return err
+	}
+
+	srv := server.New(cfg.HTTPAddr, logger, auth.Middleware(verifier, logger))
 	return srv.Run(ctx)
 }

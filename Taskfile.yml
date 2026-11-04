@@ -10,7 +10,7 @@ tasks:
       - go build ./...
 
   run:
-    desc: Run ocis-groupware locally
+    desc: Run ocis-groupware locally (needs GROUPWARE_OIDC_ISSUER)
     cmds:
       - go run ./cmd/ocis-groupware
 
@@ -58,9 +58,9 @@ tasks:
       - docker build -t {{.IMAGE}} .
 
   docker:run:
-    desc: Run the docker image, publishing :8080
+    desc: Run the docker image, publishing :8080 (needs GROUPWARE_OIDC_ISSUER)
     cmds:
-      - docker run --rm -p 8080:8080 {{.IMAGE}}
+      - docker run --rm -p 8080:8080 -e GROUPWARE_OIDC_ISSUER {{.IMAGE}}
 
   stack:up:
     desc: Start oCIS, ocis-groupware and Traefik via docker compose

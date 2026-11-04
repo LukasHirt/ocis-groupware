@@ -49,6 +49,8 @@ func TestLoadEnvOverridesFileAndDefaults(t *testing.T) {
 	t.Setenv("GROUPWARE_HTTP_ADDR", ":7070")
 	t.Setenv("GROUPWARE_LOG_LEVEL", "debug")
 	t.Setenv("GROUPWARE_OIDC_ISSUER", "https://idp.example.com")
+	t.Setenv("GROUPWARE_OIDC_AUDIENCE", "groupware")
+	t.Setenv("GROUPWARE_OIDC_CA_FILE", "/etc/groupware/ca.pem")
 	t.Setenv("GROUPWARE_DB_DSN", "postgres://example")
 
 	cfg, err := Load(path)
@@ -64,8 +66,30 @@ func TestLoadEnvOverridesFileAndDefaults(t *testing.T) {
 	if cfg.OIDCIssuer != "https://idp.example.com" {
 		t.Errorf("OIDCIssuer = %q, want env value", cfg.OIDCIssuer)
 	}
+	if cfg.OIDCAudience != "groupware" {
+		t.Errorf("OIDCAudience = %q, want env value", cfg.OIDCAudience)
+	}
+	if cfg.OIDCCAFile != "/etc/groupware/ca.pem" {
+		t.Errorf("OIDCCAFile = %q, want env value", cfg.OIDCCAFile)
+	}
 	if cfg.DBDSN != "postgres://example" {
 		t.Errorf("DBDSN = %q, want env value", cfg.DBDSN)
+	}
+}
+
+func TestLoadFileReadsOIDCSettings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "groupware.yaml")
+	yamlContent := "oidc_issuer: https://ocis.example\noidc_audience: groupware\noidc_ca_file: /etc/groupware/ca.pem\n"
+	if err := os.WriteFile(path, []byte(yamlContent), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load(%q): unexpected error: %v", path, err)
+	}
+	if cfg.OIDCIssuer != "https://ocis.example" || cfg.OIDCAudience != "groupware" || cfg.OIDCCAFile != "/etc/groupware/ca.pem" {
+		t.Errorf("OIDC settings = %q, %q, %q", cfg.OIDCIssuer, cfg.OIDCAudience, cfg.OIDCCAFile)
 	}
 }
 
@@ -81,9 +105,10 @@ func TestValidate(t *testing.T) {
 		cfg     Config
 		wantErr bool
 	}{
-		{"valid", Config{HTTPAddr: ":8080", LogLevel: "info"}, false},
-		{"empty addr", Config{HTTPAddr: "", LogLevel: "info"}, true},
-		{"bad level", Config{HTTPAddr: ":8080", LogLevel: "bogus"}, true},
+		{"valid", Config{HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example"}, false},
+		{"empty addr", Config{HTTPAddr: "", LogLevel: "info", OIDCIssuer: "https://ocis.example"}, true},
+		{"bad level", Config{HTTPAddr: ":8080", LogLevel: "bogus", OIDCIssuer: "https://ocis.example"}, true},
+		{"missing issuer", Config{HTTPAddr: ":8080", LogLevel: "info"}, true},
 	}
 
 	for _, tc := range cases {
