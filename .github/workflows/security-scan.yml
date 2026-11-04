@@ -1,0 +1,56 @@
+name: Security scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly: new advisories can fail the scan without a code change.
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trivy:
+    name: Trivy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Build the binary
+        run: go build -trimpath -o build/dist/ocis-groupware/ocis-groupware ./cmd/ocis-groupware
+
+      # rootfs, not fs: the fs scanner does not run Trivy's gobinary analyzer, so the
+      # modules built into the binary would go unscanned.
+      - name: Scan the binary
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: rootfs
+          scan-ref: build/dist/ocis-groupware
+          hide-progress: true
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+
+      - name: Build the image
+        run: docker build -t ocis-groupware:scan .
+
+      - name: Scan the image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ocis-groupware:scan
+          hide-progress: true
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
