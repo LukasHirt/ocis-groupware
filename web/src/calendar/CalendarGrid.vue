@@ -276,6 +276,9 @@ const options = computed<CalendarOptions>(() => ({
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.gw-calendar-grid .gw-event-selected {
+  box-shadow: 0 0 0 2px var(--oc-color-swatch-primary-default);
+}
 .gw-calendar-grid .fc-popover {
   z-index: 10;
   border: 1px solid var(--oc-color-border);

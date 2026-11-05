@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import CalendarPage from '../../../src/pages/CalendarPage.vue'
-import { choose } from '../helpers/select'
+import { choose, selectedLabel } from '../helpers/select'
+import { eventBus, isSideBarOpen, SideBarEventTopics } from '../mocks/webPkg'
 import { mockMedia } from '../helpers/media'
 import calendars from '../../../../internal/graphapi/testdata/contract/calendars.json'
 import importReport from '../../../../internal/graphapi/testdata/contract/import-report.json'
@@ -357,10 +358,57 @@ describe('the calendar page', () => {
     const planning = calendarview.value[0]
     const eventByTitle = (wrapper: ReturnType<typeof mount>, title: string) =>
       wrapper.findAll('.fc-event').find((e) => e.text().includes(title))!
+    // A click shows the details; the sidebar of the host is stood in for.
+    async function openDetails(wrapper: ReturnType<typeof mount>, title: string) {
+      await eventByTitle(wrapper, title).trigger('click')
+      await flushPromises()
+    }
+    const details = (wrapper: ReturnType<typeof mount>) => wrapper.get('[data-testid="event-details"]')
 
-    it('opens an event for editing and saves only what changed', async () => {
+    beforeEach(() => {
+      isSideBarOpen.value = false
+      eventBus.publish.mockReset()
+      eventBus.publish.mockImplementation((topic: string) => {
+        isSideBarOpen.value = topic === SideBarEventTopics.open
+      })
+    })
+
+    it('shows an event in the sidebar when it is clicked, and does not open the editor', async () => {
       const wrapper = await mountPage()
-      await eventByTitle(wrapper, 'Planning').trigger('click')
+      await openDetails(wrapper, 'Planning')
+      expect(eventBus.publish).toHaveBeenCalledWith(SideBarEventTopics.open)
+      expect(details(wrapper).get('[data-testid="event-title"]').text()).toBe('Planning')
+      expect(details(wrapper).get('[data-testid="event-calendar-name"]').text()).toBe('Personal')
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    })
+
+    it('marks the event that is shown', async () => {
+      const wrapper = await mountPage()
+      expect(wrapper.find('.gw-event-selected').exists()).toBe(false)
+      await openDetails(wrapper, 'Planning')
+      expect(wrapper.get('.gw-event-selected').text()).toContain('Planning')
+    })
+
+    it('says what to do while nothing is selected', async () => {
+      const wrapper = await mountPage()
+      isSideBarOpen.value = true
+      await flushPromises()
+      expect(details(wrapper).text()).toContain('Select an event to see its details')
+    })
+
+    it('forgets the event when the sidebar is closed', async () => {
+      const wrapper = await mountPage()
+      await openDetails(wrapper, 'Planning')
+      isSideBarOpen.value = false
+      await flushPromises()
+      expect(wrapper.find('.gw-event-selected').exists()).toBe(false)
+    })
+
+    it('opens the editor from Edit, and saves only what changed', async () => {
+      const wrapper = await mountPage()
+      await openDetails(wrapper, 'Planning')
+      await wrapper.get('[data-testid="event-edit"]').trigger('click')
+      await flushPromises()
       const subject = wrapper.get<HTMLInputElement>('[data-testid="event-subject"]')
       expect(subject.element.value).toBe('Planning')
       await subject.setValue('Planning v2')
@@ -377,23 +425,79 @@ describe('the calendar page', () => {
       expect(calendarViewCalls).toHaveLength(1)
     })
 
-    it('deletes an event after a confirmation', async () => {
+    it('closes the sidebar before it opens the editor on a narrow window', async () => {
+      restoreMedia()
+      restoreMedia = mockMedia((q) => q.includes('959') || q.includes('1199') || q.includes('1599'))
+      const wrapper = await mountPage()
+      await openDetails(wrapper, 'Planning')
+      expect(isSideBarOpen.value).toBe(true)
+      await wrapper.get('[data-testid="event-edit"]').trigger('click')
+      await flushPromises()
+      expect(eventBus.publish).toHaveBeenLastCalledWith(SideBarEventTopics.close)
+      expect(wrapper.get<HTMLInputElement>('[data-testid="event-subject"]').element.value).toBe('Planning')
+    })
+
+    it('keeps the sidebar open behind the editor on a wide window', async () => {
+      const wrapper = await mountPage()
+      await openDetails(wrapper, 'Planning')
+      await wrapper.get('[data-testid="event-edit"]').trigger('click')
+      await flushPromises()
+      expect(isSideBarOpen.value).toBe(true)
+      expect(wrapper.find('[data-testid="event-subject"]').exists()).toBe(true)
+    })
+
+    it('opens the editor at once when the same event is clicked twice in a row', async () => {
       const wrapper = await mountPage()
       await eventByTitle(wrapper, 'Planning').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+      await eventByTitle(wrapper, 'Planning').trigger('click')
+      await flushPromises()
+      expect(wrapper.get<HTMLInputElement>('[data-testid="event-subject"]').element.value).toBe('Planning')
+    })
+
+    it('deletes an event from its details after a confirmation', async () => {
+      const wrapper = await mountPage()
+      await openDetails(wrapper, 'Planning')
       await wrapper.get('[data-testid="event-delete"]').trigger('click')
+      await flushPromises()
       expect(hoisted.api.deleteEvent).not.toHaveBeenCalled()
       await wrapper.get('[data-testid="dialog-confirm"]').trigger('click')
       await flushPromises()
       expect(hoisted.api.deleteEvent).toHaveBeenCalledWith(planning.id, planning['@odata.etag'])
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+      // Nothing is left selected, and the sidebar closes.
+      expect(eventBus.publish).toHaveBeenLastCalledWith(SideBarEventTopics.close)
+    })
+
+    it('does not delete when the confirmation is cancelled', async () => {
+      const wrapper = await mountPage()
+      await openDetails(wrapper, 'Planning')
+      await wrapper.get('[data-testid="event-delete"]').trigger('click')
+      await wrapper.get('[data-testid="dialog-cancel"]').trigger('click')
+      expect(hoisted.api.deleteEvent).not.toHaveBeenCalled()
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    })
+
+    it('shows an event of a calendar that is read only without Edit and Delete', async () => {
+      hoisted.state.calendars = hoisted.state.calendars.map((c) => ({ ...c, canEdit: false, canShare: false }))
+      const wrapper = await mountPage()
+      await openDetails(wrapper, 'Planning')
+      expect(details(wrapper).get('[data-testid="event-notice"]').text()).toContain('read only')
+      expect(details(wrapper).find('[data-testid="event-notice"] [data-name="lock"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="event-edit"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="event-delete"]').exists()).toBe(false)
+      // And never a form that is switched off.
+      await eventByTitle(wrapper, 'Planning').trigger('click')
+      await eventByTitle(wrapper, 'Planning').trigger('click')
+      await flushPromises()
       expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
     })
 
     it('creates an event from the new event button, in the default calendar', async () => {
       const wrapper = await mountPage()
       await wrapper.get('[data-testid="event-add"]').trigger('click')
-      expect(wrapper.get<HTMLSelectElement>('[data-testid="event-calendar"]').element.value).toBe(
-        calendars.value[0].id
-      )
+      expect(selectedLabel(wrapper, 'event-calendar')).toBe('Personal')
       await wrapper.get('[data-testid="event-subject"]').setValue('Lunch')
       calendarViewCalls.length = 0
       await wrapper.get('form').trigger('submit')
@@ -408,11 +512,21 @@ describe('the calendar page', () => {
     describe('a repeating event', () => {
       const occurrence = calendarview.value[1]
 
-      it('asks whether to change this event or all of them, after reading the series', async () => {
+      it('reads the series along with the click and says how it repeats', async () => {
         const wrapper = await mountPage()
-        await eventByTitle(wrapper, 'Standup').trigger('click')
-        await flushPromises()
+        await openDetails(wrapper, 'Standup')
         expect(hoisted.api.getEvent).toHaveBeenCalledWith(occurrence.seriesMasterId, expect.any(String))
+        expect(details(wrapper).get('[data-testid="event-repeats"]').text()).toContain('Every week')
+        // Nothing is asked until the user chooses an action.
+        expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+      })
+
+      it('asks whether to change this event or all of them when Edit is chosen', async () => {
+        const wrapper = await mountPage()
+        await openDetails(wrapper, 'Standup')
+        await wrapper.get('[data-testid="event-edit"]').trigger('click')
+        await flushPromises()
+        expect(wrapper.get('[role="dialog"]').text()).toContain('Edit repeating event')
         expect(wrapper.find('[data-testid="scope-this"]').exists()).toBe(true)
         expect(wrapper.find('[data-testid="scope-all"]').exists()).toBe(true)
         await wrapper.get('[data-testid="dialog-cancel"]').trigger('click')
@@ -421,7 +535,8 @@ describe('the calendar page', () => {
 
       it('changes one event by the id of the occurrence, without a pattern', async () => {
         const wrapper = await mountPage()
-        await eventByTitle(wrapper, 'Standup').trigger('click')
+        await openDetails(wrapper, 'Standup')
+        await wrapper.get('[data-testid="event-edit"]').trigger('click')
         await flushPromises()
         await wrapper.get('[data-testid="scope-this"]').trigger('click')
         expect(wrapper.find('[data-testid="repeat-frequency"]').exists()).toBe(false)
@@ -437,11 +552,12 @@ describe('the calendar page', () => {
 
       it('changes all events by the id of the series, with its pattern', async () => {
         const wrapper = await mountPage()
-        await eventByTitle(wrapper, 'Standup').trigger('click')
+        await openDetails(wrapper, 'Standup')
+        await wrapper.get('[data-testid="event-edit"]').trigger('click')
         await flushPromises()
         await wrapper.get('[data-testid="scope-all"]').trigger('click')
-        expect(wrapper.get<HTMLSelectElement>('[data-testid="repeat-frequency"]').element.value).toBe('weekly')
-        await wrapper.get('[data-testid="repeat-day-monday"]').setValue(true)
+        expect(selectedLabel(wrapper, 'repeat-frequency')).toBe('Weekly')
+        await wrapper.get('[data-testid="repeat-day-monday"]').trigger('click')
         await wrapper.get('form').trigger('submit')
         await flushPromises()
         const [id, input, etag] = hoisted.api.updateEvent.mock.calls[0]
@@ -450,46 +566,49 @@ describe('the calendar page', () => {
         expect(input.recurrence.pattern.daysOfWeek).toEqual(['monday', 'friday'])
       })
 
-      it('deletes one occurrence, or the whole series, after a confirmation', async () => {
+      it('deletes one occurrence, or the whole series, after the scope and a confirmation', async () => {
         const wrapper = await mountPage()
-        await eventByTitle(wrapper, 'Standup').trigger('click')
-        await flushPromises()
-        await wrapper.get('[data-testid="scope-this"]').trigger('click')
+        await openDetails(wrapper, 'Standup')
         await wrapper.get('[data-testid="event-delete"]').trigger('click')
+        await flushPromises()
+        expect(wrapper.get('[role="dialog"]').text()).toContain('Delete repeating event')
+        await wrapper.get('[data-testid="scope-this"]').trigger('click')
         expect(wrapper.text()).toContain('Delete this event')
         await wrapper.get('[data-testid="dialog-confirm"]').trigger('click')
         await flushPromises()
         expect(hoisted.api.deleteEvent).toHaveBeenLastCalledWith(occurrence.id, occurrence['@odata.etag'])
 
-        await eventByTitle(wrapper, 'Standup').trigger('click')
+        await openDetails(wrapper, 'Standup')
+        await wrapper.get('[data-testid="event-delete"]').trigger('click')
         await flushPromises()
         await wrapper.get('[data-testid="scope-all"]').trigger('click')
-        await wrapper.get('[data-testid="event-delete"]').trigger('click')
         expect(wrapper.text()).toContain('Delete all events')
         await wrapper.get('[data-testid="dialog-confirm"]').trigger('click')
         await flushPromises()
         expect(hoisted.api.deleteEvent).toHaveBeenLastCalledWith(eventSeries.id, eventSeries['@odata.etag'])
       })
 
-      it('is read-only when the series has a rule the editor cannot show', async () => {
+      it('has no Edit when the series has a rule the editor cannot show, and says why', async () => {
         hoisted.api.getEvent.mockResolvedValueOnce({
           ...eventSeries,
           recurrence: null,
           'groupware.recurrenceEditable': false
         })
         const wrapper = await mountPage()
-        await eventByTitle(wrapper, 'Standup').trigger('click')
-        await flushPromises()
-        expect(wrapper.find('[data-testid="scope-this"]').exists()).toBe(false)
-        expect(wrapper.get('fieldset').attributes('disabled')).toBeDefined()
-        expect(wrapper.get('[data-testid="event-notice"]').text()).toContain('cannot')
-        expect(wrapper.find('[data-testid="dialog-confirm"]').exists()).toBe(false)
+        await openDetails(wrapper, 'Standup')
+        expect(wrapper.find('[data-testid="event-edit"]').exists()).toBe(false)
+        expect(details(wrapper).get('[data-testid="event-notice"]').text()).toContain('cannot')
+        expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
       })
 
-      it('says nothing more when the series cannot be read', async () => {
-        hoisted.api.getEvent.mockResolvedValueOnce(undefined as never)
+      it('shows the event without a pattern when the series cannot be read', async () => {
+        // Edit tries to read it once more, which fails again here.
+        hoisted.api.getEvent.mockResolvedValueOnce(undefined as never).mockResolvedValueOnce(undefined as never)
         const wrapper = await mountPage()
-        await eventByTitle(wrapper, 'Standup').trigger('click')
+        await openDetails(wrapper, 'Standup')
+        expect(details(wrapper).get('[data-testid="event-title"]').text()).toBe('Standup')
+        expect(wrapper.find('[data-testid="event-repeats"]').exists()).toBe(false)
+        await wrapper.get('[data-testid="event-edit"]').trigger('click')
         await flushPromises()
         expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
       })
@@ -498,7 +617,8 @@ describe('the calendar page', () => {
     it('keeps the dialog open when the server refuses the change', async () => {
       hoisted.api.updateEvent.mockResolvedValueOnce(undefined as never)
       const wrapper = await mountPage()
-      await eventByTitle(wrapper, 'Planning').trigger('click')
+      await openDetails(wrapper, 'Planning')
+      await wrapper.get('[data-testid="event-edit"]').trigger('click')
       await wrapper.get('[data-testid="event-subject"]').setValue('X')
       await wrapper.get('form').trigger('submit')
       await flushPromises()
@@ -552,7 +672,7 @@ describe('the calendar page', () => {
       )
       const wrapper = await mountPage()
       await wrapper.get('[data-testid="event-add"]').trigger('click')
-      expect(wrapper.get<HTMLSelectElement>('[data-testid="event-zone"]').element.value).toBe('Asia/Tokyo')
+      expect(selectedLabel(wrapper, 'event-zone')).toBe('Asia/Tokyo')
     })
   })
 

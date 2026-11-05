@@ -8,6 +8,9 @@ msgstr ""
 msgid "%{count} contacts"
 msgstr ""
 
+msgid "%{date} · %{from} to %{to}"
+msgstr ""
+
 msgid "%{n} days"
 msgstr ""
 
@@ -17,6 +20,9 @@ msgstr ""
 msgid "%{n} minutes before"
 msgstr ""
 
+msgid "%{n} times"
+msgstr ""
+
 msgid "%{total} found: %{created} added, %{updated} replaced, %{failed} failed."
 msgstr ""
 
@@ -24,6 +30,9 @@ msgid "+%{n} more"
 msgstr ""
 
 msgid "1 minute before"
+msgstr ""
+
+msgid "Accepted"
 msgstr ""
 
 msgid "Access"
@@ -350,10 +359,10 @@ msgstr ""
 msgid "day(s)"
 msgstr ""
 
-msgid "Days of the week"
+msgid "December"
 msgstr ""
 
-msgid "December"
+msgid "Declined"
 msgstr ""
 
 msgid "Delete"
@@ -389,6 +398,9 @@ msgstr ""
 msgid "Delete only this event? The rest of the series stays."
 msgstr ""
 
+msgid "Delete repeating event"
+msgstr ""
+
 msgid "Delete the address book %{name} with all its contacts?"
 msgstr ""
 
@@ -414,6 +426,9 @@ msgid "Display name"
 msgstr ""
 
 msgid "Do you want to change only this event or all events of the series?"
+msgstr ""
+
+msgid "Do you want to delete only this event or all events of the series?"
 msgstr ""
 
 msgid "Does not repeat"
@@ -482,13 +497,46 @@ msgstr ""
 msgid "Error"
 msgstr ""
 
-msgid "Event"
-msgstr ""
-
 msgid "Every"
 msgstr ""
 
+msgid "Every %{n} days"
+msgstr ""
+
+msgid "Every %{n} months on day %{day}"
+msgstr ""
+
+msgid "Every %{n} months on the %{which} %{days}"
+msgstr ""
+
+msgid "Every %{n} weeks on %{days}"
+msgstr ""
+
+msgid "Every %{n} years on %{month} %{day}"
+msgstr ""
+
+msgid "Every %{n} years on the %{which} %{days} of %{month}"
+msgstr ""
+
 msgid "Every contact"
+msgstr ""
+
+msgid "Every day"
+msgstr ""
+
+msgid "Every month on day %{day}"
+msgstr ""
+
+msgid "Every month on the %{which} %{days}"
+msgstr ""
+
+msgid "Every week on %{days}"
+msgstr ""
+
+msgid "Every year on %{month} %{day}"
+msgstr ""
+
+msgid "Every year on the %{which} %{days} of %{month}"
 msgstr ""
 
 msgid "Expired"
@@ -515,6 +563,9 @@ msgstr ""
 msgid "Fill in at least one field."
 msgstr ""
 
+msgid "first"
+msgstr ""
+
 msgid "First"
 msgstr ""
 
@@ -527,13 +578,13 @@ msgstr ""
 msgid "For example, Phone"
 msgstr ""
 
+msgid "fourth"
+msgstr ""
+
 msgid "Fourth"
 msgstr ""
 
 msgid "Free"
-msgstr ""
-
-msgid "Fri"
 msgstr ""
 
 msgid "Friday"
@@ -584,6 +635,9 @@ msgstr ""
 msgid "June"
 msgstr ""
 
+msgid "last"
+msgstr ""
+
 msgid "Last"
 msgstr ""
 
@@ -602,6 +656,9 @@ msgstr ""
 msgid "May"
 msgstr ""
 
+msgid "Maybe"
+msgstr ""
+
 msgid "Member of"
 msgstr ""
 
@@ -615,9 +672,6 @@ msgid "Mobile"
 msgstr ""
 
 msgid "Mobile phone"
-msgstr ""
-
-msgid "Mon"
 msgstr ""
 
 msgid "Monday"
@@ -684,6 +738,9 @@ msgid "Next week"
 msgstr ""
 
 msgid "Nickname"
+msgstr ""
+
+msgid "No answer"
 msgstr ""
 
 msgid "No contact matches your search."
@@ -830,9 +887,6 @@ msgstr ""
 msgid "Revoke app password"
 msgstr ""
 
-msgid "Sat"
-msgstr ""
-
 msgid "Saturday"
 msgstr ""
 
@@ -848,10 +902,16 @@ msgstr ""
 msgid "Search users and groups"
 msgstr ""
 
+msgid "second"
+msgstr ""
+
 msgid "Second"
 msgstr ""
 
 msgid "Select a contact to see its details"
+msgstr ""
+
+msgid "Select an event to see its details"
 msgstr ""
 
 msgid "Separate names with commas"
@@ -920,9 +980,6 @@ msgstr ""
 msgid "Suffix"
 msgstr ""
 
-msgid "Sun"
-msgstr ""
-
 msgid "Sunday"
 msgstr ""
 
@@ -971,6 +1028,9 @@ msgstr ""
 msgid "These settings are kept in this browser."
 msgstr ""
 
+msgid "third"
+msgstr ""
+
 msgid "Third"
 msgstr ""
 
@@ -992,9 +1052,6 @@ msgstr ""
 msgid "This person is already invited."
 msgstr ""
 
-msgid "Thu"
-msgstr ""
-
 msgid "Thursday"
 msgstr ""
 
@@ -1010,9 +1067,6 @@ msgstr ""
 msgid "Today"
 msgstr ""
 
-msgid "Tue"
-msgstr ""
-
 msgid "Tuesday"
 msgstr ""
 
@@ -1023,6 +1077,9 @@ msgid "Unknown"
 msgstr ""
 
 msgid "Unnamed contact"
+msgstr ""
+
+msgid "until %{date}"
 msgstr ""
 
 msgid "Use one app password for each device, so you can revoke a single device without touching the others."
@@ -1041,9 +1098,6 @@ msgid "W"
 msgstr ""
 
 msgid "Website"
-msgstr ""
-
-msgid "Wed"
 msgstr ""
 
 msgid "Wednesday"

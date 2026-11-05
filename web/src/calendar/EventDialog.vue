@@ -3,391 +3,312 @@
     :title="title"
     wide
     form
-    :initial-focus="readOnly ? undefined : '[data-testid=event-subject]'"
+    initial-focus="input[data-testid=event-subject]"
     @close="emit('close')"
     @submit="submit"
   >
-    <div class="groupware-event-form">
-      <p v-if="notice" class="oc-text-muted oc-mt-rm" data-testid="event-notice">{{ notice }}</p>
+    <div class="gw-event-form">
+      <oc-text-input
+        id="gw-event-subject"
+        v-model="edited.subject"
+        :label="$gettext('Title')"
+        class="oc-mb-s"
+        data-testid="event-subject"
+      />
 
-      <fieldset :disabled="readOnly" class="groupware-fieldset">
-        <label class="oc-text-bold" for="groupware-event-subject">{{ $gettext('Title') }}</label>
-        <input
-          id="groupware-event-subject"
-          v-model="edited.subject"
-          class="oc-text-input oc-width-1-1"
-          type="text"
-          data-testid="event-subject"
+      <oc-select
+        v-if="!existing"
+        id="gw-event-calendar"
+        v-model="edited.calendarId"
+        :label="$gettext('Calendar')"
+        :options="calendarOptions"
+        :reduce="(o: Choice<string>) => o.value"
+        :clearable="false"
+        :searchable="false"
+        class="oc-mb-s"
+        data-testid="event-calendar"
+      />
+
+      <oc-checkbox v-model="edited.allDay" :label="$gettext('All day')" class="oc-mb-s" data-testid="event-all-day" />
+
+      <div class="gw-event-when" :class="{ 'gw-event-when-all-day': edited.allDay }">
+        <oc-text-input
+          id="gw-event-start-date"
+          v-model="edited.startDate"
+          type="date"
+          :label="$gettext('Starts')"
+          :error-message="problem === 'start' ? startMessage : ''"
+          data-testid="event-start-date"
+        />
+        <oc-text-input
+          v-if="!edited.allDay"
+          id="gw-event-start-time"
+          v-model="edited.startTime"
+          type="time"
+          :label="$gettext('Start time')"
+          data-testid="event-start-time"
+        />
+        <oc-text-input
+          id="gw-event-end-date"
+          v-model="edited.endDate"
+          type="date"
+          :label="$gettext('Ends')"
+          :error-message="problem === 'end' && edited.allDay ? endMessage : ''"
+          data-testid="event-end-date"
+        />
+        <oc-text-input
+          v-if="!edited.allDay"
+          id="gw-event-end-time"
+          v-model="edited.endTime"
+          type="time"
+          :label="$gettext('End time')"
+          :error-message="problem === 'end' ? endMessage : ''"
+          data-testid="event-end-time"
+        />
+      </div>
+
+      <oc-select
+        id="gw-event-zone"
+        v-model="edited.timeZone"
+        :label="$gettext('Time zone')"
+        :options="zones"
+        :clearable="false"
+        searchable
+        class="oc-mb-s"
+        data-testid="event-zone"
+      />
+
+      <template v-if="!hideRecurrence">
+        <oc-select
+          id="gw-repeat-frequency"
+          v-model="edited.recurrence.frequency"
+          :label="$gettext('Repeat')"
+          :options="frequencyOptions"
+          :reduce="(o: Choice<string>) => o.value"
+          :clearable="false"
+          :searchable="false"
+          class="oc-mb-s"
+          data-testid="repeat-frequency"
         />
 
-        <template v-if="!existing">
-          <label class="oc-text-bold oc-mt-s oc-display-block" for="groupware-event-calendar">{{
-            $gettext('Calendar')
-          }}</label>
-          <select
-            id="groupware-event-calendar"
-            v-model="edited.calendarId"
-            class="oc-select oc-width-1-1"
-            data-testid="event-calendar"
-          >
-            <option v-for="c in calendars" :key="c.id" :value="c.id">{{ c.name }}</option>
-          </select>
-        </template>
-
-        <label class="oc-flex oc-flex-middle oc-mt-s">
-          <input
-            v-model="edited.allDay"
-            type="checkbox"
-            class="groupware-check oc-mr-s"
-            data-testid="event-all-day"
-          />
-          {{ $gettext('All day') }}
-        </label>
-
-        <div class="groupware-row oc-mt-xs">
-          <div>
-            <label for="groupware-event-start-date">{{ $gettext('Starts') }}</label>
-            <div class="groupware-row">
-              <input
-                id="groupware-event-start-date"
-                v-model="edited.startDate"
-                type="date"
-                class="oc-text-input"
-                data-testid="event-start-date"
-                :aria-invalid="problem === 'start' ? 'true' : undefined"
-              />
-              <input
-                v-if="!edited.allDay"
-                v-model="edited.startTime"
-                type="time"
-                class="oc-text-input"
-                :aria-label="$gettext('Start time')"
-                data-testid="event-start-time"
-              />
-            </div>
+        <div v-if="rec.frequency !== 'none'" class="gw-event-repeat" data-testid="repeat-pattern">
+          <div class="gw-event-repeat-row">
+            <oc-text-input
+              id="gw-repeat-interval"
+              :model-value="String(rec.interval)"
+              type="number"
+              min="1"
+              max="99"
+              :label="$gettext('Every')"
+              :error-message="repeatProblem === 'interval' ? repeatMessage : ''"
+              class="gw-narrow"
+              data-testid="repeat-interval"
+              @update:model-value="(v: string) => (rec.interval = Number(v))"
+            />
+            <span class="gw-event-unit">{{ unit }}</span>
           </div>
-          <div>
-            <label for="groupware-event-end-date">{{ $gettext('Ends') }}</label>
-            <div class="groupware-row">
-              <input
-                id="groupware-event-end-date"
-                v-model="edited.endDate"
-                type="date"
-                class="oc-text-input"
-                data-testid="event-end-date"
-                :aria-invalid="problem === 'end' ? 'true' : undefined"
-                :aria-describedby="problem ? 'groupware-event-end-error' : undefined"
-              />
-              <input
-                v-if="!edited.allDay"
-                v-model="edited.endTime"
-                type="time"
-                class="oc-text-input"
-                :aria-label="$gettext('End time')"
-                data-testid="event-end-time"
-              />
-            </div>
+
+          <div v-if="rec.frequency === 'monthly' || rec.frequency === 'yearly'" class="gw-event-repeat-row">
+            <oc-select
+              id="gw-repeat-by"
+              v-model="rec.monthlyBy"
+              :label="$gettext('Repeat on')"
+              :options="byOptions"
+              :reduce="(o: Choice<string>) => o.value"
+              :clearable="false"
+              :searchable="false"
+              data-testid="repeat-monthly-by"
+            />
+            <oc-select
+              v-if="rec.frequency === 'yearly'"
+              id="gw-repeat-month"
+              v-model="rec.month"
+              :label="$gettext('Month')"
+              :options="monthOptions"
+              :reduce="(o: Choice<number>) => o.value"
+              :clearable="false"
+              :searchable="false"
+              data-testid="repeat-month"
+            />
+            <oc-text-input
+              v-if="rec.monthlyBy === 'day'"
+              id="gw-repeat-day-of-month"
+              :model-value="String(rec.dayOfMonth)"
+              type="number"
+              min="1"
+              max="31"
+              :label="$gettext('Day')"
+              :error-message="repeatProblem === 'dayOfMonth' ? repeatMessage : ''"
+              class="gw-narrow"
+              data-testid="repeat-day-of-month"
+              @update:model-value="(v: string) => (rec.dayOfMonth = Number(v))"
+            />
+            <oc-select
+              v-else
+              id="gw-repeat-index"
+              v-model="rec.index"
+              :label="$gettext('Which one')"
+              :options="indexOptions"
+              :reduce="(o: Choice<string>) => o.value"
+              :clearable="false"
+              :searchable="false"
+              data-testid="repeat-index"
+            />
           </div>
-        </div>
-        <p
-          v-if="problem"
-          id="groupware-event-end-error"
-          class="oc-text-input-danger oc-mt-xs"
-          role="alert"
-          :data-testid="`event-${problem}-error`"
-        >
-          {{
-            problem === 'start'
-              ? $gettext('Enter a start date and time.')
-              : $gettext('The end must be on or after the start.')
-          }}
-        </p>
 
-        <label class="oc-mt-s oc-display-block" for="groupware-event-zone">{{ $gettext('Time zone') }}</label>
-        <select
-          id="groupware-event-zone"
-          v-model="edited.timeZone"
-          class="oc-select oc-width-1-1"
-          data-testid="event-zone"
-        >
-          <option v-for="zone in zones" :key="zone" :value="zone">{{ zone }}</option>
-        </select>
-
-        <template v-if="!hideRecurrence">
-          <label class="oc-text-bold oc-mt-s oc-display-block" for="groupware-repeat-frequency">{{
-            $gettext('Repeat')
-          }}</label>
-          <select
-            id="groupware-repeat-frequency"
-            v-model="edited.recurrence.frequency"
-            class="oc-select oc-width-1-1"
-            data-testid="repeat-frequency"
+          <div
+            v-if="rec.frequency === 'weekly' || (rec.frequency !== 'daily' && rec.monthlyBy === 'weekday')"
+            class="gw-event-days"
           >
-            <option value="none">{{ $gettext('Does not repeat') }}</option>
-            <option value="daily">{{ $gettext('Daily') }}</option>
-            <option value="weekly">{{ $gettext('Weekly') }}</option>
-            <option value="monthly">{{ $gettext('Monthly') }}</option>
-            <option value="yearly">{{ $gettext('Yearly') }}</option>
-          </select>
-
-          <div v-if="rec.frequency !== 'none'" class="groupware-repeat oc-mt-xs" data-testid="repeat-pattern">
-            <div class="groupware-row oc-flex-middle">
-              <label for="groupware-repeat-interval">{{ $gettext('Every') }}</label>
-              <input
-                id="groupware-repeat-interval"
-                v-model.number="rec.interval"
-                type="number"
-                min="1"
-                max="99"
-                class="oc-text-input groupware-narrow"
-                data-testid="repeat-interval"
-              />
-              <span>{{ unit }}</span>
-            </div>
-
-            <div v-if="rec.frequency === 'monthly' || rec.frequency === 'yearly'" class="groupware-row oc-mt-xs">
-              <label class="oc-invisible-sr" for="groupware-repeat-by">{{ $gettext('Repeat on') }}</label>
-              <select
-                id="groupware-repeat-by"
-                v-model="rec.monthlyBy"
-                class="oc-select"
-                data-testid="repeat-monthly-by"
+            <span id="gw-repeat-days-label" class="gw-field-label">{{ $gettext('Repeat on') }}</span>
+            <div class="gw-event-chips" role="group" aria-labelledby="gw-repeat-days-label">
+              <oc-button
+                v-for="d in dayOptions"
+                :key="d.value"
+                size="small"
+                variation="primary"
+                :appearance="rec.daysOfWeek.includes(d.value) ? 'filled' : 'outline'"
+                :aria-pressed="rec.daysOfWeek.includes(d.value) ? 'true' : 'false'"
+                :aria-label="d.label"
+                :data-testid="`repeat-day-${d.value}`"
+                @click="toggleDay(d.value)"
               >
-                <option value="day">{{ $gettext('On a day of the month') }}</option>
-                <option value="weekday">{{ $gettext('On a weekday') }}</option>
-              </select>
-              <template v-if="rec.frequency === 'yearly'">
-                <label class="oc-invisible-sr" for="groupware-repeat-month">{{ $gettext('Month') }}</label>
-                <select
-                  id="groupware-repeat-month"
-                  v-model.number="rec.month"
-                  class="oc-select"
-                  data-testid="repeat-month"
-                >
-                  <option v-for="(name, i) in monthNames" :key="name" :value="i + 1">{{ name }}</option>
-                </select>
-              </template>
-              <template v-if="rec.monthlyBy === 'day'">
-                <label for="groupware-repeat-dom">{{ $gettext('Day') }}</label>
-                <input
-                  id="groupware-repeat-dom"
-                  v-model.number="rec.dayOfMonth"
-                  type="number"
-                  min="1"
-                  max="31"
-                  class="oc-text-input groupware-narrow"
-                  data-testid="repeat-day-of-month"
-                />
-              </template>
-              <template v-else>
-                <label class="oc-invisible-sr" for="groupware-repeat-index">{{ $gettext('Which one') }}</label>
-                <select
-                  id="groupware-repeat-index"
-                  v-model="rec.index"
-                  class="oc-select"
-                  data-testid="repeat-index"
-                >
-                  <option v-for="o in indexOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
-                </select>
-              </template>
+                {{ d.short }}
+              </oc-button>
             </div>
-
-            <fieldset
-              v-if="rec.frequency === 'weekly' || (rec.frequency !== 'daily' && rec.monthlyBy === 'weekday')"
-              class="groupware-fieldset groupware-row oc-mt-xs"
+            <p
+              v-if="repeatProblem === 'days'"
+              id="gw-repeat-days-message"
+              class="gw-event-error"
+              role="alert"
+              data-testid="repeat-days-error"
             >
-              <legend class="oc-invisible-sr">{{ $gettext('Days of the week') }}</legend>
-              <label v-for="d in dayOptions" :key="d.value" class="oc-flex oc-flex-middle groupware-day">
-                <input
-                  v-model="rec.daysOfWeek"
-                  type="checkbox"
-                  class="groupware-check oc-mr-xs"
-                  :value="d.value"
-                  :data-testid="`repeat-day-${d.value}`"
-                />
-                {{ d.label }}
-              </label>
-            </fieldset>
-
-            <div class="groupware-row oc-flex-middle oc-mt-xs">
-              <label for="groupware-repeat-end">{{ $gettext('Ends') }}</label>
-              <select id="groupware-repeat-end" v-model="rec.end" class="oc-select" data-testid="repeat-end">
-                <option value="never">{{ $gettext('Never') }}</option>
-                <option value="count">{{ $gettext('After a number of times') }}</option>
-                <option value="date">{{ $gettext('On a date') }}</option>
-              </select>
-              <template v-if="rec.end === 'count'">
-                <label class="oc-invisible-sr" for="groupware-repeat-count">{{ $gettext('Times') }}</label>
-                <input
-                  id="groupware-repeat-count"
-                  v-model.number="rec.count"
-                  type="number"
-                  min="1"
-                  max="999"
-                  class="oc-text-input groupware-narrow"
-                  data-testid="repeat-count"
-                />
-              </template>
-              <template v-if="rec.end === 'date'">
-                <label class="oc-invisible-sr" for="groupware-repeat-end-date">{{ $gettext('End date') }}</label>
-                <input
-                  id="groupware-repeat-end-date"
-                  v-model="rec.endDate"
-                  type="date"
-                  class="oc-text-input"
-                  data-testid="repeat-end-date"
-                />
-              </template>
-            </div>
-            <p v-if="repeatMessage" class="oc-text-input-danger oc-mt-xs" role="alert" data-testid="repeat-error">
               {{ repeatMessage }}
             </p>
           </div>
-        </template>
 
-        <label class="oc-text-bold oc-mt-s oc-display-block" for="groupware-event-location">{{
-          $gettext('Place')
-        }}</label>
-        <input
-          id="groupware-event-location"
-          v-model="edited.location"
-          class="oc-text-input oc-width-1-1"
-          type="text"
-          data-testid="event-location"
-        />
-
-        <label class="oc-text-bold oc-mt-s oc-display-block" for="groupware-event-reminder">{{
-          $gettext('Reminder')
-        }}</label>
-        <select
-          id="groupware-event-reminder"
-          :value="edited.reminder === null ? 'none' : String(edited.reminder)"
-          class="oc-select oc-width-1-1"
-          data-testid="event-reminder"
-          @change="edited.reminder = reminderFromValue(($event.target as HTMLSelectElement).value)"
-        >
-          <option value="none">{{ $gettext('No reminder') }}</option>
-          <option v-for="m in reminderChoices" :key="m" :value="String(m)">
-            {{ reminderLabel(m, $gettext) }}
-          </option>
-        </select>
-
-        <label class="oc-text-bold oc-mt-s oc-display-block" for="groupware-event-status">{{
-          $gettext('Show as')
-        }}</label>
-        <select
-          id="groupware-event-status"
-          v-model="edited.showAs"
-          class="oc-select oc-width-1-1"
-          data-testid="event-status"
-        >
-          <option v-for="option in statuses" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-
-        <label class="oc-text-bold oc-mt-s oc-display-block" for="groupware-event-categories">{{
-          $gettext('Categories')
-        }}</label>
-        <input
-          id="groupware-event-categories"
-          v-model="edited.categories"
-          class="oc-text-input oc-width-1-1"
-          type="text"
-          :placeholder="$gettext('Separate names with commas')"
-          data-testid="event-categories"
-        />
-
-        <label class="oc-text-bold oc-mt-s oc-display-block" for="groupware-attendee-input">{{
-          $gettext('Attendees')
-        }}</label>
-        <ul class="oc-list oc-mb-xs">
-          <li
-            v-for="a in edited.attendees"
-            :key="a.address"
-            class="oc-flex oc-flex-middle"
-            data-testid="attendee"
-          >
-            <span>{{ a.name ? `${a.name} <${a.address}>` : a.address }}</span>
-            <button
-              v-if="!readOnly"
-              type="button"
-              class="oc-button oc-button-s oc-button-passive oc-ml-s"
-              :aria-label="$gettext('Remove %{address}', { address: a.address })"
-              data-testid="attendee-remove"
-              @click="removeAttendee(a.address)"
-            >
-              {{ $gettext('Remove') }}
-            </button>
-          </li>
-        </ul>
-        <div v-if="!readOnly" class="groupware-row">
-          <input
-            id="groupware-attendee-input"
-            v-model="attendeeText"
-            class="oc-text-input groupware-grow"
-            type="email"
-            :placeholder="$gettext('Email address')"
-            data-testid="attendee-input"
-            @keydown.enter.prevent="addAttendee"
-          />
-          <button
-            type="button"
-            class="oc-button oc-button-m oc-button-passive"
-            data-testid="attendee-add"
-            @click="addAttendee"
-          >
-            {{ $gettext('Add') }}
-          </button>
+          <div class="gw-event-repeat-row">
+            <oc-select
+              id="gw-repeat-end"
+              v-model="rec.end"
+              :label="$gettext('Ends')"
+              :options="endOptions"
+              :reduce="(o: Choice<string>) => o.value"
+              :clearable="false"
+              :searchable="false"
+              data-testid="repeat-end"
+            />
+            <oc-text-input
+              v-if="rec.end === 'count'"
+              id="gw-repeat-count"
+              :model-value="String(rec.count)"
+              type="number"
+              min="1"
+              max="999"
+              :label="$gettext('Times')"
+              :error-message="repeatProblem === 'count' ? repeatMessage : ''"
+              class="gw-narrow"
+              data-testid="repeat-count"
+              @update:model-value="(v: string) => (rec.count = Number(v))"
+            />
+            <oc-text-input
+              v-if="rec.end === 'date'"
+              id="gw-repeat-end-date"
+              v-model="rec.endDate"
+              type="date"
+              :label="$gettext('End date')"
+              :error-message="repeatProblem === 'endDate' ? repeatMessage : ''"
+              data-testid="repeat-end-date"
+            />
+          </div>
         </div>
-        <p
-          v-if="attendeeProblem"
-          class="oc-text-input-danger oc-mt-xs"
-          role="alert"
-          data-testid="attendee-error"
-        >
-          {{
-            attendeeProblem === 'invalid'
-              ? $gettext('Enter a valid email address.')
-              : $gettext('This person is already invited.')
-          }}
-        </p>
+      </template>
 
-        <label class="oc-text-bold oc-mt-s oc-display-block" for="groupware-event-notes">{{
-          $gettext('Notes')
-        }}</label>
-        <textarea
-          id="groupware-event-notes"
-          v-model="edited.notes"
-          class="oc-textarea oc-width-1-1"
-          rows="3"
-          data-testid="event-notes"
+      <oc-text-input
+        id="gw-event-location"
+        v-model="edited.location"
+        :label="$gettext('Place')"
+        class="oc-mb-s"
+        data-testid="event-location"
+      />
+
+      <oc-select
+        id="gw-event-reminder"
+        v-model="reminderValue"
+        :label="$gettext('Reminder')"
+        :options="reminderChoiceOptions"
+        :reduce="(o: Choice<string>) => o.value"
+        :clearable="false"
+        :searchable="false"
+        class="oc-mb-s"
+        data-testid="event-reminder"
+      />
+
+      <oc-select
+        id="gw-event-status"
+        v-model="edited.showAs"
+        :label="$gettext('Show as')"
+        :options="statuses"
+        :reduce="(o: Choice<string>) => o.value"
+        :clearable="false"
+        :searchable="false"
+        class="oc-mb-s"
+        data-testid="event-status"
+      />
+
+      <oc-text-input
+        id="gw-event-categories"
+        v-model="edited.categories"
+        :label="$gettext('Categories')"
+        :description-message="$gettext('Separate names with commas')"
+        class="oc-mb-s"
+        data-testid="event-categories"
+      />
+
+      <h3 class="gw-field-label">{{ $gettext('Attendees') }}</h3>
+      <ul v-if="edited.attendees.length > 0" class="oc-list oc-mb-xs">
+        <li v-for="a in edited.attendees" :key="a.address" class="gw-attendee" data-testid="attendee">
+          <oc-avatar :user-name="a.name || a.address" :width="24" />
+          <span class="gw-attendee-who oc-text-truncate">{{ a.name ? `${a.name} <${a.address}>` : a.address }}</span>
+          <oc-button
+            appearance="raw"
+            :aria-label="$gettext('Remove %{address}', { address: a.address })"
+            data-testid="attendee-remove"
+            @click="removeAttendee(a.address)"
+          >
+            <oc-icon name="close" fill-type="line" size="small" />
+          </oc-button>
+        </li>
+      </ul>
+      <div class="gw-event-attendee-add">
+        <oc-text-input
+          id="gw-attendee-input"
+          v-model="attendeeText"
+          type="email"
+          :label="$gettext('Email address')"
+          :error-message="attendeeMessage"
+          class="oc-mb-s"
+          data-testid="attendee-input"
+          @keydown.enter.prevent="addAttendee"
         />
-      </fieldset>
+        <oc-button variation="passive" appearance="outline" data-testid="attendee-add" @click="addAttendee">
+          {{ $gettext('Add') }}
+        </oc-button>
+      </div>
 
+      <oc-textarea
+        id="gw-event-notes"
+        v-model="edited.notes"
+        :label="$gettext('Notes')"
+        rows="4"
+        data-testid="event-notes"
+      />
     </div>
-    <template #start>
-      <oc-button
-        v-if="existing && !readOnly"
-        variation="danger"
-        appearance="outline"
-        data-testid="event-delete"
-        @click="emit('remove')"
-      >
-        {{ $gettext('Delete') }}
-      </oc-button>
-    </template>
     <template #actions>
       <oc-button variation="passive" appearance="outline" data-testid="dialog-cancel" @click="emit('close')">
-        {{ readOnly ? $gettext('Close') : $gettext('Cancel') }}
+        {{ $gettext('Cancel') }}
       </oc-button>
-      <oc-button
-        v-if="!readOnly"
-        variation="primary"
-        appearance="filled"
-        submit="submit"
-        data-testid="dialog-confirm"
-      >
+      <oc-button variation="primary" appearance="filled" submit="submit" data-testid="dialog-confirm">
         {{ $gettext('Save') }}
       </oc-button>
     </template>
@@ -396,6 +317,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
+import { Info } from 'luxon'
 import { useGettext } from 'vue3-gettext'
 import GwModal from '../components/GwModal.vue'
 import type { EventInput, GraphCalendar } from '../api/types'
@@ -407,6 +329,8 @@ import {
   type EventForm
 } from './eventForm'
 import { reminderLabel, reminderOptions } from './reminders'
+import { showAsOptions } from './showAs'
+import { weekdays } from './recurrence'
 import { zoneNames } from './zones'
 
 defineOptions({ name: 'EventDialog' })
@@ -416,16 +340,13 @@ const props = defineProps<{
   form: EventForm
   // The calendars the event can be created in.
   calendars: GraphCalendar[]
-  // The event exists already: the dialog edits it and offers delete.
+  // The event exists already: the dialog edits only what changed.
   existing?: boolean
-  readOnly?: boolean
-  notice?: string
   // One occurrence of a series is edited, so its pattern is not.
   hideRecurrence?: boolean
 }>()
 const emit = defineEmits<{
   close: []
-  remove: []
   // A new event carries the whole input; an existing one only the changes.
   save: [save: { calendarId: string; input: EventInput }]
 }>()
@@ -438,13 +359,30 @@ const original = copy()
 const edited = reactive<EventForm>(copy())
 const zones = computed(() => zoneNames(original.timeZone, edited.timeZone))
 
-const statuses = computed(() => [
-  { value: 'free', label: $gettext('Free') },
-  { value: 'tentative', label: $gettext('Tentative') },
-  { value: 'busy', label: $gettext('Busy') },
-  { value: 'oof', label: $gettext('Away') },
-  { value: 'workingElsewhere', label: $gettext('Working elsewhere') },
-  { value: 'unknown', label: $gettext('Unknown') }
+interface Choice<T> {
+  label: string
+  value: T
+}
+
+const calendarOptions = computed<Choice<string>[]>(() =>
+  props.calendars.map((c) => ({ label: c.name, value: c.id }))
+)
+const statuses = computed(() => showAsOptions($gettext))
+const frequencyOptions = computed<Choice<string>[]>(() => [
+  { value: 'none', label: $gettext('Does not repeat') },
+  { value: 'daily', label: $gettext('Daily') },
+  { value: 'weekly', label: $gettext('Weekly') },
+  { value: 'monthly', label: $gettext('Monthly') },
+  { value: 'yearly', label: $gettext('Yearly') }
+])
+const byOptions = computed<Choice<string>[]>(() => [
+  { value: 'day', label: $gettext('On a day of the month') },
+  { value: 'weekday', label: $gettext('On a weekday') }
+])
+const endOptions = computed<Choice<string>[]>(() => [
+  { value: 'never', label: $gettext('Never') },
+  { value: 'count', label: $gettext('After a number of times') },
+  { value: 'date', label: $gettext('On a date') }
 ])
 
 const rec = computed(() => edited.recurrence)
@@ -471,16 +409,25 @@ const monthNames = computed(() => [
   $gettext('November'),
   $gettext('December')
 ])
-const dayOptions = computed(() => [
-  { value: 'monday', label: $gettext('Mon') },
-  { value: 'tuesday', label: $gettext('Tue') },
-  { value: 'wednesday', label: $gettext('Wed') },
-  { value: 'thursday', label: $gettext('Thu') },
-  { value: 'friday', label: $gettext('Fri') },
-  { value: 'saturday', label: $gettext('Sat') },
-  { value: 'sunday', label: $gettext('Sun') }
-])
-const indexOptions = computed(() => [
+// The weekdays as toggle buttons: a letter to read, the whole name to announce.
+const dayOptions = computed(() => {
+  const long = Info.weekdays('long')
+  const narrow = Info.weekdays('narrow')
+  return weekdays.map((value, i) => ({ value, label: long[i], short: narrow[i] }))
+})
+function toggleDay(day: string) {
+  const days = rec.value.daysOfWeek
+  const i = days.indexOf(day)
+  if (i >= 0) {
+    days.splice(i, 1)
+  } else {
+    days.push(day)
+  }
+}
+const monthOptions = computed<Choice<number>[]>(() =>
+  monthNames.value.map((label, i) => ({ label, value: i + 1 }))
+)
+const indexOptions = computed<Choice<string>[]>(() => [
   { value: 'first', label: $gettext('First') },
   { value: 'second', label: $gettext('Second') },
   { value: 'third', label: $gettext('Third') },
@@ -495,8 +442,15 @@ const repeatMessages = computed<Record<string, string>>(() => ({
   endDate: $gettext('The last date must not be before the start.')
 }))
 
-const reminderChoices = computed(() => reminderOptions(original.reminder))
-const reminderFromValue = (value: string) => (value === 'none' ? null : Number(value))
+const reminderChoiceOptions = computed<Choice<string>[]>(() => [
+  { value: 'none', label: $gettext('No reminder') },
+  ...reminderOptions(original.reminder).map((m) => ({ value: String(m), label: reminderLabel(m, $gettext) }))
+])
+// The select holds text, and no reminder is "none".
+const reminderValue = computed({
+  get: () => (edited.reminder === null ? 'none' : String(edited.reminder)),
+  set: (value: string) => (edited.reminder = value === 'none' ? null : Number(value))
+})
 
 const attendeeText = ref('')
 const attendeeProblem = ref<'invalid' | 'duplicate' | undefined>()
@@ -504,7 +458,17 @@ const submitted = ref(false)
 
 const anyProblem = computed(() => (submitted.value ? formProblem(edited) : undefined))
 const problem = computed(() => (anyProblem.value === 'start' || anyProblem.value === 'end' ? anyProblem.value : undefined))
-const repeatMessage = computed(() => (anyProblem.value && !problem.value ? repeatMessages.value[anyProblem.value] : ''))
+const repeatProblem = computed(() => (anyProblem.value && !problem.value ? anyProblem.value : undefined))
+const startMessage = computed(() => $gettext('Enter a start date and time.'))
+const endMessage = computed(() => $gettext('The end must be on or after the start.'))
+const repeatMessage = computed(() => (repeatProblem.value ? repeatMessages.value[repeatProblem.value] : ''))
+const attendeeMessage = computed(() =>
+  attendeeProblem.value === 'invalid'
+    ? $gettext('Enter a valid email address.')
+    : attendeeProblem.value === 'duplicate'
+      ? $gettext('This person is already invited.')
+      : ''
+)
 
 // addAttendee takes the address from the field. It answers whether the field
 // is empty or its content was added, so a half-typed address blocks the save.
@@ -549,27 +513,79 @@ function submit() {
 </script>
 
 <style>
-.groupware-fieldset {
-  border: 0;
-  margin: 0;
-  padding: 0;
+.gw-event-form {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
-.groupware-row {
+.gw-event-when {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.5rem minmax(0, 1fr) 7.5rem;
+  gap: var(--oc-space-small);
+  margin-bottom: var(--oc-space-small);
+}
+.gw-event-when-all-day {
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 639px) {
+  .gw-event-when {
+    grid-template-columns: minmax(0, 1fr) 7.5rem;
+  }
+  .gw-event-when-all-day {
+    grid-template-columns: 1fr;
+  }
+}
+/* The pattern is indented under Repeat, with a rule at its left. */
+.gw-event-repeat {
+  margin: 0 0 var(--oc-space-small) var(--oc-space-small);
+  padding-left: var(--oc-space-medium);
+  border-left: 2px solid var(--oc-color-border);
+}
+.gw-event-repeat-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  align-items: flex-end;
+  gap: var(--oc-space-small);
+  margin-bottom: var(--oc-space-small);
 }
-.groupware-narrow {
-  width: 5rem;
+.gw-event-repeat-row > .v-select,
+.gw-event-repeat-row > div {
+  min-width: 0;
 }
-.groupware-day {
-  min-width: 3.5rem;
+.gw-event-unit {
+  padding-bottom: var(--oc-space-small);
 }
-.groupware-grow {
+.gw-narrow {
+  width: 6rem;
+}
+.gw-event-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oc-space-xsmall);
+  margin-top: var(--oc-space-xsmall);
+}
+.gw-event-days {
+  margin-bottom: var(--oc-space-small);
+}
+.gw-event-error {
+  margin: var(--oc-space-xsmall) 0 0;
+  color: var(--oc-color-swatch-danger-default);
+}
+.gw-attendee-who {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.gw-event-attendee-add {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--oc-space-small);
+}
+.gw-event-attendee-add > div:first-child {
   flex: 1 1 auto;
 }
-.groupware-event-form .oc-display-block {
-  display: block;
+/* The pickers of the browser follow the theme. */
+.gw-modal input[type='date'],
+.gw-modal input[type='time'] {
+  color-scheme: light dark;
 }
 </style>

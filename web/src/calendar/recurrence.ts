@@ -1,4 +1,4 @@
-import { DateTime } from 'luxon'
+import { DateTime, Info } from 'luxon'
 import type { PatternedRecurrence } from '../api/types'
 
 export type Frequency = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'
@@ -177,4 +177,64 @@ export function recurrenceProblem(form: RecurrenceForm, startDate: string): Recu
     return 'endDate'
   }
   return undefined
+}
+
+type Gettext = (message: string, vars?: Record<string, string>) => string
+
+// describeRecurrence says in words how a series repeats, for the details of an
+// event: "Every week on Monday, Friday, 4 times".
+export function describeRecurrence(form: RecurrenceForm, $gettext: Gettext): string {
+  if (form.frequency === 'none') {
+    return ''
+  }
+  const n = String(form.interval)
+  const one = form.interval === 1
+  const names = Info.weekdays('long')
+  const days = weekdays
+    .filter((d) => form.daysOfWeek.includes(d))
+    .map((d) => names[weekdays.indexOf(d)])
+    .join(', ')
+  const month = Info.months('long')[form.month - 1] ?? ''
+  const which = {
+    first: $gettext('first'),
+    second: $gettext('second'),
+    third: $gettext('third'),
+    fourth: $gettext('fourth'),
+    last: $gettext('last')
+  }[form.index] ?? form.index
+  const weekday = form.monthlyBy === 'weekday'
+  let text = ''
+  if (form.frequency === 'daily') {
+    text = one ? $gettext('Every day') : $gettext('Every %{n} days', { n })
+  } else if (form.frequency === 'weekly') {
+    text = one
+      ? $gettext('Every week on %{days}', { days })
+      : $gettext('Every %{n} weeks on %{days}', { n, days })
+  } else if (form.frequency === 'monthly') {
+    const vars = { n, day: String(form.dayOfMonth), which, days }
+    text = weekday
+      ? one
+        ? $gettext('Every month on the %{which} %{days}', vars)
+        : $gettext('Every %{n} months on the %{which} %{days}', vars)
+      : one
+        ? $gettext('Every month on day %{day}', vars)
+        : $gettext('Every %{n} months on day %{day}', vars)
+  } else {
+    const vars = { n, day: String(form.dayOfMonth), which, days, month }
+    text = weekday
+      ? one
+        ? $gettext('Every year on the %{which} %{days} of %{month}', vars)
+        : $gettext('Every %{n} years on the %{which} %{days} of %{month}', vars)
+      : one
+        ? $gettext('Every year on %{month} %{day}', vars)
+        : $gettext('Every %{n} years on %{month} %{day}', vars)
+  }
+  if (form.end === 'count') {
+    return `${text}, ${$gettext('%{n} times', { n: String(form.count) })}`
+  }
+  if (form.end === 'date' && form.endDate) {
+    const date = DateTime.fromISO(form.endDate).toLocaleString(DateTime.DATE_FULL)
+    return `${text}, ${$gettext('until %{date}', { date })}`
+  }
+  return text
 }

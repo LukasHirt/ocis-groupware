@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { Info } from 'luxon'
 import {
   defaultRecurrence,
+  describeRecurrence,
+  type RecurrenceForm,
   recurrenceFromForm,
   recurrenceFormFromEvent,
   recurrenceProblem
@@ -178,5 +181,47 @@ describe('recurrenceProblem', () => {
 
   it('refuses a day of the month that is not 1 to 31', () => {
     expect(recurrenceProblem({ ...base, frequency: 'monthly', dayOfMonth: 32 }, start)).toBe('dayOfMonth')
+  })
+})
+
+describe('describeRecurrence', () => {
+  const same = (s: string, vars: Record<string, string> = {}) =>
+    s.replace(/%\{(\w+)\}/g, (_m, k: string) => vars[k] ?? '')
+  const form = (change: Partial<RecurrenceForm>): RecurrenceForm => ({
+    ...defaultRecurrence('2026-11-10'),
+    ...change
+  })
+  const names = Info.weekdays('long')
+
+  it('says nothing for an event that does not repeat', () => {
+    expect(describeRecurrence(form({ frequency: 'none' }), same)).toBe('')
+  })
+
+  it('writes daily and weekly patterns', () => {
+    expect(describeRecurrence(form({ frequency: 'daily' }), same)).toBe('Every day')
+    expect(describeRecurrence(form({ frequency: 'daily', interval: 3 }), same)).toBe('Every 3 days')
+    expect(describeRecurrence(form({ frequency: 'weekly', daysOfWeek: ['monday', 'friday'] }), same)).toBe(
+      `Every week on ${names[0]}, ${names[4]}`
+    )
+    expect(describeRecurrence(form({ frequency: 'weekly', interval: 2, daysOfWeek: ['tuesday'] }), same)).toBe(
+      `Every 2 weeks on ${names[1]}`
+    )
+  })
+
+  it('writes monthly and yearly patterns', () => {
+    expect(describeRecurrence(form({ frequency: 'monthly', dayOfMonth: 5 }), same)).toBe('Every month on day 5')
+    expect(
+      describeRecurrence(form({ frequency: 'monthly', monthlyBy: 'weekday', index: 'second', daysOfWeek: ['tuesday'] }), same)
+    ).toBe(`Every month on the second ${names[1]}`)
+    expect(describeRecurrence(form({ frequency: 'yearly', month: 11, dayOfMonth: 10 }), same)).toBe(
+      `Every year on ${Info.months('long')[10]} 10`
+    )
+  })
+
+  it('adds how it ends', () => {
+    expect(describeRecurrence(form({ frequency: 'daily', end: 'count', count: 4 }), same)).toBe('Every day, 4 times')
+    expect(describeRecurrence(form({ frequency: 'daily', end: 'date', endDate: '2026-12-24' }), same)).toMatch(
+      /^Every day, until .*2026/
+    )
   })
 })

@@ -1,10 +1,16 @@
 <template>
   <gw-modal
-    :title="$gettext('Edit repeating event')"
+    :title="remove ? $gettext('Delete repeating event') : $gettext('Edit repeating event')"
     initial-focus="[data-testid=scope-this]"
     @close="emit('close')"
   >
-    <p class="oc-mt-rm">{{ $gettext('Do you want to change only this event or all events of the series?') }}</p>
+    <p class="oc-mt-rm">
+      {{
+        remove
+          ? $gettext('Do you want to delete only this event or all events of the series?')
+          : $gettext('Do you want to change only this event or all events of the series?')
+      }}
+    </p>
     <template #actions>
       <oc-button variation="passive" appearance="outline" data-testid="dialog-cancel" @click="emit('close')">
         {{ $gettext('Cancel') }}
@@ -25,6 +31,8 @@ import GwModal from '../components/GwModal.vue'
 
 defineOptions({ name: 'ScopeDialog' })
 
+// The question is the same for changing and for deleting; only the words differ.
+defineProps<{ remove?: boolean }>()
 const emit = defineEmits<{ close: []; choose: [scope: 'this' | 'all'] }>()
 const { $gettext } = useGettext()
 </script>

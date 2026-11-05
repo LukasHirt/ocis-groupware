@@ -3,6 +3,7 @@
     :title="view.title || $gettext('Calendar')"
     :loading="loading"
     :list-toggle-label="$gettext('Show calendars')"
+    :side-bar-panels="panels"
   >
     <template #list="{ nested }">
       <calendar-list
@@ -200,6 +201,7 @@
     />
     <scope-dialog
       v-else-if="dialog?.kind === 'event-scope'"
+      :remove="dialog.purpose === 'delete'"
       @close="dialog = undefined"
       @choose="chooseScope"
     />
@@ -210,11 +212,8 @@
       :form="dialog.form"
       :calendars="writable"
       existing
-      :read-only="dialog.readOnly"
-      :notice="dialog.notice"
       @close="dialog = undefined"
       @save="changeEvent"
-      @remove="askDeleteEvent"
     />
     <confirm-dialog
       v-else-if="dialog?.kind === 'event-delete'"
@@ -240,7 +239,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useGettext } from 'vue3-gettext'
 import AppShell from '../components/AppShell.vue'
 import CalendarGrid from '../calendar/CalendarGrid.vue'
@@ -248,7 +247,8 @@ import CalendarDialog from '../calendar/CalendarDialog.vue'
 import CalendarList from '../calendar/CalendarList.vue'
 import CalendarSteps from '../calendar/CalendarSteps.vue'
 import type { ViewState, ViewType } from '../calendar/view'
-import { NoContentMessage } from '@ownclouders/web-pkg'
+import { NoContentMessage, SideBarEventTopics, eventBus, useSideBar } from '@ownclouders/web-pkg'
+import EventDetails from '../calendar/EventDetails.vue'
 import SettingsDialog from '../calendar/SettingsDialog.vue'
 import ImportReportDialog from '../calendar/ImportReportDialog.vue'
 import { fileNameFor, saveBlob } from '../components/download'
@@ -304,13 +304,11 @@ const dialog = ref<
   | { kind: 'delete'; calendar: GraphCalendar }
   | { kind: 'share'; calendar: GraphCalendar }
   | { kind: 'event-create'; form: EventForm }
-  | { kind: 'event-scope'; occurrence: GraphEvent; series: GraphEvent }
+  | { kind: 'event-scope'; occurrence: GraphEvent; series: GraphEvent; purpose: 'edit' | 'delete' }
   | {
       kind: 'event-edit'
       event: GraphEvent
       form: EventForm
-      readOnly: boolean
-      notice?: string
       // Whether the event stands alone, is one occurrence of a series, or is the series.
       scope: Scope
     }
@@ -325,7 +323,10 @@ const byId = computed(() => new Map(calendars.value.map((c) => [c.id, c])))
 const shown = computed(() =>
   events.value
     .filter((e) => byId.value.has(calendarIdOf(e.id)) && !isHidden(calendarIdOf(e.id)))
-    .map((e) => toCalendarEvent(e, byId.value, $gettext('(No title)')))
+    .map((e) => ({
+      ...toCalendarEvent(e, byId.value, $gettext('(No title)')),
+      classNames: e.id === selection.value?.event.id ? ['gw-event-selected'] : []
+    }))
 )
 
 // The grid reports the range it draws, and the events are read for exactly
@@ -342,6 +343,7 @@ async function loadEvents() {
     loadingEvents.value = false
     if (loaded) {
       events.value = loaded
+      refreshSelection()
     }
   }
 }
@@ -384,59 +386,192 @@ function nextHour(): string {
 }
 
 function onSelect(start: string, end: string, allDay: boolean) {
+  if (lastClick && Date.now() - lastClick.at < doubleClickMs) {
+    return
+  }
   newEvent({ start, end, allDay })
 }
 
-function editDialog(event: GraphEvent, scope: Scope, readOnly = false, notice?: string) {
-  dialog.value = { kind: 'event-edit', event, form: formFromEvent(event), readOnly, notice, scope }
+function editDialog(event: GraphEvent, scope: Scope) {
+  dialog.value = { kind: 'event-edit', event, form: formFromEvent(event), scope }
 }
 
-async function openEvent(id: string) {
+// What the sidebar shows is the event that was clicked. Its series is read
+// along with it when it is an occurrence, for the pattern and to know whether
+// the editor can change it.
+const selection = ref<{ event: GraphEvent; series?: GraphEvent }>()
+const { isSideBarOpen } = useSideBar()
+const isOccurrence = (e: GraphEvent) => e.type !== 'singleInstance' && !!e.seriesMasterId
+const selectedCalendar = computed(() =>
+  selection.value ? byId.value.get(calendarIdOf(selection.value.event.id)) : undefined
+)
+const unsupportedPattern = computed(
+  () => selection.value?.series?.['groupware.recurrenceEditable'] === false
+)
+const canChange = computed(() => !!selectedCalendar.value?.canEdit && !unsupportedPattern.value)
+const notice = computed(() => {
+  if (selection.value && !selectedCalendar.value?.canEdit) {
+    return $gettext('This calendar is shared with you as read only.')
+  }
+  return unsupportedPattern.value
+    ? $gettext(
+        'This event repeats in a way the editor cannot show, so it cannot be changed here. Use a calendar app.'
+      )
+    : ''
+})
+
+let seriesRequest: Promise<GraphEvent | undefined> | undefined
+function loadSeries(): Promise<GraphEvent | undefined> {
+  const current = selection.value
+  if (!current || !isOccurrence(current.event)) {
+    return Promise.resolve(undefined)
+  }
+  if (current.series) {
+    return Promise.resolve(current.series)
+  }
+  const id = current.event.id
+  const masterId = current.event.seriesMasterId!
+  seriesRequest = run($gettext('Could not load the event'), (c) => c.getEvent(masterId, zone())).then(
+    (series) => {
+      if (series && selection.value?.event.id === id) {
+        selection.value = { ...selection.value, series }
+      }
+      return series
+    }
+  )
+  return seriesRequest
+}
+
+function selectEvent(id: string) {
   const event = events.value.find((e) => e.id === id)
   if (!event) {
     return
   }
-  const calendar = byId.value.get(calendarIdOf(id))
-  if (!calendar?.canEdit) {
-    editDialog(event, 'single', true, $gettext('This calendar is shared with you as read only.'))
-    return
-  }
-  if (event.type === 'singleInstance' || !event.seriesMasterId) {
-    editDialog(event, 'single')
-    return
-  }
-  // The pattern is on the series, so it is read before the user chooses.
-  const series = await run($gettext('Could not load the event'), (c) =>
-    c.getEvent(event.seriesMasterId!, zone())
-  )
-  if (!series) {
-    return
-  }
-  if (series['groupware.recurrenceEditable'] === false) {
-    editDialog(
-      event,
-      'this',
-      true,
-      $gettext(
-        'This event repeats in a way the editor cannot show, so it cannot be changed here. Use a calendar app.'
-      )
-    )
-    return
-  }
-  dialog.value = { kind: 'event-scope', occurrence: event, series }
+  selection.value = { event }
+  eventBus.publish(SideBarEventTopics.open)
+  void loadSeries()
 }
+
+function clearSelection() {
+  selection.value = undefined
+  eventBus.publish(SideBarEventTopics.close)
+}
+
+// A closed sidebar leaves nothing selected.
+watch(isSideBarOpen, (open) => {
+  if (!open) {
+    selection.value = undefined
+  }
+})
+
+// After the events are read again the selection shows the new state of its
+// event, or goes when the event is gone.
+function refreshSelection() {
+  const current = selection.value
+  if (!current) {
+    return
+  }
+  const fresh = events.value.find((e) => e.id === current.event.id)
+  if (!fresh) {
+    clearSelection()
+    return
+  }
+  selection.value = { event: fresh }
+  void loadSeries()
+}
+
+// On a narrow window the sidebar covers the page and traps the focus, so a
+// dialog opened from it would find no room: the sidebar closes first.
+async function present(next: NonNullable<typeof dialog.value>) {
+  if (compact.value && isSideBarOpen.value) {
+    eventBus.publish(SideBarEventTopics.close)
+    await nextTick()
+  }
+  dialog.value = next
+}
+
+async function startEdit() {
+  const current = selection.value
+  if (!current || !canChange.value) {
+    return
+  }
+  if (!isOccurrence(current.event)) {
+    await present({ kind: 'event-edit', event: current.event, form: formFromEvent(current.event), scope: 'single' })
+    return
+  }
+  const series = current.series ?? (await loadSeries())
+  if (series && series['groupware.recurrenceEditable'] !== false) {
+    await present({ kind: 'event-scope', occurrence: current.event, series, purpose: 'edit' })
+  }
+}
+
+async function startDelete() {
+  const current = selection.value
+  if (!current || !canChange.value) {
+    return
+  }
+  if (!isOccurrence(current.event)) {
+    await present({ kind: 'event-delete', event: current.event, scope: 'single' })
+    return
+  }
+  const series = current.series ?? (await loadSeries())
+  if (series) {
+    await present({ kind: 'event-scope', occurrence: current.event, series, purpose: 'delete' })
+  }
+}
+
+// Two clicks on the same event in quick succession go straight to the editor.
+// The grid draws its events again when one is selected, so the browser's own
+// double click event does not reach it; the clicks are timed here. The grid
+// can also read the second click as a click on the day behind, which would
+// open a new event, so a selection that follows an event click is ignored.
+const doubleClickMs = 500
+let lastClick: { id: string; at: number } | undefined
+function openEvent(id: string) {
+  const now = Date.now()
+  const again = lastClick?.id === id && now - lastClick.at < doubleClickMs
+  lastClick = { id, at: now }
+  selectEvent(id)
+  if (again) {
+    void startEdit()
+  }
+}
+
+const panels = computed(() => [
+  {
+    name: 'details',
+    icon: 'information',
+    title: () => $gettext('Details'),
+    isRoot: () => true,
+    isVisible: () => true,
+    component: EventDetails,
+    componentAttrs: () => ({
+      event: selection.value?.event,
+      calendar: selectedCalendar.value,
+      series: selection.value?.series,
+      canEdit: canChange.value,
+      notice: notice.value,
+      noticeIcon: selectedCalendar.value?.canEdit ? 'information' : 'lock',
+      onEdit: startEdit,
+      onRemove: startDelete
+    })
+  }
+])
 
 function chooseScope(scope: 'this' | 'all') {
   if (dialog.value?.kind !== 'event-scope') {
     return
   }
-  editDialog(scope === 'this' ? dialog.value.occurrence : dialog.value.series, scope)
+  const { occurrence, series, purpose } = dialog.value
+  const event = scope === 'this' ? occurrence : series
+  if (purpose === 'delete') {
+    dialog.value = { kind: 'event-delete', event, scope }
+    return
+  }
+  editDialog(event, scope)
 }
 
-function editTitle(d: { readOnly: boolean; scope: Scope }) {
-  if (d.readOnly) {
-    return $gettext('Event')
-  }
+function editTitle(d: { scope: Scope }) {
   return { single: $gettext('Edit event'), this: $gettext('Edit this event'), all: $gettext('Edit all events') }[d.scope]
 }
 
@@ -478,12 +613,6 @@ async function changeEvent(save: { input: EventInput }) {
   }
 }
 
-function askDeleteEvent() {
-  if (dialog.value?.kind === 'event-edit') {
-    dialog.value = { kind: 'event-delete', event: dialog.value.event, scope: dialog.value.scope }
-  }
-}
-
 async function deleteEvent() {
   if (dialog.value?.kind !== 'event-delete') {
     return
@@ -495,6 +624,7 @@ async function deleteEvent() {
   })
   if (done) {
     dialog.value = undefined
+    clearSelection()
     await loadEvents()
   }
 }

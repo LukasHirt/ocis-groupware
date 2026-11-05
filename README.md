@@ -245,9 +245,14 @@ confirmation first.
 
 Marking a day or a span of time in the grid, or the New event button, opens the event
 dialog. It has a title, calendar, all-day switch, start and end, time zone, place,
-status, categories, attendees and notes. Opening an event shows the same dialog with
-its values; saving sends only the fields that changed, with the event's ETag in
-`If-Match`, and delete asks first. The page asks the server for times in the browser's
+status, categories, attendees and notes. Clicking an event shows its details in the
+sidebar of oCIS Web, with the rows it has something to say about: when, where, the
+calendar, the pattern, the reminder, the attendees with their answers and the notes. The
+sidebar offers Edit and Delete when the calendar can be written to, and a note when it
+cannot; there is no form that is switched off. Edit opens the same dialog as New event
+with the values of the event, and so does a second click on the same event; saving sends
+only the fields that changed, with the event's ETag in `If-Match`, and delete asks first.
+On a narrow window the sidebar closes before a dialog opens. Escape closes every dialog. The page asks the server for times in the browser's
 time zone with `Prefer: outlook.timezone`, as Graph clients do, so an event is shown and
 edited in that zone whatever zone it was created in.
 
@@ -260,10 +265,11 @@ The dialog also edits the pattern of a repeating event: daily, weekly (with days
 monthly and yearly (on a day of the month or on a weekday such as the second Thursday),
 an interval, and an end after a number of times or on a date. The server writes a
 pattern as an iCalendar rule and expands it, so the page only draws the occurrences it
-gets. Opening an occurrence asks whether to change this event or all events. "This
-event" edits the occurrence (the server stores an override) and delete excludes that
+gets. Edit and Delete on an occurrence ask whether the choice is for this event or all
+events. "This event" edits the occurrence (the server stores an override) and delete excludes that
 day. "All events" edits and deletes the series. A series whose rule the Graph pattern
-cannot express is reported as such by the server, and its events open read-only.
+cannot express is reported as such by the server; the sidebar shows its events with a
+note and without Edit and Delete.
 
 Each calendar's menu has Export, which downloads it as one `.ics` file named after the
 calendar, and the calendars the user can write to have Import too. The Import button above

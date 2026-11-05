@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import GwModal from '../../../src/components/GwModal.vue'
 import ConfirmDialog from '../../../src/components/ConfirmDialog.vue'
 import CalendarDialog from '../../../src/calendar/CalendarDialog.vue'
+import ScopeDialog from '../../../src/calendar/ScopeDialog.vue'
 
 vi.mock('vue3-gettext', () => ({
   useGettext: () => ({
@@ -186,6 +187,30 @@ describe('CalendarDialog', () => {
   it('cancels', async () => {
     const wrapper = mount(CalendarDialog, { props: { title: 'New calendar' } })
     await wrapper.get('[data-testid="dialog-cancel"]').trigger('click')
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+})
+
+describe('ScopeDialog', () => {
+  it('asks about changing, with the safe choice first and the main one filled', async () => {
+    const wrapper = mount(ScopeDialog)
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Edit repeating event')
+    const buttons = wrapper.findAll('button').map((b) => b.attributes('data-testid'))
+    expect(buttons).toEqual(['dialog-cancel', 'scope-this', 'scope-all'])
+    await wrapper.get('[data-testid="scope-this"]').trigger('click')
+    await wrapper.get('[data-testid="scope-all"]').trigger('click')
+    expect(wrapper.emitted('choose')).toEqual([['this'], ['all']])
+  })
+
+  it('asks about deleting in its own words', () => {
+    const wrapper = mount(ScopeDialog, { props: { remove: true } })
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Delete repeating event')
+    expect(wrapper.text()).toContain('delete only this event')
+  })
+
+  it('closes on Escape', async () => {
+    const wrapper = mount(ScopeDialog)
+    await wrapper.get('[role="dialog"]').trigger('keydown', { key: 'Escape' })
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
 })
