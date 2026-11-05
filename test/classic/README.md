@@ -47,6 +47,10 @@ cards. Those objects are part of the dump and counted in the description.
 - `fixture_test.go`: checks that each dump matches its description. It runs
   with the normal `go test ./...`.
 
+The stack test `test/stack/migrate_test.go` loads `dumps/mariadb.sql` into a MariaDB
+next to the compose stack (`test/stack/classic-db.yml`) and migrates it into the
+stack's data directory. See [../../docs/classic-migrate.md](../../docs/classic-migrate.md).
+
 ## Regenerating
 
 ```

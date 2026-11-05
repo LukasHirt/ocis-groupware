@@ -893,6 +893,21 @@ on both routes. By hand, with the stack up: `task web:install`, then
 `npx playwright install chromium` in `web/`, then `task web:e2e`; `STACK_URL` picks
 another stack address.
 
+`TestMigrateClassicInstance` moves the classic fixture into the stack and checks what
+a user of the old server sees afterwards. It changes the stack's data and restarts the
+service, so it runs only with `STACK_MIGRATE=true`, and needs the classic paths
+(`STACK_COMPAT=true`, see [docs/routing.md](docs/routing.md)) and Docker access to the
+stack's compose project. It starts a MariaDB from `test/classic/dumps/mariadb.sql` with
+`test/stack/classic-db.yml`, creates the users `alice` and `bob` and the group `team` in
+oCIS, stops the service, runs `admin migrate classic` in a one-off container on the data
+volume, starts the service again and then plays a classic client: the classic URL, the
+classic user name and an app token. What it covers and what it leaves out is described
+in [docs/classic-migrate.md](docs/classic-migrate.md#what-the-stack-test-covers). CI runs
+it after the other stack tests on the `ingress-compat` entry. By hand, with the stack
+up with the classic paths:
+`STACK_MIGRATE=true go test -tags stack -count=1 -run TestMigrateClassicInstance ./test/stack/`.
+Run it once per stack: a second run finds the data of the first.
+
 CI boots the stack with `OCIS_VERSION=8.2.2` and runs them on every pull request. The
 tests are behind the `stack` build tag, so `task test` leaves them alone:
 
