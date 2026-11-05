@@ -128,6 +128,7 @@ func New(cfg Config, opts ...Option) (*Handler, error) {
 		{http.MethodGet, strings.Split("me/calendars/{id}/calendarView", "/"), a.calendarView("calendar")},
 	}
 	a.routes = append(a.routes, a.contactRoutes()...)
+	a.routes = append(a.routes, a.photoRoutes()...)
 	for _, opt := range opts {
 		opt(a)
 	}

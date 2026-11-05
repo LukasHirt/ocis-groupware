@@ -68,5 +68,6 @@
     "countryOrRegion": "",
     "postalCode": ""
   },
-  "groupware.groups": []
+  "groupware.groups": [],
+  "groupware.hasPhoto": false
 }
