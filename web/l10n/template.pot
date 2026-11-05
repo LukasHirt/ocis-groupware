@@ -143,6 +143,18 @@ msgstr ""
 msgid "Categories"
 msgstr ""
 
+msgid "Change"
+msgstr ""
+
+msgid "Change photo"
+msgstr ""
+
+msgid "Children"
+msgstr ""
+
+msgid "Choose another colour"
+msgstr ""
+
 msgid "City"
 msgstr ""
 
@@ -185,6 +197,21 @@ msgstr ""
 msgid "Copying is not possible here. Select the password and copy it by hand."
 msgstr ""
 
+msgid "Could not change the access"
+msgstr ""
+
+msgid "Could not change the calendar"
+msgstr ""
+
+msgid "Could not change the event"
+msgstr ""
+
+msgid "Could not change the group"
+msgstr ""
+
+msgid "Could not change the groups"
+msgstr ""
+
 msgid "Could not create the address book"
 msgstr ""
 
@@ -216,21 +243,6 @@ msgid "Could not download the address book"
 msgstr ""
 
 msgid "Could not export the calendar"
-msgstr ""
-
-msgid "Could not change the access"
-msgstr ""
-
-msgid "Could not change the calendar"
-msgstr ""
-
-msgid "Could not change the event"
-msgstr ""
-
-msgid "Could not change the group"
-msgstr ""
-
-msgid "Could not change the groups"
 msgstr ""
 
 msgid "Could not import the file"
@@ -513,18 +525,6 @@ msgid "Home address"
 msgstr ""
 
 msgid "Home phone"
-msgstr ""
-
-msgid "Change"
-msgstr ""
-
-msgid "Change photo"
-msgstr ""
-
-msgid "Children"
-msgstr ""
-
-msgid "Choose another colour"
 msgstr ""
 
 msgid "Import"
