@@ -171,6 +171,15 @@ list covers one address book or all of them, is searched by name, company, email
 address, phone number and category as you type, and can be sorted by name, surname or
 company. Searching and sorting happen in the browser on the contacts that were loaded.
 
+A contact is created in an address book the user may write to and edited or deleted
+there; shared address books that are read only offer neither. The form covers every
+field the Graph contact has: name parts, display name, company, job title and
+department, emails, phones, three addresses, messaging addresses, website, birthday,
+spouse, children, assistant, manager, phonetic names and notes. A save sends only the
+fields that changed, together with the contact's ETag, so a contact that was changed
+elsewhere in the meantime is not overwritten. A birthday without a year is shown in the
+details and kept as it is unless a date is picked.
+
 Development needs Node 24:
 
 ```sh
