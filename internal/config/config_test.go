@@ -402,3 +402,41 @@ func TestOIDCAudienceWildcard(t *testing.T) {
 		t.Error("only the sole entry * is the wildcard")
 	}
 }
+
+func TestIdentityMaxAge(t *testing.T) {
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IdentityMaxAge != 720*time.Hour {
+		t.Fatalf("default = %v, want 720h", cfg.IdentityMaxAge)
+	}
+
+	path := filepath.Join(t.TempDir(), "groupware.yaml")
+	if err := os.WriteFile(path, []byte("identity_max_age: 48h\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, err = Load(path); err != nil || cfg.IdentityMaxAge != 48*time.Hour {
+		t.Fatalf("file: %v, %v", cfg.IdentityMaxAge, err)
+	}
+	t.Setenv("GROUPWARE_IDENTITY_MAX_AGE", "24h")
+	if cfg, err = Load(path); err != nil || cfg.IdentityMaxAge != 24*time.Hour {
+		t.Fatalf("env: %v, %v", cfg.IdentityMaxAge, err)
+	}
+	t.Setenv("GROUPWARE_IDENTITY_MAX_AGE", "soon")
+	if _, err = Load(path); err == nil {
+		t.Fatal("an invalid duration was accepted")
+	}
+}
+
+func TestIdentityMaxAgeValidation(t *testing.T) {
+	valid := func(d time.Duration) Config {
+		return Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data", IdentityMaxAge: d}
+	}
+	if err := valid(-time.Hour).Validate(); err == nil {
+		t.Error("a negative identity_max_age was accepted")
+	}
+	if err := valid(0).Validate(); err != nil {
+		t.Errorf("0 turns the lease off and must be accepted: %v", err)
+	}
+}

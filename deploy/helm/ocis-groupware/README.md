@@ -54,6 +54,7 @@ repository for what each one does.
 | `config.httpAddr` | `GROUPWARE_HTTP_ADDR` | `:8080` | The container port is the number at the end |
 | `config.compatPaths` | `GROUPWARE_COMPAT_PATHS` | `false` | Serve the classic DAV layout; adds those paths to the Ingress |
 | `config.legacyTokenTtl` | `GROUPWARE_LEGACY_TOKEN_TTL` | `""` | A Go duration; the service default is `4320h` |
+| `config.identityMaxAge` | `GROUPWARE_IDENTITY_MAX_AGE` | `""` | A Go duration; the service default is `720h`. `0` turns the check off |
 | `config.adminSocket` | `GROUPWARE_ADMIN_SOCKET` | `""` | See the socket path limit below |
 | `persistence.mountPath` | `GROUPWARE_DATA_DIR` | `/data` | Where the volume is mounted |
 | `oidcCA.pem` | `GROUPWARE_OIDC_CA_FILE` | `""` | CA bundle text; the chart stores it in a ConfigMap and sets the key to the mounted file |

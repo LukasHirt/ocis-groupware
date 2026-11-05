@@ -57,6 +57,10 @@ For every enabled classic user that maps to an oCIS user:
 - Their app tokens, as app passwords with the same names. The token a device
   holds keeps working, and after its first use it becomes an ordinary app
   password. A token that was never used expires after 180 days.
+  The imported token also needs the user to be confirmed by oCIS: it works for
+  `GROUPWARE_IDENTITY_MAX_AGE` (30 days by default) after the import, and after
+  that only once the user has opened oCIS Web or otherwise signed in with a
+  token. Ask users to do that once after the migration.
 - The shares of their collections, as grants to the oCIS user or group the
   recipient maps to. Read-only becomes read, read-write becomes read-write.
 

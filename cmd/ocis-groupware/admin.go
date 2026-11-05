@@ -50,6 +50,9 @@ type adminCommand struct {
 	owner      string
 	json       bool
 	yes        bool
+	// leaseMaxAge is the identity lease from the configuration, which the
+	// list uses to mark who is past it.
+	leaseMaxAge time.Duration
 	// migrate is set for "migrate classic".
 	migrate *migrateOptions
 }
@@ -185,6 +188,7 @@ func (cmd adminCommand) run(stdout io.Writer) error {
 		return errors.New("config: data_dir must be set (GROUPWARE_DATA_DIR) or --socket given")
 	}
 	c := newAdminClient(socket, cfg.DataDir)
+	cmd.leaseMaxAge = cfg.IdentityMaxAge
 
 	switch cmd.verb {
 	case "list":
@@ -366,7 +370,7 @@ func (cmd adminCommand) list(c *adminClient, stdout io.Writer) error {
 	// The owner has a column of its own only when it differs from the sub
 	// for someone: for users who signed in on their own, it is the same value.
 	withOwner := slices.ContainsFunc(list, func(p principal) bool { return p.Owner != p.Sub })
-	header := "USERNAME\tDISPLAY NAME\tSTATE\tCREATED"
+	header := "USERNAME\tDISPLAY NAME\tSTATE\tCREATED\tIDENTITY AGE"
 	if withOwner {
 		header += "\tOWNER"
 	}
@@ -384,7 +388,8 @@ func (cmd adminCommand) list(c *adminClient, stdout io.Writer) error {
 		if sub == "" {
 			sub = "-"
 		}
-		row := fmt.Sprintf("%s\t%s\t%s\t%s", name, p.DisplayName, state, p.CreatedAt.UTC().Format("2006-01-02 15:04 UTC"))
+		row := fmt.Sprintf("%s\t%s\t%s\t%s\t%s", name, p.DisplayName, state, p.CreatedAt.UTC().Format("2006-01-02 15:04 UTC"),
+			identityAge(p.IdentityAt, adminNow(), cmd.leaseMaxAge))
 		if withOwner {
 			row += "\t" + p.Owner
 		}
@@ -401,6 +406,39 @@ type principal struct {
 	DisplayName string    `json:"display_name"`
 	CreatedAt   time.Time `json:"created_at"`
 	Disabled    bool      `json:"disabled"`
+	IdentityAt  time.Time `json:"identity_at"`
+}
+
+// adminNow is the clock of the list command. Tests replace it.
+var adminNow = time.Now
+
+// identityAge says how long ago oCIS last confirmed a user, for the list.
+// "never" means it did not since the user was created. When the identity
+// lease is on and the age has reached it, the app passwords of the user
+// are refused, which the list marks as "stale".
+func identityAge(at, now time.Time, lease time.Duration) string {
+	if at.IsZero() {
+		if lease > 0 {
+			return "never (stale)"
+		}
+		return "never"
+	}
+	age := max(now.Sub(at), 0)
+	var s string
+	switch {
+	case age >= 24*time.Hour:
+		s = fmt.Sprintf("%dd", int(age/(24*time.Hour)))
+	case age >= time.Hour:
+		s = fmt.Sprintf("%dh", int(age/time.Hour))
+	case age >= time.Minute:
+		s = fmt.Sprintf("%dm", int(age/time.Minute))
+	default:
+		s = "<1m"
+	}
+	if lease > 0 && age >= lease {
+		s += " (stale)"
+	}
+	return s
 }
 
 // adminClient talks to the admin API over its unix socket.

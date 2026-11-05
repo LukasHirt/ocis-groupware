@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LukasHirt/groupkit/store/filestore"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/owncloud/ocis-groupware/internal/auth"
 	"github.com/owncloud/ocis-groupware/internal/ocisgraph"
 	"github.com/owncloud/ocis-groupware/internal/principals"
@@ -230,5 +233,59 @@ func TestSignInRefreshesTheIdentity(t *testing.T) {
 	}
 	if f.graph.count() != calls {
 		t.Fatal("looked up for a refused sign-in")
+	}
+}
+
+// leaseFixture is a registry with a 720h identity lease that shares its clock
+// with the Identities, and an app password for einstein.
+func newLeaseIDFixture(t *testing.T) (idFixture, string) {
+	t.Helper()
+	dir := t.TempDir()
+	st, err := filestore.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	c := &clock{}
+	c.t.Store(1_800_000_000)
+	reg, err := principals.NewRegistry(dir, st, st.OwnerDir, slog.New(slog.DiscardHandler),
+		principals.WithBcryptCost(bcrypt.MinCost), principals.WithClock(c.now), principals.WithIdentityMaxAge(720*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := reg.Provision(context.Background(), "sub-1", "einstein", "Albert"); err != nil {
+		t.Fatal(err)
+	}
+	g := &fakeGraph{user: ocisgraph.User{ID: "u-1"}}
+	f := idFixture{reg: reg, graph: g, ids: NewIdentities(reg, g, slog.New(slog.DiscardHandler), WithClock(c.now)), clock: c, logs: &bytes.Buffer{}}
+	f.ids.Refresh(context.Background(), "sub-1", "tok")
+	_, secret, err := reg.IssueAppPassword(context.Background(), "sub-1", "phone", 5*720*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f, secret
+}
+
+func TestRefreshRenewsTheIdentityLease(t *testing.T) {
+	f, secret := newLeaseIDFixture(t)
+	ctx := context.Background()
+	f.clock.add(720 * time.Hour)
+	if _, err := f.reg.VerifyBasic(ctx, "einstein", secret); !errors.Is(err, principals.ErrIdentityStale) {
+		t.Fatalf("after the lease: %v, want ErrIdentityStale", err)
+	}
+	f.ids.Refresh(ctx, "sub-1", "tok")
+	if _, err := f.reg.VerifyBasic(ctx, "einstein", secret); err != nil {
+		t.Fatalf("after a refresh: %v", err)
+	}
+}
+
+func TestFailedRefreshDoesNotRenewTheIdentityLease(t *testing.T) {
+	f, secret := newLeaseIDFixture(t)
+	ctx := context.Background()
+	f.clock.add(720 * time.Hour)
+	f.graph.err = errors.New("ocisgraph: status 500")
+	f.ids.Refresh(ctx, "sub-1", "tok")
+	if _, err := f.reg.VerifyBasic(ctx, "einstein", secret); !errors.Is(err, principals.ErrIdentityStale) {
+		t.Fatalf("after a failed refresh: %v, want ErrIdentityStale", err)
 	}
 }

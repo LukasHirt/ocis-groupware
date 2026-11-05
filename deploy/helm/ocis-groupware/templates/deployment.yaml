@@ -78,6 +78,10 @@ spec:
             - name: GROUPWARE_LEGACY_TOKEN_TTL
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.config.identityMaxAge }}
+            - name: GROUPWARE_IDENTITY_MAX_AGE
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.config.adminSocket }}
             - name: GROUPWARE_ADMIN_SOCKET
               value: {{ . | quote }}

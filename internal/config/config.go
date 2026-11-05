@@ -53,6 +53,13 @@ type Config struct {
 	// stored. The ingress has to send those paths to the service. Off by
 	// default.
 	CompatPaths bool `yaml:"compat_paths"`
+	// IdentityMaxAge is the identity lease: a Basic sign-in (app password or
+	// imported token) succeeds only if oCIS confirmed the user, with the
+	// user's own token, within this time. The service has no credential for
+	// oCIS, so this is how long the password of a deleted or disabled user, or
+	// of a user removed from a group, can keep working. A Go duration such as
+	// 720h. 0 turns the check off.
+	IdentityMaxAge time.Duration `yaml:"identity_max_age"`
 	// TrustedProxies lists the addresses and networks of the reverse proxies
 	// in front of the service. Only requests from them are believed when they
 	// say who the client is in X-Forwarded-For. The sign-in rate limiter
@@ -113,6 +120,7 @@ func Default() Config {
 		OIDCAudience: StringList{"web"},
 
 		LegacyTokenTTL: 180 * 24 * time.Hour,
+		IdentityMaxAge: 720 * time.Hour,
 
 		AuthMaxFailures:   10,
 		AuthFailureWindow: 15 * time.Minute,
@@ -173,6 +181,13 @@ func Load(path string) (Config, error) {
 		}
 		cfg.LegacyTokenTTL = ttl
 	}
+	if v, ok := os.LookupEnv("GROUPWARE_IDENTITY_MAX_AGE"); ok {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("config: GROUPWARE_IDENTITY_MAX_AGE: %w", err)
+		}
+		cfg.IdentityMaxAge = d
+	}
 	if v, ok := os.LookupEnv("GROUPWARE_COMPAT_PATHS"); ok {
 		on, err := strconv.ParseBool(v)
 		if err != nil {
@@ -223,6 +238,9 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.LegacyTokenTTL < 0 {
 		return fmt.Errorf("config: legacy_token_ttl must not be negative")
+	}
+	if cfg.IdentityMaxAge < 0 {
+		return fmt.Errorf("config: identity_max_age must not be negative")
 	}
 	if cfg.AuthMaxFailures < 1 {
 		return fmt.Errorf("config: auth_max_failures must be at least 1")

@@ -12,6 +12,7 @@ import (
 	"github.com/LukasHirt/groupkit/store"
 
 	"github.com/owncloud/ocis-groupware/internal/principals"
+	"github.com/owncloud/ocis-groupware/internal/provision"
 	"github.com/owncloud/ocis-groupware/internal/sharing"
 )
 
@@ -35,7 +36,14 @@ func newShareFixture(t *testing.T) *shareFixture {
 // to her sub after it was created, as an imported user is.
 func newShareFixtureFor(t *testing.T, aliceOwner string) *shareFixture {
 	t.Helper()
-	f := newFixture(t)
+	return newShareFixtureWith(t, aliceOwner, 0, nil)
+}
+
+// newShareFixtureWith is newShareFixtureFor with an identity lease and, when
+// graph is not nil, an identity lookup at bearer sign-ins.
+func newShareFixtureWith(t *testing.T, aliceOwner string, lease time.Duration, graph provision.Looker) *shareFixture {
+	t.Helper()
+	f := newFixtureWithLease(t, lease)
 	sf := &shareFixture{fixture: f}
 	ctx := context.Background()
 	if aliceOwner != "sub-alice" {
@@ -52,7 +60,7 @@ func newShareFixtureFor(t *testing.T, aliceOwner string) *shareFixture {
 	if _, _, err := f.reg.Provision(ctx, "sub-alice", "alice", "alice"); err != nil {
 		t.Fatal(err)
 	}
-	_, secret, err := f.reg.IssueAppPassword(ctx, aliceOwner, "Phone", time.Hour)
+	_, secret, err := f.reg.IssueAppPassword(ctx, aliceOwner, "Phone", f.passwordTTL())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +103,11 @@ func newShareFixtureFor(t *testing.T, aliceOwner string) *shareFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dav, wk, err := New(Config{Store: view, Registry: f.reg, Verifier: f.verifier, Logger: f.logger})
+	cfg := Config{Store: view, Registry: f.reg, Verifier: f.verifier, Now: f.clock.Now, Logger: f.logger}
+	if graph != nil {
+		cfg.Identities = provision.NewIdentities(f.reg, graph, f.logger, provision.WithClock(f.clock.Now))
+	}
+	dav, wk, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -101,9 +101,15 @@ type fixture struct {
 	logger   *slog.Logger
 	dav      http.Handler
 	wk       http.Handler
+	// lease is the identity lease of the registry, 0 for none.
+	lease time.Duration
 }
 
-func newFixture(t *testing.T) *fixture {
+func newFixture(t *testing.T) *fixture { return newFixtureWithLease(t, 0) }
+
+// newFixtureWithLease is newFixture with a registry that enforces an identity
+// lease of that length.
+func newFixtureWithLease(t *testing.T, lease time.Duration) *fixture {
 	t.Helper()
 	dir := t.TempDir()
 	st, err := filestore.Open(dir)
@@ -118,6 +124,7 @@ func newFixture(t *testing.T) *fixture {
 		verifier: &fakeVerifier{tokens: map[string]auth.Claims{}},
 		clock:    &clock{now: time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)},
 		logs:     &syncBuffer{},
+		lease:    lease,
 	}
 	f.logger = slog.New(slog.NewTextHandler(f.logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	f.reg = f.newRegistry(t)
@@ -128,7 +135,8 @@ func newFixture(t *testing.T) *fixture {
 func (f *fixture) newRegistry(t *testing.T) *principals.Registry {
 	t.Helper()
 	reg, err := principals.NewRegistry(f.dir, f.st, f.st.OwnerDir, f.logger,
-		principals.WithBcryptCost(bcrypt.MinCost), principals.WithClock(f.clock.Now))
+		principals.WithBcryptCost(bcrypt.MinCost), principals.WithClock(f.clock.Now),
+		principals.WithIdentityMaxAge(f.lease))
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
@@ -144,6 +152,15 @@ func (f *fixture) mount(t *testing.T) {
 	f.dav, f.wk = dav, wk
 }
 
+// passwordTTL is the lifetime of the app passwords the fixture issues: an
+// hour, or longer than the identity lease if there is one.
+func (f *fixture) passwordTTL() time.Duration {
+	if f.lease > 0 {
+		return 10 * f.lease
+	}
+	return time.Hour
+}
+
 // user provisions a principal and returns an app password for it.
 func (f *fixture) user(t *testing.T, sub, username string) string {
 	t.Helper()
@@ -151,7 +168,7 @@ func (f *fixture) user(t *testing.T, sub, username string) string {
 	if _, _, err := f.reg.Provision(ctx, sub, username, username); err != nil {
 		t.Fatalf("Provision: %v", err)
 	}
-	_, secret, err := f.reg.IssueAppPassword(ctx, sub, "Phone", time.Hour)
+	_, secret, err := f.reg.IssueAppPassword(ctx, sub, "Phone", f.passwordTTL())
 	if err != nil {
 		t.Fatalf("IssueAppPassword: %v", err)
 	}

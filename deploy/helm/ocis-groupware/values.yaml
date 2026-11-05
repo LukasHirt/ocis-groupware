@@ -39,6 +39,10 @@ config:
   # GROUPWARE_LEGACY_TOKEN_TTL, a Go duration. Empty keeps the service default
   # (4320h).
   legacyTokenTtl: ""
+  # GROUPWARE_IDENTITY_MAX_AGE, a Go duration. How long an app password works
+  # after oCIS last confirmed its user. Empty keeps the service default (720h).
+  # "0" turns the check off.
+  identityMaxAge: ""
   # GROUPWARE_ADMIN_SOCKET. Empty keeps admin.sock in the data directory.
   # A unix socket path is limited to about 100 bytes (107 on Linux, 103 on
   # macOS), and the service creates the socket under a temporary name that is
