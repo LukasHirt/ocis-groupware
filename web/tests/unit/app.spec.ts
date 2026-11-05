@@ -4,6 +4,7 @@ import type { AppMenuItemExtension } from '@ownclouders/web-pkg'
 import type { RouteRecordRaw } from 'vue-router'
 import PageLayout from '../../src/components/PageLayout.vue'
 import app from '../../src/index'
+import translations from '../../src/l10n/translations.json'
 
 // The host injects gettext; the tests only need the strings back.
 vi.mock('vue3-gettext', () => ({
@@ -44,6 +45,16 @@ describe('the application', () => {
   it('registers under the id groupware with a name', () => {
     expect(script.appInfo?.id).toBe('groupware')
     expect(script.appInfo?.name).toBe('Calendar and Contacts')
+  })
+
+  it('carries its icon and brand colour', () => {
+    expect(script.appInfo?.img).toMatch(/^data:image\/svg\+xml/)
+    const [item] = script.extensions?.value as AppMenuItemExtension[]
+    expect(item.color).toBe('#1f6f8b')
+  })
+
+  it('hands its compiled translations to the host', () => {
+    expect(script.translations).toEqual(translations)
   })
 
   it('has a calendar and a contacts route, and a redirect from its root', () => {

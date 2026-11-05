@@ -1,0 +1,933 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "(No title)"
+msgstr ""
+
+msgid "%{n} days"
+msgstr ""
+
+msgid "%{n} days (default)"
+msgstr ""
+
+msgid "%{n} minutes before"
+msgstr ""
+
+msgid "1 minute before"
+msgstr ""
+
+msgid "Access"
+msgstr ""
+
+msgid "Access of %{name}"
+msgstr ""
+
+msgid "Account"
+msgstr ""
+
+msgid "Add"
+msgstr ""
+
+msgid "Add an account under Internet Accounts or Settings, choose Other, then CalDAV or CardDAV account with manual setup. Enter your username, an app password and the server address."
+msgstr ""
+
+msgid "Add an account, choose Login with URL and user name, and enter the server address, your username and an app password. DAVx5 then finds both your calendars and your address books."
+msgstr ""
+
+msgid "Add calendar"
+msgstr ""
+
+msgid "Add people"
+msgstr ""
+
+msgid "Add photo"
+msgstr ""
+
+msgid "Add to group"
+msgstr ""
+
+msgid "Address book"
+msgstr ""
+
+msgid "Address book home"
+msgstr ""
+
+msgid "Address books"
+msgstr ""
+
+msgid "After a number of times"
+msgstr ""
+
+msgid "All contacts"
+msgstr ""
+
+msgid "All events"
+msgstr ""
+
+msgid "App passwords"
+msgstr ""
+
+msgid "April"
+msgstr ""
+
+msgid "Assistant"
+msgstr ""
+
+msgid "At the time of the event"
+msgstr ""
+
+msgid "Attendees"
+msgstr ""
+
+msgid "August"
+msgstr ""
+
+msgid "Away"
+msgstr ""
+
+msgid "Birthday"
+msgstr ""
+
+msgid "Browser time zone (%{zone})"
+msgstr ""
+
+msgid "Busy"
+msgstr ""
+
+msgid "Calendar"
+msgstr ""
+
+msgid "Calendar and contact apps sign in with your username and an app password, not with your regular password."
+msgstr ""
+
+msgid "Calendar and Contacts"
+msgstr ""
+
+msgid "Calendar home"
+msgstr ""
+
+msgid "Calendar settings"
+msgstr ""
+
+msgid "Calendar: New Calendar, On the Network, CalDAV, and paste the calendar home. Contacts: New CardDAV Address Book, then enter your username and the server address. Use an app password when it asks for a password."
+msgstr ""
+
+msgid "Calendars"
+msgstr ""
+
+msgid "can edit"
+msgstr ""
+
+msgid "Can edit"
+msgstr ""
+
+msgid "Can view"
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Card %{n}: %{error}"
+msgstr ""
+
+msgid "Categories"
+msgstr ""
+
+msgid "City"
+msgstr ""
+
+msgid "Close"
+msgstr ""
+
+msgid "Colour"
+msgstr ""
+
+msgid "Company"
+msgstr ""
+
+msgid "Connect a calendar or contacts app"
+msgstr ""
+
+msgid "Contact details"
+msgstr ""
+
+msgid "Contact list"
+msgstr ""
+
+msgid "Contacts"
+msgstr ""
+
+msgid "Copied"
+msgstr ""
+
+msgid "Copy"
+msgstr ""
+
+msgid "Copy %{what}"
+msgstr ""
+
+msgid "Copying is not possible here. Select the password and copy it by hand."
+msgstr ""
+
+msgid "Could not create the address book"
+msgstr ""
+
+msgid "Could not create the app password"
+msgstr ""
+
+msgid "Could not create the calendar"
+msgstr ""
+
+msgid "Could not create the contact"
+msgstr ""
+
+msgid "Could not create the event"
+msgstr ""
+
+msgid "Could not delete the address book"
+msgstr ""
+
+msgid "Could not delete the calendar"
+msgstr ""
+
+msgid "Could not delete the contact"
+msgstr ""
+
+msgid "Could not delete the event"
+msgstr ""
+
+msgid "Could not download the address book"
+msgstr ""
+
+msgid "Could not change the access"
+msgstr ""
+
+msgid "Could not change the calendar"
+msgstr ""
+
+msgid "Could not change the event"
+msgstr ""
+
+msgid "Could not change the group"
+msgstr ""
+
+msgid "Could not change the groups"
+msgstr ""
+
+msgid "Could not import the file"
+msgstr ""
+
+msgid "Could not load the address books"
+msgstr ""
+
+msgid "Could not load the app passwords"
+msgstr ""
+
+msgid "Could not load the calendars"
+msgstr ""
+
+msgid "Could not load the contact"
+msgstr ""
+
+msgid "Could not load the contacts"
+msgstr ""
+
+msgid "Could not load the event"
+msgstr ""
+
+msgid "Could not load the events"
+msgstr ""
+
+msgid "Could not load the photo"
+msgstr ""
+
+msgid "Could not load who this is shared with"
+msgstr ""
+
+msgid "Could not load your account"
+msgstr ""
+
+msgid "Could not remove the photo"
+msgstr ""
+
+msgid "Could not rename the address book"
+msgstr ""
+
+msgid "Could not revoke the app password"
+msgstr ""
+
+msgid "Could not save the contact"
+msgstr ""
+
+msgid "Could not save the photo"
+msgstr ""
+
+msgid "Could not search for users and groups"
+msgstr ""
+
+msgid "Could not share"
+msgstr ""
+
+msgid "Could not stop sharing"
+msgstr ""
+
+msgid "Country or region"
+msgstr ""
+
+msgid "Create"
+msgstr ""
+
+msgid "Created %{date}"
+msgstr ""
+
+msgid "Daily"
+msgstr ""
+
+msgid "Day"
+msgstr ""
+
+msgid "day(s)"
+msgstr ""
+
+msgid "Days of the week"
+msgstr ""
+
+msgid "December"
+msgstr ""
+
+msgid "Delete"
+msgstr ""
+
+msgid "Delete %{name}"
+msgstr ""
+
+msgid "Delete %{name} and all of its events? This cannot be undone."
+msgstr ""
+
+msgid "Delete %{name}? This cannot be undone."
+msgstr ""
+
+msgid "Delete all events"
+msgstr ""
+
+msgid "Delete calendar"
+msgstr ""
+
+msgid "Delete event"
+msgstr ""
+
+msgid "Delete every event of this series? This cannot be undone."
+msgstr ""
+
+msgid "Delete group"
+msgstr ""
+
+msgid "Delete only this event? The rest of the series stays."
+msgstr ""
+
+msgid "Delete the address book %{name} with all its contacts?"
+msgstr ""
+
+msgid "Delete this contact?"
+msgstr ""
+
+msgid "Delete this event"
+msgstr ""
+
+msgid "Department"
+msgstr ""
+
+msgid "Devices that use %{name} will no longer be able to sign in. This cannot be undone."
+msgstr ""
+
+msgid "Display name"
+msgstr ""
+
+msgid "Do you want to change only this event or all events of the series?"
+msgstr ""
+
+msgid "Does not repeat"
+msgstr ""
+
+msgid "Done"
+msgstr ""
+
+msgid "Download vCard"
+msgstr ""
+
+msgid "Edit"
+msgstr ""
+
+msgid "Edit %{name}"
+msgstr ""
+
+msgid "Edit all events"
+msgstr ""
+
+msgid "Edit calendar"
+msgstr ""
+
+msgid "Edit contact"
+msgstr ""
+
+msgid "Edit event"
+msgstr ""
+
+msgid "Edit repeating event"
+msgstr ""
+
+msgid "Edit this event"
+msgstr ""
+
+msgid "Email"
+msgstr ""
+
+msgid "Email address"
+msgstr ""
+
+msgid "End date"
+msgstr ""
+
+msgid "End time"
+msgstr ""
+
+msgid "Ends"
+msgstr ""
+
+msgid "Enter a name for the calendar."
+msgstr ""
+
+msgid "Enter a name, so you can tell the devices apart."
+msgstr ""
+
+msgid "Enter a start date and time."
+msgstr ""
+
+msgid "Enter a valid email address."
+msgstr ""
+
+msgid "Enter a whole number between 1 and 99 for how often it repeats."
+msgstr ""
+
+msgid "Enter this password in your app now. It is not shown again."
+msgstr ""
+
+msgid "Event"
+msgstr ""
+
+msgid "Every"
+msgstr ""
+
+msgid "Every contact"
+msgstr ""
+
+msgid "Expired"
+msgstr ""
+
+msgid "expired %{date}"
+msgstr ""
+
+msgid "expires %{date}"
+msgstr ""
+
+msgid "Expires after"
+msgstr ""
+
+msgid "February"
+msgstr ""
+
+msgid "First"
+msgstr ""
+
+msgid "First day of the week"
+msgstr ""
+
+msgid "First name"
+msgstr ""
+
+msgid "For example, Phone"
+msgstr ""
+
+msgid "Fourth"
+msgstr ""
+
+msgid "Free"
+msgstr ""
+
+msgid "Fri"
+msgstr ""
+
+msgid "Friday"
+msgstr ""
+
+msgid "Group"
+msgstr ""
+
+msgid "group card, read only"
+msgstr ""
+
+msgid "Group cards"
+msgstr ""
+
+msgid "Groups"
+msgstr ""
+
+msgid "Home address"
+msgstr ""
+
+msgid "Home phone"
+msgstr ""
+
+msgid "Change"
+msgstr ""
+
+msgid "Change photo"
+msgstr ""
+
+msgid "Children"
+msgstr ""
+
+msgid "Choose another colour"
+msgstr ""
+
+msgid "Import finished: %{created} created, %{updated} updated, %{failed} failed."
+msgstr ""
+
+msgid "Import vCard"
+msgstr ""
+
+msgid "January"
+msgstr ""
+
+msgid "Job title"
+msgstr ""
+
+msgid "July"
+msgstr ""
+
+msgid "June"
+msgstr ""
+
+msgid "Last"
+msgstr ""
+
+msgid "Last used %{date}"
+msgstr ""
+
+msgid "Loading"
+msgstr ""
+
+msgid "Manager"
+msgstr ""
+
+msgid "March"
+msgstr ""
+
+msgid "May"
+msgstr ""
+
+msgid "Messaging"
+msgstr ""
+
+msgid "Middle name"
+msgstr ""
+
+msgid "Mobile phone"
+msgstr ""
+
+msgid "Mon"
+msgstr ""
+
+msgid "Monday"
+msgstr ""
+
+msgid "Month"
+msgstr ""
+
+msgid "month(s)"
+msgstr ""
+
+msgid "Monthly"
+msgstr ""
+
+msgid "Name"
+msgstr ""
+
+msgid "Name of the address book"
+msgstr ""
+
+msgid "Never"
+msgstr ""
+
+msgid "Never used"
+msgstr ""
+
+msgid "New address book"
+msgstr ""
+
+msgid "New app password"
+msgstr ""
+
+msgid "New contact"
+msgstr ""
+
+msgid "New event"
+msgstr ""
+
+msgid "New name of the address book"
+msgstr ""
+
+msgid "New name of the group"
+msgstr ""
+
+msgid "Next"
+msgstr ""
+
+msgid "Nickname"
+msgstr ""
+
+msgid "No contact matches your search."
+msgstr ""
+
+msgid "No reminder"
+msgstr ""
+
+msgid "No user or group matches."
+msgstr ""
+
+msgid "Not in any group."
+msgstr ""
+
+msgid "Not shared with anyone yet."
+msgstr ""
+
+msgid "Notes"
+msgstr ""
+
+msgid "November"
+msgstr ""
+
+msgid "October"
+msgstr ""
+
+msgid "On a date"
+msgstr ""
+
+msgid "On a day of the month"
+msgstr ""
+
+msgid "On a weekday"
+msgstr ""
+
+msgid "Other address"
+msgstr ""
+
+msgid "Phone"
+msgstr ""
+
+msgid "Phonetic company"
+msgstr ""
+
+msgid "Phonetic first name"
+msgstr ""
+
+msgid "Phonetic surname"
+msgstr ""
+
+msgid "Photo of %{name}"
+msgstr ""
+
+msgid "Pick at least one day of the week."
+msgstr ""
+
+msgid "Place"
+msgstr ""
+
+msgid "Postal code"
+msgstr ""
+
+msgid "Previous"
+msgstr ""
+
+msgid "Profession"
+msgstr ""
+
+msgid "read only"
+msgstr ""
+
+msgid "Reminder"
+msgstr ""
+
+msgid "Remove"
+msgstr ""
+
+msgid "Remove %{address}"
+msgstr ""
+
+msgid "Remove from group %{name}"
+msgstr ""
+
+msgid "Remove photo"
+msgstr ""
+
+msgid "Remove this group from its contacts?"
+msgstr ""
+
+msgid "Rename"
+msgstr ""
+
+msgid "Rename group"
+msgstr ""
+
+msgid "Repeat"
+msgstr ""
+
+msgid "Repeat on"
+msgstr ""
+
+msgid "Results"
+msgstr ""
+
+msgid "Revoke"
+msgstr ""
+
+msgid "Revoke %{name}"
+msgstr ""
+
+msgid "Revoke app password"
+msgstr ""
+
+msgid "Sat"
+msgstr ""
+
+msgid "Saturday"
+msgstr ""
+
+msgid "Save"
+msgstr ""
+
+msgid "Search"
+msgstr ""
+
+msgid "Search contacts"
+msgstr ""
+
+msgid "Search users and groups"
+msgstr ""
+
+msgid "Second"
+msgstr ""
+
+msgid "Separate names with commas"
+msgstr ""
+
+msgid "September"
+msgstr ""
+
+msgid "Server address"
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "Setup hints"
+msgstr ""
+
+msgid "Share"
+msgstr ""
+
+msgid "Share %{name}"
+msgstr ""
+
+msgid "Shared with"
+msgstr ""
+
+msgid "Show %{name}"
+msgstr ""
+
+msgid "Show as"
+msgstr ""
+
+msgid "Sort by"
+msgstr ""
+
+msgid "Spouse"
+msgstr ""
+
+msgid "Start time"
+msgstr ""
+
+msgid "Starts"
+msgstr ""
+
+msgid "State"
+msgstr ""
+
+msgid "Stop sharing with %{name}"
+msgstr ""
+
+msgid "Street"
+msgstr ""
+
+msgid "Suffix"
+msgstr ""
+
+msgid "Sun"
+msgstr ""
+
+msgid "Sunday"
+msgstr ""
+
+msgid "Surname"
+msgstr ""
+
+msgid "Tentative"
+msgstr ""
+
+msgid "The day of the month must be between 1 and 31."
+msgstr ""
+
+msgid "The end must be on or after the start."
+msgstr ""
+
+msgid "The item was changed elsewhere. Reload and try again."
+msgstr ""
+
+msgid "The last date must not be before the start."
+msgstr ""
+
+msgid "The name is too long."
+msgstr ""
+
+msgid "The number of times must be between 1 and 999."
+msgstr ""
+
+msgid "The photo must be a JPEG or PNG image."
+msgstr ""
+
+msgid "The photo must be at most 1 MB."
+msgstr ""
+
+msgid "There are no contacts here yet."
+msgstr ""
+
+msgid "These settings are kept in this browser."
+msgstr ""
+
+msgid "Third"
+msgstr ""
+
+msgid "This calendar is shared with you as read only."
+msgstr ""
+
+msgid "This contact has a birthday without a year. Pick a date to replace it."
+msgstr ""
+
+msgid "this event"
+msgstr ""
+
+msgid "This event"
+msgstr ""
+
+msgid "This event repeats in a way the editor cannot show, so it cannot be changed here. Use a calendar app."
+msgstr ""
+
+msgid "This person is already invited."
+msgstr ""
+
+msgid "Thu"
+msgstr ""
+
+msgid "Thursday"
+msgstr ""
+
+msgid "Time zone"
+msgstr ""
+
+msgid "Times"
+msgstr ""
+
+msgid "Title"
+msgstr ""
+
+msgid "Today"
+msgstr ""
+
+msgid "Tue"
+msgstr ""
+
+msgid "Tuesday"
+msgstr ""
+
+msgid "Type at least %{n} characters of a name."
+msgstr ""
+
+msgid "Unknown"
+msgstr ""
+
+msgid "Unnamed contact"
+msgstr ""
+
+msgid "Use one app password for each device, so you can revoke a single device without touching the others."
+msgstr ""
+
+msgid "User"
+msgstr ""
+
+msgid "Username"
+msgstr ""
+
+msgid "W"
+msgstr ""
+
+msgid "Website"
+msgstr ""
+
+msgid "Wed"
+msgstr ""
+
+msgid "Wednesday"
+msgstr ""
+
+msgid "Week"
+msgstr ""
+
+msgid "week(s)"
+msgstr ""
+
+msgid "Weekly"
+msgstr ""
+
+msgid "Which one"
+msgstr ""
+
+msgid "Work address"
+msgstr ""
+
+msgid "Work phone"
+msgstr ""
+
+msgid "Working elsewhere"
+msgstr ""
+
+msgid "year(s)"
+msgstr ""
+
+msgid "Yearly"
+msgstr ""
+
+msgid "You have no address books yet."
+msgstr ""
+
+msgid "You have no app passwords yet."
+msgstr ""
+
+msgid "You have no calendars yet."
+msgstr ""
+
+msgid "Your DAV username is not available. If another user has taken over your name, ask an administrator."
+msgstr ""
+
+msgid "Your new app password"
+msgstr ""

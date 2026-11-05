@@ -14,8 +14,11 @@
     "lint": "eslint .",
     "check:types": "vue-tsc --noEmit",
     "test": "vitest run",
-    "check": "npm run lint && npm run check:types && npm run test && npm run build",
-    "test:e2e": "playwright test"
+    "check": "npm run lint && npm run check:types && npm run l10n:check && npm run test && npm run build",
+    "test:e2e": "playwright test",
+    "l10n:extract": "node scripts/l10n.mjs extract",
+    "l10n:compile": "node scripts/l10n.mjs compile",
+    "l10n:check": "node scripts/l10n.mjs check"
   },
   "dependencies": {
     "@fullcalendar/core": "6.1.22",

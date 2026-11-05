@@ -89,6 +89,15 @@ so composables such as `useGettext` work there. It returns:
   `path` puts the application into the application switcher, rendered as a
   link. Without it the application has routes but no entry in the menu.
 
+Two more fields of the contract carry the application's look and language.
+`appInfo.img` is an image address; the application passes its icon as a data
+URI, built from `web/src/assets/icon.svg`, so no extra file has to be served or
+cached. The application switcher does not use it: Web 12.5.0 draws a menu entry
+from a named icon of its design system on a gradient made from the extension's
+`color`, so the entry keeps the `calendar` icon and takes the icon's blue as its
+colour. `translations`, a map of language to messages, is merged into Web's
+catalog; [translations.md](translations.md) describes how it is produced.
+
 ## Calling the service from the browser
 
 `useClientService().httpAuthenticated` from `web-pkg` is an axios client
