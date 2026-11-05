@@ -51,3 +51,41 @@ jobs:
         with:
           persist-credentials: false
       - run: docker build -t ocis-groupware:ci .
+
+  stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OCIS_VERSION: 8.2.2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Resolve the stack's domain
+        run: echo "127.0.0.1 ocis.localhost" | sudo tee -a /etc/hosts
+      - name: Install the Python client that ships with groupkit
+        run: |
+          go mod download github.com/LukasHirt/groupkit
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --require-hashes \
+            -r "$(go list -m -f '{{.Dir}}' github.com/LukasHirt/groupkit)/test/pyclient/requirements.txt"
+      - name: Start the stack
+        run: docker compose up --build --detach --quiet-pull
+      - name: Export the stack's certificate
+        run: docker compose cp traefik:/certs/cert.pem "$RUNNER_TEMP/cert.pem"
+      # The tests wait for the service and the identity provider themselves.
+      - name: Run the stack tests
+        env:
+          STACK_CA_FILE: ${{ runner.temp }}/cert.pem
+          STACK_PYTHON: ${{ runner.temp }}/venv/bin/python
+          STACK_WAIT: 5m
+        run: go test -tags stack -count=1 -v ./test/stack/
+      - name: Show the stack's logs
+        if: failure()
+        run: docker compose logs --no-color --tail 300
+      - name: Stop the stack
+        if: always()
+        run: docker compose down --volumes
