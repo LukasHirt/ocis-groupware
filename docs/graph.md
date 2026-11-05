@@ -218,3 +218,18 @@ An import answers with a report that has one entry per object in the file: its p
 UID, the name it got in the collection, and `created`, `updated` or `failed` with a reason. An
 object with the UID of a stored one replaces it in place. A bad object does not fail the file.
 A read-only collection is `403`.
+
+## Calling the API from a script
+
+`test/stack/graph_script.py` is a script that uses nothing but the Python `requests` package. It
+creates events and contacts, reads them back with paging, `$select`, `$orderby` and `$filter`,
+changes one of each with `If-Match`, checks that unsupported options answer `501`, and deletes
+what it made. It is a short example of the calls an integration needs.
+
+```
+GRAPH_URL=https://ocis.example/graph/v1.0 GRAPH_TOKEN=<access token> python graph_script.py
+```
+
+Set `REQUESTS_CA_BUNDLE` when the server has a certificate that the system does not trust. The
+stack tests run the script against the compose stack when `STACK_PYTHON` names an interpreter
+that has `requests` installed, which the interpreter used for the CalDAV client check does.

@@ -764,7 +764,9 @@ The tests take their settings from the environment. `STACK_URL` is the stack's a
 (default `https://ocis.localhost`). `STACK_CA_FILE` is a PEM file with the stack's
 certificate; without it the Go tests skip certificate verification, which the generated
 development certificate needs. `STACK_PYTHON` names a Python interpreter with the
-caldav client installed; the Python check runs only when it and `STACK_CA_FILE` are set:
+caldav client installed, which brings `requests`; the Python check runs only when it and
+`STACK_CA_FILE` are set, and the plain Graph script (`test/stack/graph_script.py`) runs when
+it is set:
 
 ```sh
 docker compose cp traefik:/certs/cert.pem cert.pem

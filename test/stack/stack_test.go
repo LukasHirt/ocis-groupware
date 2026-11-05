@@ -13,7 +13,8 @@
 //	STACK_CA_FILE  PEM file with the stack's certificate; without it, TLS
 //	               verification is off, which suits the generated dev cert
 //	STACK_PYTHON   a python interpreter with the caldav package installed,
-//	               used for the Python client check; unset skips that test
+//	               used for the Python client check and, with requests,
+//	               for the plain Graph script; unset skips both tests
 //	STACK_WAIT     how long to wait for the stack to come up, default 3m
 //	STACK_ROUTE    how requests reach the service: "ingress" (default) when
 //	               the ingress sends the groupware paths to the service, or
