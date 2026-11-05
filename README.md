@@ -273,6 +273,10 @@ and marks the ones that have expired. A new app password takes a name and a life
 cannot be dismissed by accident while it does; once closed, the password cannot be read
 again. Revoking one asks first and then refuses the devices that use it.
 
+The application is in English. Every text goes through gettext, and
+[docs/translations.md](docs/translations.md) describes how to extract the messages and
+add a language. The application's icon is `web/src/assets/icon.svg`.
+
 Development needs Node 24:
 
 ```sh

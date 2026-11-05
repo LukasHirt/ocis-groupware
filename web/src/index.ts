@@ -6,11 +6,16 @@ import type { RouteRecordRaw } from 'vue-router'
 import CalendarPage from './pages/CalendarPage.vue'
 import ContactsPage from './pages/ContactsPage.vue'
 import AccountPage from './pages/AccountPage.vue'
+import icon from './assets/icon.svg?inline'
+import translations from './l10n/translations.json'
 
 // The application id. oCIS Web mounts every route below /<id> and prefixes
 // route names with it. This module must have no export but the default one:
 // the runtime takes the AMD module's value as the application script.
 const appId = 'groupware'
+
+// The brand colour of the icon, also the colour of the application menu entry.
+const appColor = '#1f6f8b'
 
 export default defineWebApplication({
   setup() {
@@ -65,6 +70,7 @@ export default defineWebApplication({
         type: 'appMenuItem',
         label: () => $gettext('Calendar and Contacts'),
         icon: 'calendar',
+        color: appColor,
         path: `/${appId}`
       }
     ])
@@ -73,8 +79,13 @@ export default defineWebApplication({
       appInfo: {
         id: appId,
         name: $gettext('Calendar and Contacts'),
-        icon: 'calendar'
+        icon: 'calendar',
+        // The application menu shows a named icon of the design system; the
+        // image, a data URI so that no extra file is served, is for the
+        // places that take one.
+        img: icon
       },
+      translations,
       routes,
       navItems,
       extensions
