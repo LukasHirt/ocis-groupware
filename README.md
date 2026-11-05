@@ -313,8 +313,8 @@ page is cut, and the next link keeps all options. Events can be ordered by `subj
 `displayName` (the default), `givenName`, `surname`, `companyName` and
 `lastModifiedDateTime`. Text sorts without regard to case. More than one property, or a
 property outside these lists, is `501`; a property the resource does not have is `400`.
-`$expand`, `$count`, `$search`, `$filter` (until noted below) and any other `$` option answer
-`501`.
+`$expand`, `$count`, `$search` and any other `$` option answer `501`, and so does `$filter`
+except on event lists.
 
 ### Calendars
 
@@ -384,7 +384,17 @@ whose access to the calendar is read-only gets `403`. A `PATCH` on an occurrence
 updates are sent to attendees.
 
 Times are shown in UTC, or in the zone of `Prefer: outlook.timezone="..."`, which the answer
-repeats in `Preference-Applied`. `$filter`, `delta` and `/instances` answer `501`.
+repeats in `Preference-Applied`. `delta` and `/instances` answer `501`.
+
+Event lists, including `calendarView`, take a limited `$filter`: conditions joined by `and`.
+A condition is `start/dateTime` or `end/dateTime` with `ge`, `gt`, `le` or `lt` and a time,
+or `subject` with `eq`, `startswith(subject,'...')` or `contains(subject,'...')`. A time is a
+quoted or bare RFC 3339 value or a date; without an offset it is UTC, and it names an instant,
+so the zone events are shown in does not change the result. Text compares without regard to
+case, and a quote inside a string is written twice. A series in `/events` is one item and is
+tested by its first occurrence; in `calendarView` each occurrence is tested. Valid OData
+outside this grammar (`or`, `not`, parentheses, `ne`, `eq` on a time, other properties and
+functions) answers `501`; an expression that is not valid answers `400`.
 
 ### Event mapping
 

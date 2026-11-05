@@ -20,7 +20,9 @@ const maxViewWindow = 5 * 366 * 24 * time.Hour
 func etagHeader(etag string) string { return `W/"` + etag + `"` }
 
 // eventSpec is what event lists accept besides $top, $skip and $select.
+// $filter is described in filter.go.
 var eventSpec = &listSpec[eventJSON]{
+	filter: parseEventFilter,
 	order: map[string]func(a, b eventJSON) int{
 		"subject":         func(a, b eventJSON) int { return compareText(a.Subject, b.Subject, a.ID, b.ID) },
 		"start/dateTime":  func(a, b eventJSON) int { return compareText(a.Start.DateTime, b.Start.DateTime, a.ID, b.ID) },
