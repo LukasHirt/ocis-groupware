@@ -3,5 +3,9 @@
 *.out
 coverage.txt
 
+# Local helpers for the stack tests
+/.venv/
+/cert.pem
+
 # Local design notes and plans
 docs/superpowers/
