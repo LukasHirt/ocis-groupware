@@ -271,3 +271,57 @@ test('the settings change the first day, week numbers and time zone, and are kep
   await expect(page.getByTestId('settings-zone')).toHaveValue('Asia/Tokyo')
   await page.getByTestId('dialog-cancel').click()
 })
+
+test('a calendar can be imported from a file, with a report, and exported again', async ({ page }) => {
+  await openCalendar(page)
+  const items = page.getByTestId('calendar-item')
+  await page.getByTestId('calendar-add').click()
+  await page.getByTestId('calendar-name').fill('Imported')
+  await page.getByTestId('dialog-confirm').click()
+  const mine = items.filter({ hasText: 'Imported' })
+  await expect(mine).toHaveCount(1)
+
+  const day = today().replace(/-/g, '')
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//test//EN',
+    'BEGIN:VEVENT',
+    'UID:import-one@example.com',
+    `DTSTART:${day}T080000Z`,
+    `DTEND:${day}T090000Z`,
+    'SUMMARY:Imported meeting',
+    'END:VEVENT',
+    'BEGIN:VTODO',
+    'UID:import-todo@example.com',
+    'SUMMARY:Not an event',
+    'END:VTODO',
+    'END:VCALENDAR',
+    ''
+  ].join('\r\n')
+
+  const chooser = page.waitForEvent('filechooser')
+  await mine.getByTestId('calendar-import').click()
+  await (await chooser).setFiles({
+    name: 'meeting.ics',
+    mimeType: 'text/calendar',
+    buffer: Buffer.from(ics)
+  })
+  await expect(page.getByTestId('import-summary')).toContainText('1 added')
+  await expect(page.getByTestId('import-summary')).toContainText('1 failed')
+  await expect(page.getByTestId('import-failure')).toContainText('import-todo@example.com')
+  await page.getByTestId('dialog-confirm').click()
+  await expect(page.locator('.fc-event', { hasText: 'Imported meeting' })).toHaveCount(1)
+
+  const download = page.waitForEvent('download')
+  await mine.getByTestId('calendar-export').click()
+  const file = await download
+  expect(file.suggestedFilename()).toBe('Imported.ics')
+  const path = await file.path()
+  const text = (await import('node:fs')).readFileSync(path, 'utf8')
+  expect(text).toContain('SUMMARY:Imported meeting')
+
+  await mine.getByTestId('calendar-delete').click()
+  await page.getByTestId('dialog-confirm').click()
+  await expect(mine).toHaveCount(0)
+})

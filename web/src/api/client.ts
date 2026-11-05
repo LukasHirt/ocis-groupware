@@ -42,6 +42,7 @@ export interface Response {
 export type Transport = (request: Request) => Promise<Response>
 
 const graph = '/graph/v1.0/me'
+const groupware = '/groupware/v1'
 
 const enc = encodeURIComponent
 
@@ -118,6 +119,21 @@ export function createClient(transport: Transport) {
       send<GraphCalendar>({ method: 'PATCH', url: `${graph}/calendars/${enc(id)}`, data: input }),
     deleteCalendar: (id: string) =>
       send<void>({ method: 'DELETE', url: `${graph}/calendars/${enc(id)}` }),
+
+    // The file is the request body as it is, up to 20 MB.
+    importCalendar: (id: string, file: Blob) =>
+      send<ImportReport>({
+        method: 'POST',
+        url: `${groupware}/calendars/${enc(id)}/import`,
+        data: file,
+        headers: { 'Content-Type': file.type || 'text/calendar' }
+      }),
+    exportCalendar: (id: string) =>
+      send<Blob>({
+        method: 'GET',
+        url: `${groupware}/calendars/${enc(id)}/export`,
+        responseType: 'blob'
+      }),
 
     // calendarView returns the single events and the occurrences of series
     // between two instants, expanded by the server.
