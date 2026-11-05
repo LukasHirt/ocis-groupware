@@ -131,7 +131,7 @@ func TestGraphDirectoryEndToEnd(t *testing.T) {
 		}
 		switch r.URL.Path {
 		case "/graph/v1.0/users":
-			if strings.Contains(r.URL.Query().Get("$filter"), "'alice'") {
+			if r.URL.Query().Get("$search") == `"alice"` {
 				_, _ = w.Write([]byte(`{"value":[{"id":"o-alice","onPremisesSamAccountName":"alice"}]}`))
 				return
 			}

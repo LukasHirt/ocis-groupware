@@ -19,7 +19,10 @@ turns the first into the second for the users and groups a migration reads.
 2. **The oCIS Graph API.** For ids that no CSV file lists, the mapper asks oCIS
    with an administrator's access token:
 
-   - users: `GET /graph/v1.0/users?$filter=onPremisesSamAccountName eq '<login>'`
+   - users: `GET /graph/v1.0/users?$search="<login>"`, keeping only users whose
+     `onPremisesSamAccountName` is exactly the classic login. oCIS answers a
+     `$filter` on that property with 501, and the search also matches parts of
+     names.
    - groups: `GET /graph/v1.0/groups?$search="<name>"`, keeping only groups whose
      display name is exactly the classic group id, because the search also
      matches parts of names.
