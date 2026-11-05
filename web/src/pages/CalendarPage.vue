@@ -15,6 +15,14 @@
           @edit="(calendar: GraphCalendar) => (dialog = { kind: 'edit', calendar })"
           @remove="(calendar: GraphCalendar) => (dialog = { kind: 'delete', calendar })"
         />
+        <button
+          type="button"
+          class="oc-button oc-button-s oc-button-passive oc-mt-m"
+          data-testid="settings-open"
+          @click="dialog = { kind: 'settings' }"
+        >
+          {{ $gettext('Settings') }}
+        </button>
       </aside>
       <div class="groupware-calendar-main">
         <div class="oc-flex oc-flex-right oc-mb-s">
@@ -27,11 +35,26 @@
             {{ $gettext('New event') }}
           </button>
         </div>
-        <calendar-grid :events="shown" @range="onRange" @select="onSelect" @open="openEvent" />
+        <calendar-grid
+          :events="shown"
+          :time-zone="settings.timeZone"
+          :first-day="settings.firstDay"
+          :week-numbers="settings.weekNumbers"
+          @range="onRange"
+          @select="onSelect"
+          @open="openEvent"
+        />
       </div>
     </div>
+    <settings-dialog
+      v-if="dialog?.kind === 'settings'"
+      :settings="settings"
+      :browser-zone="localZone()"
+      @close="dialog = undefined"
+      @save="saveSettings"
+    />
     <calendar-dialog
-      v-if="dialog?.kind === 'create'"
+      v-else-if="dialog?.kind === 'create'"
       :title="$gettext('Add calendar')"
       @close="dialog = undefined"
       @save="create"
@@ -99,6 +122,7 @@ import PageLayout from '../components/PageLayout.vue'
 import CalendarGrid from '../calendar/CalendarGrid.vue'
 import CalendarDialog from '../calendar/CalendarDialog.vue'
 import CalendarList from '../calendar/CalendarList.vue'
+import SettingsDialog from '../calendar/SettingsDialog.vue'
 import ScopeDialog from '../calendar/ScopeDialog.vue'
 import EventDialog from '../calendar/EventDialog.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
@@ -107,6 +131,7 @@ import { calendarIdOf, toCalendarEvent } from '../calendar/mapping'
 import { useHiddenCalendars } from '../calendar/visibility'
 import { blankForm, formFromEvent } from '../calendar/eventForm'
 import { localZone } from '../calendar/zones'
+import { useCalendarSettings, type CalendarSettings } from '../calendar/settings'
 import type { CalendarInput, EventInput, GraphCalendar, GraphEvent } from '../api/types'
 import type { EventForm } from '../calendar/eventForm'
 
@@ -115,12 +140,14 @@ defineOptions({ name: 'CalendarPage' })
 const { $gettext } = useGettext()
 const { run } = useApi()
 const { hidden, isHidden, toggle } = useHiddenCalendars()
+const { settings, update: updateSettings, zone } = useCalendarSettings()
 
 const calendars = ref<GraphCalendar[]>([])
 const events = ref<GraphEvent[]>([])
 const loading = ref(true)
 type Scope = 'single' | 'this' | 'all'
 const dialog = ref<
+  | { kind: 'settings' }
   | { kind: 'create' }
   | { kind: 'edit'; calendar: GraphCalendar }
   | { kind: 'delete'; calendar: GraphCalendar }
@@ -153,7 +180,7 @@ async function loadEvents() {
     return
   }
   const asked = range
-  const loaded = await run($gettext('Could not load the events'), (c) => c.calendarView({ ...asked, zone: localZone() }))
+  const loaded = await run($gettext('Could not load the events'), (c) => c.calendarView({ ...asked, zone: zone() }))
   if (loaded && range === asked) {
     events.value = loaded
   }
@@ -177,13 +204,12 @@ function newEvent(selection?: { start: string; end: string; allDay: boolean }) {
   if (!calendar) {
     return
   }
-  const zone = localZone()
   const start = selection?.start ?? nextHour()
   dialog.value = {
     kind: 'event-create',
     form: blankForm({
       calendarId: calendar.id,
-      zone,
+      zone: zone(),
       start,
       end: selection?.end,
       allDay: selection?.allDay ?? false
@@ -221,7 +247,7 @@ async function openEvent(id: string) {
   }
   // The pattern is on the series, so it is read before the user chooses.
   const series = await run($gettext('Could not load the event'), (c) =>
-    c.getEvent(event.seriesMasterId!, localZone())
+    c.getEvent(event.seriesMasterId!, zone())
   )
   if (!series) {
     return
@@ -311,6 +337,13 @@ async function deleteEvent() {
     dialog.value = undefined
     await loadEvents()
   }
+}
+
+function saveSettings(next: CalendarSettings) {
+  updateSettings(next)
+  dialog.value = undefined
+  // The times the server sends depend on the zone.
+  return loadEvents()
 }
 
 async function create(input: CalendarInput) {

@@ -12,6 +12,9 @@ vi.mock('vue3-gettext', () => ({
   })
 }))
 
+// The signed-in user comes from the host's store, which is not here.
+vi.mock('../../../src/composables/useUserKey', () => ({ useUserKey: () => '' }))
+
 const hoisted = vi.hoisted(() => ({
   calls: [] as { start: string; end: string; zone?: string }[],
   state: { calendars: [] as Record<string, unknown>[] },
@@ -310,6 +313,56 @@ describe('the calendar page', () => {
       await wrapper.get('form').trigger('submit')
       await flushPromises()
       expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+    })
+  })
+
+  describe('settings', () => {
+    it('shows weeks from the chosen day, with week numbers', async () => {
+      localStorage.setItem(
+        'groupware.calendarSettings.',
+        JSON.stringify({ timeZone: '', firstDay: 0, weekNumbers: true })
+      )
+      const wrapper = await mountPage()
+      expect(wrapper.findAll('.fc-col-header-cell')[0].text()).toContain('Sun')
+      expect(wrapper.find('.fc-daygrid-week-number').exists()).toBe(true)
+    })
+
+    it('asks for the times in the chosen zone', async () => {
+      localStorage.setItem(
+        'groupware.calendarSettings.',
+        JSON.stringify({ timeZone: 'Asia/Tokyo', firstDay: 1, weekNumbers: false })
+      )
+      await mountPage()
+      expect(calendarViewCalls[0].zone).toBe('Asia/Tokyo')
+    })
+
+    it('opens the settings, applies a change at once and keeps it', async () => {
+      const wrapper = await mountPage()
+      expect(wrapper.findAll('.fc-col-header-cell')[0].text()).toContain('Mon')
+      await wrapper.get('[data-testid="settings-open"]').trigger('click')
+      await wrapper.get('[data-testid="settings-first-day"]').setValue('0')
+      await wrapper.get('[data-testid="settings-zone"]').setValue('Asia/Tokyo')
+      calendarViewCalls.length = 0
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+      expect(wrapper.findAll('.fc-col-header-cell')[0].text()).toContain('Sun')
+      // The events are read again in the new zone.
+      expect(calendarViewCalls.at(-1)?.zone).toBe('Asia/Tokyo')
+      expect(JSON.parse(localStorage.getItem('groupware.calendarSettings.') ?? '{}')).toMatchObject({
+        timeZone: 'Asia/Tokyo',
+        firstDay: 0
+      })
+    })
+
+    it('uses the chosen zone for a new event', async () => {
+      localStorage.setItem(
+        'groupware.calendarSettings.',
+        JSON.stringify({ timeZone: 'Asia/Tokyo', firstDay: 1, weekNumbers: false })
+      )
+      const wrapper = await mountPage()
+      await wrapper.get('[data-testid="event-add"]').trigger('click')
+      expect(wrapper.get<HTMLSelectElement>('[data-testid="event-zone"]').element.value).toBe('Asia/Tokyo')
     })
   })
 })

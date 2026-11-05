@@ -187,6 +187,13 @@ event" edits the occurrence (the server stores an override) and delete excludes 
 day. "All events" edits and deletes the series. A series whose rule the Graph pattern
 cannot express is reported as such by the server, and its events open read-only.
 
+The Settings button on the calendar page sets the time zone, the first day of the week and
+whether week numbers show. They are kept per user in the browser's local storage, not on the
+server, and a value that is missing or unusable falls back to its default (the browser's zone,
+Monday, no week numbers). The zone is the one the grid shows times in, the one asked for with
+`Prefer: outlook.timezone`, and the one a new event starts in. FullCalendar's Luxon plugin
+(MIT) does the conversion, using the Luxon that oCIS Web provides.
+
 The Contacts page (`web/src/contacts` and `web/src/pages/ContactsPage.vue`) shows the
 user's address books next to a list of contacts and the details of the chosen one. The
 list covers one address book or all of them, is searched by name, company, email
