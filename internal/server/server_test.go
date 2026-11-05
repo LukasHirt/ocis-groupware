@@ -592,3 +592,30 @@ func TestServerSetsTimeoutsAndHeaderLimit(t *testing.T) {
 		t.Errorf("MaxHeaderBytes = %d, want %d", s.httpServer.MaxHeaderBytes, 64<<10)
 	}
 }
+
+// TestAdminPathsAreNotOnThePublicServer pins that the admin API, which is
+// served on the unix socket only, is not reachable through the public
+// server: its paths fall into the fail-closed path like any unknown route.
+func TestAdminPathsAreNotOnThePublicServer(t *testing.T) {
+	f := newDAVFixture(t)
+	f.user(t, "sub-alice", "alice")
+	f.verifier.tokens["tok-alice"] = auth.Claims{Subject: "sub-alice", PreferredUsername: "alice"}
+
+	for _, tc := range []struct {
+		method, path, body string
+	}{
+		{http.MethodGet, "/v1/principals", ""},
+		{http.MethodPost, "/v1/principals/disable", `{"sub":"sub-alice"}`},
+		{http.MethodPost, "/v1/principals/purge", `{"sub":"sub-alice"}`},
+	} {
+		if rec := f.do(tc.method, tc.path, "", tc.body); rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s without a token: %d, want 401", tc.method, tc.path, rec.Code)
+		}
+		if rec := f.do(tc.method, tc.path, "Bearer tok-alice", tc.body); rec.Code != http.StatusNotFound {
+			t.Errorf("%s %s with a token: %d, want 404", tc.method, tc.path, rec.Code)
+		}
+	}
+	if p, err := f.reg.Get("sub-alice"); err != nil || p.Disabled {
+		t.Fatalf("alice after the requests: %+v, %v", p, err)
+	}
+}

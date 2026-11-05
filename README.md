@@ -26,6 +26,7 @@ over file, file wins over defaults.
 | `GROUPWARE_OIDC_AUDIENCE` | `oidc_audience` | Optional. If set, tokens must carry it in `aud`; oCIS sets that to the client ID of the requesting app, e.g. `web` |
 | `GROUPWARE_OIDC_CA_FILE` | `oidc_ca_file` | Optional PEM bundle of extra CAs to trust when contacting the issuer |
 | `GROUPWARE_DATA_DIR` | `data_dir` | **Required.** Directory that holds all service state. The image sets it to `/data` |
+| `GROUPWARE_ADMIN_SOCKET` | `admin_socket` | Path of the admin API's unix socket, default `admin.sock` in the data directory. Leave it alone unless the data directory cannot hold a socket (see below) |
 
 ## Data directory
 
@@ -43,6 +44,17 @@ tokens alike, until it is `false` again. Nothing else changes: calendars, contac
 app passwords stay, so enabling the user restores every device without pairing it again.
 A file without the field counts as enabled. Releases before the field was added do not
 know it and ignore it, so a downgrade lets disabled users sign in again.
+
+The service also creates `admin.sock` in the data directory, a unix socket that serves the
+admin API: listing users, disabling and enabling them, and purging a disabled user's data.
+There is no token. The socket has mode 0600 and the data directory is private to the
+service's user, so only that user and root can connect, for example with
+`curl --unix-socket /data/admin.sock http://admin/v1/principals`. The file is removed on
+shutdown and a leftover from a crash is replaced on the next start. The service refuses to
+start when it cannot create the socket, which happens on a filesystem without unix socket
+support (some bind mounts of Docker Desktop) or when the path is longer than the platform
+allows (104 bytes on macOS, 108 on Linux). Set `admin_socket` to a short path on a local
+filesystem then.
 
 ## Authentication
 
