@@ -80,6 +80,11 @@ on each request from the recipient's oCIS id and group snapshot, so a revoked sh
 group the user has left, stops working at once. The snapshot itself is as fresh as the
 user's last sign-in with a token.
 
+DAV clients find these collections in the recipient's own home, for example
+`/dav/calendars/bob/shared-<id>/`, with the privileges of the share. A write the share does
+not allow is answered `403` with `DAV:need-privileges`. This works for HTTP Basic and Bearer
+requests alike. There is no way to create a share over DAV or through the service's API yet.
+
 The service also creates `admin.sock` in the data directory, a unix socket that serves the
 admin API: listing users, disabling and enabling them, and purging a disabled user's data.
 The `admin` command (see [Administration](#administration)) uses it; so can
