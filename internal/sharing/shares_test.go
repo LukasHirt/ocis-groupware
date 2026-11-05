@@ -59,8 +59,12 @@ var (
 	book = store.CollectionRef{Owner: "alice", Kind: store.KindAddressBook, Name: "Contacts"}
 )
 
-func user(id string, a Access) Member  { return Member{Type: User, ID: id, Name: "Name " + id, Access: a} }
-func group(id string, a Access) Member { return Member{Type: Group, ID: id, Name: "Group " + id, Access: a} }
+func user(id string, a Access) Member {
+	return Member{Type: User, ID: id, Name: "Name " + id, Access: a}
+}
+func group(id string, a Access) Member {
+	return Member{Type: Group, ID: id, Name: "Group " + id, Access: a}
+}
 
 func TestGrantAndMembers(t *testing.T) {
 	f := newFixture(t, "alice")
