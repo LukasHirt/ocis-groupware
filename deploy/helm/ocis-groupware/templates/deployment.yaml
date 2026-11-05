@@ -1,0 +1,156 @@
+{{- $ca := or .Values.oidcCA.pem .Values.oidcCA.existingConfigMap .Values.oidcCA.existingSecret -}}
+{{- $socketDir := include "ocis-groupware.socketDir" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ocis-groupware.fullname" . }}
+  labels:
+    {{- include "ocis-groupware.labels" . | nindent 4 }}
+spec:
+  # The data directory is locked exclusively: a second pod on it fails to
+  # start. One replica, and the old pod goes away before the new one starts.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "ocis-groupware.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- if .Values.oidcCA.pem }}
+        checksum/ca: {{ .Values.oidcCA.pem | sha256sum }}
+        {{- end }}
+        {{- if .Values.legacyTokenSecret.value }}
+        checksum/legacy-token: {{ .Values.legacyTokenSecret.value | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "ocis-groupware.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ocis-groupware.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: ocis-groupware
+          image: {{ include "ocis-groupware.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ include "ocis-groupware.port" . }}
+              protocol: TCP
+          env:
+            - name: GROUPWARE_OIDC_ISSUER
+              value: {{ required "config.oidcIssuer is required" .Values.config.oidcIssuer | quote }}
+            - name: GROUPWARE_DATA_DIR
+              value: {{ .Values.persistence.mountPath | quote }}
+            - name: GROUPWARE_HTTP_ADDR
+              value: {{ .Values.config.httpAddr | quote }}
+            - name: GROUPWARE_LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
+            - name: GROUPWARE_COMPAT_PATHS
+              value: {{ .Values.config.compatPaths | quote }}
+            {{- with .Values.config.oidcAudience }}
+            - name: GROUPWARE_OIDC_AUDIENCE
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.ocisUrl }}
+            - name: GROUPWARE_OCIS_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.legacyTokenTtl }}
+            - name: GROUPWARE_LEGACY_TOKEN_TTL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.adminSocket }}
+            - name: GROUPWARE_ADMIN_SOCKET
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if $ca }}
+            - name: GROUPWARE_OIDC_CA_FILE
+              value: {{ printf "/etc/ocis-groupware/ca/%s" .Values.oidcCA.key | quote }}
+            {{- end }}
+            {{- if or .Values.legacyTokenSecret.value .Values.legacyTokenSecret.existingSecret }}
+            - name: GROUPWARE_LEGACY_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ocis-groupware.legacySecretName" . }}
+                  key: {{ .Values.legacyTokenSecret.key }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          startupProbe:
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- if $ca }}
+            - name: ca
+              mountPath: /etc/ocis-groupware/ca
+              readOnly: true
+            {{- end }}
+            {{- if $socketDir }}
+            - name: admin-socket
+              mountPath: {{ $socketDir }}
+            {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "ocis-groupware.claimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if $ca }}
+        - name: ca
+          {{- if .Values.oidcCA.existingSecret }}
+          secret:
+            secretName: {{ .Values.oidcCA.existingSecret }}
+          {{- else }}
+          configMap:
+            name: {{ include "ocis-groupware.caConfigMapName" . }}
+          {{- end }}
+        {{- end }}
+        {{- if $socketDir }}
+        - name: admin-socket
+          emptyDir: {}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

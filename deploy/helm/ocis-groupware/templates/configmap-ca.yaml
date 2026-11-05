@@ -1,0 +1,11 @@
+{{- if .Values.oidcCA.pem }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ocis-groupware.fullname" . }}-ca
+  labels:
+    {{- include "ocis-groupware.labels" . | nindent 4 }}
+data:
+  {{ .Values.oidcCA.key }}: |
+    {{- .Values.oidcCA.pem | trim | nindent 4 }}
+{{- end }}

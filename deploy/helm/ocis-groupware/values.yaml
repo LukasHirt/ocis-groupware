@@ -1,0 +1,168 @@
+# Values for the ocis-groupware chart. deploy/helm/ocis-groupware/README.md
+# describes every key.
+
+image:
+  repository: ghcr.io/owncloud/ocis-groupware
+  # Defaults to the chart's appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# The service keeps its state in one directory that it locks exclusively, so
+# the chart always runs one replica with the Recreate strategy. There is no
+# replica count to set.
+
+config:
+  # GROUPWARE_OIDC_ISSUER. Required. The public URL of oCIS, which is also the
+  # OIDC issuer.
+  oidcIssuer: ""
+  # GROUPWARE_OIDC_AUDIENCE. If set, tokens must carry it in aud.
+  oidcAudience: ""
+  # GROUPWARE_OCIS_URL. Where the service reaches the oCIS Graph API. Defaults
+  # to the issuer URL. Inside the cluster this can be the oCIS service, for
+  # example https://ocis.ocis.svc:9200.
+  ocisUrl: ""
+  # GROUPWARE_LOG_LEVEL: debug, info, warn or error.
+  logLevel: info
+  # GROUPWARE_HTTP_ADDR. The container port follows the number after the colon.
+  httpAddr: ":8080"
+  # GROUPWARE_COMPAT_PATHS. Also serves the classic DAV layout below
+  # /remote.php/dav. The ingress has to route those paths too, which the
+  # chart's ingress does when this is on.
+  compatPaths: false
+  # GROUPWARE_LEGACY_TOKEN_TTL, a Go duration. Empty keeps the service default
+  # (4320h).
+  legacyTokenTtl: ""
+  # GROUPWARE_ADMIN_SOCKET. Empty keeps admin.sock in the data directory.
+  # A unix socket path is limited to about 100 bytes (107 on Linux, 103 on
+  # macOS), and the service creates the socket under a temporary name that is
+  # 14 bytes longer than the final one. A data directory with a long path
+  # needs a short path here. The chart mounts an empty directory at the
+  # socket's directory when it lies outside the data directory.
+  adminSocket: ""
+
+# The CA bundle for the issuer, when oCIS uses a certificate that the image
+# does not trust. Sets GROUPWARE_OIDC_CA_FILE to the mounted file. Use one of
+# the three sources.
+oidcCA:
+  # The PEM text itself. The chart puts it into a ConfigMap.
+  pem: ""
+  # The name of an existing ConfigMap or Secret that holds the bundle.
+  existingConfigMap: ""
+  existingSecret: ""
+  # The key of the bundle in that ConfigMap or Secret.
+  key: ca.crt
+
+# GROUPWARE_LEGACY_TOKEN_SECRET, the instance secret of a classic installation.
+# Needed only to accept app tokens imported from there.
+legacyTokenSecret:
+  # The secret itself. The chart puts it into a Secret.
+  value: ""
+  # The name of an existing Secret that holds it, instead.
+  existingSecret: ""
+  key: legacy-token-secret
+
+# Further environment variables for the container.
+extraEnv: []
+extraEnvFrom: []
+
+persistence:
+  enabled: true
+  # The directory the volume is mounted at, and GROUPWARE_DATA_DIR. The image
+  # uses /data.
+  mountPath: /data
+  size: 5Gi
+  # Empty uses the cluster's default storage class. "-" sets storageClassName
+  # to "" and so asks for no class.
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  annotations: {}
+  # Use a claim that already exists instead of creating one.
+  existingClaim: ""
+
+service:
+  type: ClusterIP
+  port: 8080
+  annotations: {}
+
+# An Ingress for the paths that go to the service. oCIS needs its own Ingress
+# for the same host, which takes everything else.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  # The public host of oCIS. Required when the ingress is enabled.
+  host: ""
+  # Names the TLS secret of the host. Empty adds no tls block.
+  tlsSecretName: ""
+  # Add /healthz and /metrics to the paths. They are meant for monitoring
+  # and stay private by default.
+  exposeOps: false
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+# The image is distroless and runs as uid 65532. The volume is made writable
+# for that group through fsGroup.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# /healthz answers 503 when the data directory is not writable. It does not
+# depend on oCIS.
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 2
+  failureThreshold: 30
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+terminationGracePeriodSeconds: 30
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 512Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+priorityClassName: ""

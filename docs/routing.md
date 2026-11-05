@@ -45,6 +45,9 @@ All three use the same path list. The DAV paths need the full set of WebDAV meth
 these three pass through as they are. If an ingress or a web application firewall
 filters methods, allow them for these paths.
 
+On Kubernetes, the Helm chart in `deploy/helm/ocis-groupware` creates an Ingress with the
+same paths. An Ingress has no regular expressions, so it lists the Graph paths one by one.
+
 ## The classic paths
 
 A client that was set up against a classic server keeps the addresses it learned there.

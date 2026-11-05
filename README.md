@@ -705,6 +705,21 @@ task docker:build
 task docker:run
 ```
 
+## Kubernetes
+
+`deploy/helm/ocis-groupware` is a Helm chart that runs one replica with the `Recreate`
+strategy, because the service locks its data directory, on a persistent volume mounted at
+`/data`. It takes the settings above as values and has an optional Ingress for the paths
+in [docs/routing.md](docs/routing.md). See
+[deploy/helm/ocis-groupware/README.md](deploy/helm/ocis-groupware/README.md) for the
+values and the admin socket path limit.
+
+```sh
+helm install groupware deploy/helm/ocis-groupware \
+  --set config.oidcIssuer=https://ocis.example.com \
+  --set ingress.enabled=true --set ingress.host=ocis.example.com
+```
+
 ## Local stack
 
 `docker-compose.yml` runs oCIS and ocis-groupware behind one Traefik on the same

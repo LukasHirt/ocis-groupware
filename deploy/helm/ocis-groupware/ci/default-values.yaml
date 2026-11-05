@@ -1,0 +1,5 @@
+# Values that chart-testing installs with, in addition to the image values the
+# workflow sets. oCIS is not part of the test; the service starts without it
+# and /healthz does not depend on it.
+config:
+  oidcIssuer: https://ocis.example.test
