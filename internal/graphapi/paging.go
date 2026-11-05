@@ -3,6 +3,7 @@ package graphapi
 import (
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 )
 
@@ -20,17 +21,72 @@ type collectionBody[T any] struct {
 }
 
 // writeCollection answers with one page of items and a nextLink when more
-// follow.
+// follow. The list takes no options beyond $top, $skip and $select.
 func writeCollection[T any](w http.ResponseWriter, r *http.Request, items []T) {
+	writeList(w, r, items, nil)
+}
+
+// writeList answers a list request: it filters, orders, cuts the page that
+// $top and $skip name and then keeps the fields $select names, in that order.
+func writeList[T any](w http.ResponseWriter, r *http.Request, items []T, spec *listSpec[T]) {
+	if aerr := checkOptions(r); aerr != nil {
+		writeError(w, aerr)
+		return
+	}
+	sel, aerr := parseSelect[T](r)
+	if aerr != nil {
+		writeError(w, aerr)
+		return
+	}
+	ob, aerr := parseOrderBy(r, spec)
+	if aerr != nil {
+		writeError(w, aerr)
+		return
+	}
+	if r.URL.Query().Has("$filter") {
+		if spec == nil || spec.filter == nil {
+			writeError(w, notImplementedOption("$filter"))
+			return
+		}
+		keep, aerr := spec.filter(r.URL.Query().Get("$filter"))
+		if aerr != nil {
+			writeError(w, aerr)
+			return
+		}
+		items = slices.DeleteFunc(slices.Clone(items), func(it T) bool { return !keep(it) })
+	}
+	if ob != nil {
+		cmp := spec.order[ob.key]
+		items = slices.Clone(items)
+		slices.SortStableFunc(items, func(a, b T) int {
+			if ob.desc {
+				return cmp(b, a)
+			}
+			return cmp(a, b)
+		})
+	}
 	page, next, aerr := paginate(r, items)
 	if aerr != nil {
 		writeError(w, aerr)
 		return
 	}
-	if page == nil {
-		page = []T{}
+	if sel == nil {
+		if page == nil {
+			page = []T{}
+		}
+		writeJSON(w, http.StatusOK, collectionBody[T]{Value: page, NextLink: next})
+		return
 	}
-	writeJSON(w, http.StatusOK, collectionBody[T]{Value: page, NextLink: next})
+	cut := make([]any, len(page))
+	for i, it := range page {
+		v, err := project(it, sel)
+		if err != nil {
+			writeError(w, internalError())
+			return
+		}
+		cut[i] = v
+	}
+	writeJSON(w, http.StatusOK, collectionBody[any]{Value: cut, NextLink: next})
 }
 
 // paginate returns the page of items that $top and $skip select, and the

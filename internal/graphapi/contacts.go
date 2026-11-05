@@ -345,9 +345,23 @@ func (a *Handler) scopeContacts(ctx context.Context, c *call, def bool) (Contact
 	return e, aerr
 }
 
+// contactSpec is what contact lists accept besides $top, $skip and $select.
+// Contacts have no $filter.
+var contactSpec = &listSpec[contactJSON]{
+	order: map[string]func(a, b contactJSON) int{
+		"displayName": func(a, b contactJSON) int { return compareText(a.DisplayName, b.DisplayName, a.ID, b.ID) },
+		"givenName":   func(a, b contactJSON) int { return compareText(a.GivenName, b.GivenName, a.ID, b.ID) },
+		"surname":     func(a, b contactJSON) int { return compareText(a.Surname, b.Surname, a.ID, b.ID) },
+		"companyName": func(a, b contactJSON) int { return compareText(a.CompanyName, b.CompanyName, a.ID, b.ID) },
+		"lastModifiedDateTime": func(a, b contactJSON) int {
+			return compareText(a.LastModifiedDateTime, b.LastModifiedDateTime, a.ID, b.ID)
+		},
+	},
+}
+
 func (a *Handler) listContacts(def bool) func(http.ResponseWriter, *http.Request, *call) {
 	return func(w http.ResponseWriter, r *http.Request, c *call) {
-		if aerr := unsupportedQuery(r); aerr != nil {
+		if aerr := checkOptions(r); aerr != nil {
 			writeError(w, aerr)
 			return
 		}
@@ -365,13 +379,8 @@ func (a *Handler) listContacts(def bool) func(http.ResponseWriter, *http.Request
 		for i, s := range contacts {
 			out[i] = s.view(groups)
 		}
-		slices.SortStableFunc(out, func(x, y contactJSON) int {
-			if n := strings.Compare(strings.ToLower(x.DisplayName), strings.ToLower(y.DisplayName)); n != 0 {
-				return n
-			}
-			return strings.Compare(x.ID, y.ID)
-		})
-		writeCollection(w, r, out)
+		slices.SortStableFunc(out, contactSpec.order["displayName"])
+		writeList(w, r, out, contactSpec)
 	}
 }
 
@@ -447,7 +456,7 @@ func (a *Handler) getContact(scoped bool) func(http.ResponseWriter, *http.Reques
 			writeError(w, aerr)
 			return
 		}
-		if aerr := unsupportedQuery(r); aerr != nil {
+		if aerr := checkOptions(r); aerr != nil {
 			writeError(w, aerr)
 			return
 		}
@@ -456,7 +465,7 @@ func (a *Handler) getContact(scoped bool) func(http.ResponseWriter, *http.Reques
 			writeError(w, aerr)
 			return
 		}
-		writeJSON(w, http.StatusOK, s.view(a.groupsOf(r.Context(), c.caller, s.entry)))
+		writeItem(w, r, http.StatusOK, s.view(a.groupsOf(r.Context(), c.caller, s.entry)))
 	}
 }
 
