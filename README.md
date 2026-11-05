@@ -181,7 +181,9 @@ task docker:run
 
 `docker-compose.yml` runs oCIS and ocis-groupware behind one Traefik on the same
 domain, which ocis-groupware requires. ocis-groupware's DAV, Graph, `/web/` and ops paths route
-to ocis-groupware; everything else goes to oCIS.
+to ocis-groupware; everything else goes to oCIS. [docs/routing.md](docs/routing.md) lists
+those paths and has the same routing for Traefik's file provider, nginx and Caddy under
+`deploy/`.
 
 ```sh
 task stack:up
@@ -235,7 +237,7 @@ inside oCIS instead of Traefik. `deploy/compose/ocis-proxy.yml` sets that up wit
 routes in `deploy/ocis/proxy.yaml`, and `STACK_ROUTE=ocis-proxy` tells the tests which
 route they are on. On that route the proxy keeps every REPORT request for itself, so
 the CalDAV and CardDAV flows skip and `TestOCISProxyRoute` records what does and does
-not get through:
+not get through. [docs/routing.md](docs/routing.md) explains why:
 
 ```sh
 docker compose -f docker-compose.yml -f deploy/compose/ocis-proxy.yml up -d --build
