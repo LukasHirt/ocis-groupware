@@ -97,6 +97,15 @@ expires. The token itself is `useAuthStore().accessToken`. The browser is
 on the oCIS origin, so requests to `/groupware/v1/...` and the Graph paths
 need no CORS handling.
 
+The application wraps this in `web/src/composables/useApi.ts`. It binds the
+typed client in `web/src/api` to `httpAuthenticated` and offers `run()`, which
+reports a failed call with `useMessages().showErrorMessage`, so errors appear
+as Web's own toasts. Both composables come from `web-pkg` and are external
+like the rest of it. `httpAuthenticated` has no base URL, so the client uses
+absolute paths below `/graph/v1.0/me`. A status that is not 2xx makes it
+throw an axios error; the client turns that into an `ApiError` with the code
+and message of the Graph error body.
+
 ## Build output and caching
 
 The SDK's production build names the entry with a content hash. The build

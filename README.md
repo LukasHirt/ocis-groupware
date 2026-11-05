@@ -144,6 +144,13 @@ pinned to the Web version that the supported oCIS release ships (Web 12.5.0 in o
 records what Web provides to the application and which versions this was verified
 against.
 
+The application reads and writes through the Graph paths of this service with the
+authenticated HTTP client of oCIS Web, which carries the signed-in user's token. The
+typed client lives in `web/src/api`; its types follow the golden files in
+`internal/graphapi/testdata/contract`, which the Go tests of the facade write and the
+unit tests of `web/` load, so a change of shape on either side fails a test. A failed
+call shows an error toast with the server's message.
+
 Development needs Node 24:
 
 ```sh

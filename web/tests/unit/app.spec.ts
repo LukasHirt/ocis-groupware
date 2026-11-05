@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import type { AppMenuItemExtension } from '@ownclouders/web-pkg'
 import type { RouteRecordRaw } from 'vue-router'
+import PageLayout from '../../src/components/PageLayout.vue'
 import app from '../../src/index'
 
 // The host injects gettext; the tests only need the strings back.
@@ -14,6 +15,22 @@ vi.mock('vue3-gettext', () => ({
 vi.mock('@ownclouders/web-pkg', () => ({
   defineWebApplication: (args: unknown) => args
 }))
+
+// The pages read through the API composable; the host's services are not
+// available here, so it answers from the golden files.
+vi.mock('../../src/composables/useApi', async () => {
+  const { default: calendars } = await import(
+    '../../../internal/graphapi/testdata/contract/calendars.json'
+  )
+  const { default: folders } = await import(
+    '../../../internal/graphapi/testdata/contract/contact-folders.json'
+  )
+  const client = {
+    listCalendars: () => Promise.resolve(calendars.value),
+    listContactFolders: () => Promise.resolve(folders.value)
+  }
+  return { useApi: () => ({ client, run: (_t: string, f: (c: unknown) => unknown) => f(client) }) }
+})
 
 const mountOptions = { global: { mocks: { $gettext: (s: string) => s } } }
 
@@ -66,5 +83,31 @@ describe('the application', () => {
       const wrapper = mount(route!.component as never, mountOptions)
       expect(wrapper.find('h1').text()).toBe(heading)
     }
+  })
+
+  it('lists the calendars with their owners', async () => {
+    const routes = script.routes as RouteRecordRaw[]
+    const wrapper = mount(routes.find((r) => r.path === '/calendar')!.component as never, mountOptions)
+    await flushPromises()
+    const items = wrapper.findAll('[data-testid="calendar-item"]')
+    expect(items.map((i) => i.find('.name').text())).toEqual(['Personal', 'Work', 'Team'])
+    expect(items[2].text()).toContain('Marie Curie')
+  })
+
+  it('lists the address books', async () => {
+    const routes = script.routes as RouteRecordRaw[]
+    const wrapper = mount(routes.find((r) => r.path === '/contacts')!.component as never, mountOptions)
+    await flushPromises()
+    const items = wrapper.findAll('[data-testid="folder-item"]')
+    expect(items.map((i) => i.find('.name').text())).toEqual(['Contacts', 'Team'])
+    expect(items[1].text()).toContain('Marie Curie')
+  })
+
+  it('says so when there is nothing to list', () => {
+    const wrapper = mount(PageLayout, {
+      ...mountOptions,
+      props: { title: 'Calendar', empty: true, emptyText: 'No calendars yet.' }
+    })
+    expect(wrapper.text()).toContain('No calendars yet.')
   })
 })
