@@ -59,6 +59,14 @@
             <option value="surname">{{ $gettext('Surname') }}</option>
             <option value="company">{{ $gettext('Company') }}</option>
           </select>
+          <button
+            class="oc-button oc-button-m oc-button-primary oc-ml-s"
+            :disabled="targetFolders.length === 0"
+            data-testid="contact-new"
+            @click="startNew"
+          >
+            {{ $gettext('New contact') }}
+          </button>
         </div>
         <div v-if="loadingContacts" class="oc-mt-m" role="status">
           <oc-spinner :aria-label="$gettext('Loading')" />
@@ -88,20 +96,71 @@
       </section>
 
       <section :aria-label="$gettext('Contact details')">
-        <contact-detail v-if="selected" :contact="selected" />
+        <contact-form
+          v-if="editing === 'new'"
+          key="new"
+          :folders="targetFolders"
+          @save="saveNew"
+          @cancel="editing = null"
+        />
+        <contact-form
+          v-else-if="editing === 'edit' && selected"
+          :key="selected.id"
+          :contact="selected"
+          :folders="folders"
+          @save="saveEdit"
+          @cancel="editing = null"
+        />
+        <contact-detail v-else-if="selected" :contact="selected">
+          <div v-if="canEdit(selected)" class="oc-mt-m" data-testid="contact-actions">
+            <button
+              class="oc-button oc-button-m oc-button-passive oc-mr-s"
+              data-testid="contact-edit"
+              @click="editing = 'edit'"
+            >
+              {{ $gettext('Edit') }}
+            </button>
+            <template v-if="!confirmingDelete">
+              <button
+                class="oc-button oc-button-m oc-button-passive"
+                data-testid="contact-delete"
+                @click="confirmingDelete = true"
+              >
+                {{ $gettext('Delete') }}
+              </button>
+            </template>
+            <template v-else>
+              <span class="oc-mr-s">{{ $gettext('Delete this contact?') }}</span>
+              <button
+                class="oc-button oc-button-m oc-button-danger oc-mr-s"
+                data-testid="contact-delete-confirm"
+                @click="remove(selected)"
+              >
+                {{ $gettext('Delete') }}
+              </button>
+              <button
+                class="oc-button oc-button-m oc-button-passive"
+                @click="confirmingDelete = false"
+              >
+                {{ $gettext('Cancel') }}
+              </button>
+            </template>
+          </div>
+        </contact-detail>
       </section>
     </div>
   </page-layout>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useGettext } from 'vue3-gettext'
 import PageLayout from '../components/PageLayout.vue'
 import ContactDetail from '../contacts/ContactDetail.vue'
+import ContactForm from '../contacts/ContactForm.vue'
 import { contactName, filterContacts, sortContacts, type SortKey } from '../contacts/model'
 import { useApi } from '../composables/useApi'
-import type { GraphContact, GraphContactFolder } from '../api/types'
+import type { ContactInput, GraphContact, GraphContactFolder } from '../api/types'
 
 defineOptions({ name: 'ContactsPage' })
 
@@ -120,6 +179,25 @@ const selectedId = ref<string | null>(null)
 
 const shown = computed(() => sortContacts(filterContacts(contacts.value, query.value), sortKey.value))
 const selected = computed(() => contacts.value.find((c) => c.id === selectedId.value))
+const editing = ref<'new' | 'edit' | null>(null)
+const confirmingDelete = ref(false)
+
+// The address books a new contact may go into: the chosen one, or every one
+// the user may write to.
+const targetFolders = computed(() =>
+  (folderId.value === null ? folders.value : folders.value.filter((f) => f.id === folderId.value)).filter(
+    (f) => f['groupware.canEdit']
+  )
+)
+
+const canEdit = (c: GraphContact) =>
+  !!folders.value.find((f) => f.id === c.parentFolderId)?.['groupware.canEdit']
+
+// Another contact, or another address book, ends an edit in progress.
+watch([selectedId, folderId], () => {
+  editing.value = null
+  confirmingDelete.value = false
+})
 
 // Only the newest load may write its result, so a slow answer for an
 // address book that is no longer shown cannot replace the current list.
@@ -143,6 +221,49 @@ async function loadContacts() {
 function selectFolder(id: string | null) {
   folderId.value = id
   return loadContacts()
+}
+
+function startNew() {
+  selectedId.value = null
+  editing.value = 'new'
+}
+
+function replaceContact(updated: GraphContact) {
+  contacts.value = contacts.value.map((c) => (c.id === updated.id ? updated : c))
+}
+
+async function saveNew(input: ContactInput, targetId: string) {
+  const created = await run($gettext('Could not create the contact'), (c) =>
+    c.createContact(targetId, input)
+  )
+  if (!created) return
+  if (folderId.value === null || folderId.value === targetId) {
+    contacts.value = [...contacts.value, created]
+  }
+  selectedId.value = created.id
+  editing.value = null
+}
+
+async function saveEdit(input: ContactInput) {
+  const current = selected.value
+  if (!current) return
+  const updated = await run($gettext('Could not save the contact'), (c) =>
+    c.updateContact(current.parentFolderId ?? '', current.id, input, current['@odata.etag'])
+  )
+  if (!updated) return
+  replaceContact(updated)
+  editing.value = null
+}
+
+async function remove(contact: GraphContact) {
+  const done = await run($gettext('Could not delete the contact'), async (c) => {
+    await c.deleteContact(contact.parentFolderId ?? '', contact.id, contact['@odata.etag'])
+    return true
+  })
+  if (!done) return
+  contacts.value = contacts.value.filter((c) => c.id !== contact.id)
+  selectedId.value = null
+  confirmingDelete.value = false
 }
 
 onMounted(async () => {

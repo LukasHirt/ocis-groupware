@@ -9,10 +9,16 @@ vi.mock('vue3-gettext', () => ({
 }))
 
 const listContacts = vi.fn()
+const createContact = vi.fn()
+const updateContact = vi.fn()
+const deleteContact = vi.fn()
 vi.mock('../../src/composables/useApi', () => {
   const client = {
     listContactFolders: () => Promise.resolve(folders.value),
-    listContacts: (id: string) => listContacts(id)
+    listContacts: (id: string) => listContacts(id),
+    createContact: (...a: unknown[]) => createContact(...a),
+    updateContact: (...a: unknown[]) => updateContact(...a),
+    deleteContact: (...a: unknown[]) => deleteContact(...a)
   }
   return { useApi: () => ({ client, run: (_t: string, f: (c: unknown) => unknown) => f(client) }) }
 })
@@ -24,6 +30,9 @@ const [personal, team] = folders.value
 
 beforeEach(() => {
   listContacts.mockReset()
+  createContact.mockReset()
+  updateContact.mockReset()
+  deleteContact.mockReset()
   listContacts.mockImplementation((id: string) =>
     Promise.resolve(
       id === personal.id ? contacts.value : [{ ...contact, id: 'team.marie', parentFolderId: id }]
@@ -89,5 +98,110 @@ describe('the contacts page', () => {
     expect(detail.text()).toContain('Sorbonne')
     expect(detail.text()).toContain('Sceaux')
     expect(detail.text()).toContain('Physicists')
+  })
+
+  describe('editing', () => {
+    const marie = (w: Awaited<ReturnType<typeof open>>) =>
+      w.findAll('[data-testid="contact-item"]').find((i) => i.text().includes('Marie'))!
+
+    it('creates a contact in the chosen address book and selects it', async () => {
+      createContact.mockImplementation((folder: string, input: Record<string, unknown>) =>
+        Promise.resolve({
+          ...contact,
+          id: 'new.id',
+          parentFolderId: folder,
+          displayName: `${input.givenName} ${input.surname}`,
+          givenName: input.givenName,
+          surname: input.surname
+        })
+      )
+      const w = await open()
+      await w.find('[data-testid="contact-new"]').trigger('click')
+      expect(w.find('[data-testid="contact-form"]').exists()).toBe(true)
+      expect(w.find('[data-testid="form-save"]').attributes('disabled')).toBeDefined()
+      await w.find('[data-testid="field-givenName"]').setValue('Ada')
+      await w.find('[data-testid="field-surname"]').setValue('Lovelace')
+      await w.find('[data-testid="contact-form"]').trigger('submit')
+      await flushPromises()
+      expect(createContact).toHaveBeenCalledWith(personal.id, {
+        givenName: 'Ada',
+        surname: 'Lovelace'
+      })
+      expect(names(w)).toContain('Ada Lovelace')
+      expect(w.find('[data-testid="contact-form"]').exists()).toBe(false)
+      expect(w.find('[data-testid="contact-detail"]').text()).toContain('Ada Lovelace')
+    })
+
+    it('saves only the changed fields of an edited contact, with its etag', async () => {
+      updateContact.mockImplementation((_f: string, _id: string, input: object) =>
+        Promise.resolve({ ...contact, ...input })
+      )
+      const w = await open()
+      await marie(w).trigger('click')
+      await w.find('[data-testid="contact-edit"]').trigger('click')
+      expect((w.find('[data-testid="field-givenName"]').element as HTMLInputElement).value).toBe(
+        'Marie'
+      )
+      await w.find('[data-testid="field-jobTitle"]').setValue('Director')
+      await w.find('[data-testid="contact-form"]').trigger('submit')
+      await flushPromises()
+      expect(updateContact).toHaveBeenCalledWith(
+        contact.parentFolderId,
+        contact.id,
+        { jobTitle: 'Director' },
+        contact['@odata.etag']
+      )
+      expect(w.find('[data-testid="contact-detail"]').text()).toContain('Director')
+    })
+
+    it('keeps the form open when saving fails', async () => {
+      updateContact.mockResolvedValue(undefined)
+      const w = await open()
+      await marie(w).trigger('click')
+      await w.find('[data-testid="contact-edit"]').trigger('click')
+      await w.find('[data-testid="field-jobTitle"]').setValue('Director')
+      await w.find('[data-testid="contact-form"]').trigger('submit')
+      await flushPromises()
+      expect(w.find('[data-testid="contact-form"]').exists()).toBe(true)
+    })
+
+    it('discards the form on cancel', async () => {
+      const w = await open()
+      await marie(w).trigger('click')
+      await w.find('[data-testid="contact-edit"]').trigger('click')
+      await w.find('[data-testid="form-cancel"]').trigger('click')
+      expect(w.find('[data-testid="contact-form"]').exists()).toBe(false)
+      expect(updateContact).not.toHaveBeenCalled()
+    })
+
+    it('deletes a contact after a confirmation', async () => {
+      deleteContact.mockResolvedValue(undefined)
+      const w = await open()
+      const before = names(w).length
+      await marie(w).trigger('click')
+      await w.find('[data-testid="contact-delete"]').trigger('click')
+      expect(deleteContact).not.toHaveBeenCalled()
+      await w.find('[data-testid="contact-delete-confirm"]').trigger('click')
+      await flushPromises()
+      expect(deleteContact).toHaveBeenCalledWith(
+        contact.parentFolderId,
+        contact.id,
+        contact['@odata.etag']
+      )
+      expect(names(w)).toHaveLength(before - 1)
+      expect(w.find('[data-testid="contact-detail"]').exists()).toBe(false)
+    })
+
+    it('offers no editing in a read-only address book', async () => {
+      // The second address book of the fixtures is shared read only.
+      const w = await open()
+      await w.findAll('[data-testid="folder-item"]')[1].trigger('click')
+      await flushPromises()
+      await w.find('[data-testid="contact-item"]').trigger('click')
+      expect(w.find('[data-testid="contact-detail"]').exists()).toBe(true)
+      expect(w.find('[data-testid="contact-edit"]').exists()).toBe(false)
+      expect(w.find('[data-testid="contact-delete"]').exists()).toBe(false)
+      expect(w.find('[data-testid="contact-new"]').attributes('disabled')).toBeDefined()
+    })
   })
 })
