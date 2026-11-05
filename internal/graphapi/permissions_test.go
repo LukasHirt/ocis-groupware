@@ -373,3 +373,61 @@ func TestPermissionContract(t *testing.T) {
 	rec = sf.do(http.MethodGet, permsURL(cal), "einstein", "")
 	compareContract(t, "calendar-permissions", rec.Body.Bytes())
 }
+
+func TestDeletingACalendarEndsItsShares(t *testing.T) {
+	sf := newShareFixture(t)
+	rec := sf.do(http.MethodPost, "/graph/v1.0/me/calendars", "einstein", `{"name":"Lectures"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+	cal := decodeBody[calendarBody](t, rec).ID
+	ref := store.CollectionRef{Owner: "sub-einstein", Kind: store.KindCalendar, Name: calName(t, sf, cal)}
+	sf.grant(t, cal, grantMarieRead)
+	if n := len(sf.shares.Members(ref)); n != 1 {
+		t.Fatalf("members before the delete = %d, want 1", n)
+	}
+
+	if rec := sf.do(http.MethodDelete, "/graph/v1.0/me/calendars/"+cal, "einstein", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("delete: %d %s", rec.Code, rec.Body.String())
+	}
+	if n := len(sf.shares.Members(ref)); n != 0 {
+		t.Errorf("members after the delete = %d, want 0", n)
+	}
+}
+
+func TestDeletingAContactFolderEndsItsShares(t *testing.T) {
+	sf := newShareFixture(t)
+	rec := sf.do(http.MethodPost, "/graph/v1.0/me/contactFolders", "einstein", `{"displayName":"Colleagues"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+	folder := decodeBody[contactFolderBody](t, rec).ID
+	url := "/graph/v1.0/me/contactFolders/" + folder + "/permissions"
+	if rec := sf.do(http.MethodPost, url, "einstein", grantMarieRead); rec.Code != http.StatusCreated {
+		t.Fatalf("share: %d %s", rec.Code, rec.Body.String())
+	}
+	id, err := ParseCalendarID(folder)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cols, err := sf.st.ListCollections(context.Background(), "sub-einstein", store.KindAddressBook)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ref store.CollectionRef
+	for _, c := range cols {
+		if c.ID == id {
+			ref = c.Ref
+		}
+	}
+	if n := len(sf.shares.Members(ref)); n != 1 {
+		t.Fatalf("members before the delete = %d, want 1", n)
+	}
+
+	if rec := sf.do(http.MethodDelete, "/graph/v1.0/me/contactFolders/"+folder, "einstein", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("delete: %d %s", rec.Code, rec.Body.String())
+	}
+	if n := len(sf.shares.Members(ref)); n != 0 {
+		t.Errorf("members after the delete = %d, want 0", n)
+	}
+}

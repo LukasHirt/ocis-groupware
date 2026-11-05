@@ -340,7 +340,20 @@ func (a *Handler) deleteCalendar(w http.ResponseWriter, r *http.Request, c *call
 		writeError(w, a.storeError("delete a calendar", c.caller, err))
 		return
 	}
+	a.dropShares(r.Context(), e.Collection.Ref)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// dropShares ends the shares of a collection that was just deleted. A failure
+// is logged only: the shares keep the id of the deleted collection, so they
+// reach nothing, and the next start removes them.
+func (a *Handler) dropShares(ctx context.Context, ref store.CollectionRef) {
+	if a.cfg.Shares == nil {
+		return
+	}
+	if err := a.cfg.Shares.RemoveCollection(ctx, ref); err != nil {
+		a.logger.Error("could not remove the shares of a deleted collection", "owner", ref.Owner, "kind", ref.Kind, "name", ref.Name, "error", err)
+	}
 }
 
 // storeError maps an error of the store to the answer. Faults are logged and
