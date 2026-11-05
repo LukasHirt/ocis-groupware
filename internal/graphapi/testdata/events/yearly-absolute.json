@@ -1,0 +1,47 @@
+{
+  "id": "",
+  "iCalUId": "yearly-abs-1@example.com",
+  "type": "seriesMaster",
+  "subject": "Christmas Eve",
+  "body": {
+    "contentType": "text",
+    "content": ""
+  },
+  "start": {
+    "dateTime": "2026-12-24T00:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "end": {
+    "dateTime": "2026-12-25T00:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "isAllDay": true,
+  "isCancelled": false,
+  "showAs": "busy",
+  "sensitivity": "normal",
+  "categories": [],
+  "attendees": [],
+  "recurrence": {
+    "pattern": {
+      "type": "absoluteYearly",
+      "interval": 1,
+      "month": 12,
+      "dayOfMonth": 24,
+      "daysOfWeek": [],
+      "firstDayOfWeek": "sunday",
+      "index": "first"
+    },
+    "range": {
+      "type": "endDate",
+      "startDate": "2026-12-24",
+      "endDate": "2030-12-24",
+      "recurrenceTimeZone": "UTC",
+      "numberOfOccurrences": 0
+    }
+  },
+  "location": {
+    "displayName": ""
+  },
+  "isReminderOn": false,
+  "reminderMinutesBeforeStart": 0
+}

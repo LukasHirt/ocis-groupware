@@ -1,0 +1,48 @@
+{
+  "id": "",
+  "iCalUId": "monthly-rel-1@example.com",
+  "type": "seriesMaster",
+  "subject": "Second Tuesday",
+  "body": {
+    "contentType": "text",
+    "content": ""
+  },
+  "start": {
+    "dateTime": "2026-11-10T09:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "end": {
+    "dateTime": "2026-11-10T10:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "isAllDay": false,
+  "isCancelled": false,
+  "showAs": "busy",
+  "sensitivity": "normal",
+  "categories": [],
+  "attendees": [],
+  "recurrence": {
+    "pattern": {
+      "type": "relativeMonthly",
+      "interval": 1,
+      "month": 0,
+      "dayOfMonth": 0,
+      "daysOfWeek": [
+        "tuesday"
+      ],
+      "firstDayOfWeek": "sunday",
+      "index": "second"
+    },
+    "range": {
+      "type": "noEnd",
+      "startDate": "2026-11-10",
+      "recurrenceTimeZone": "UTC",
+      "numberOfOccurrences": 0
+    }
+  },
+  "location": {
+    "displayName": ""
+  },
+  "isReminderOn": false,
+  "reminderMinutesBeforeStart": 0
+}

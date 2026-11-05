@@ -1,0 +1,52 @@
+{
+  "id": "",
+  "iCalUId": "monthly-wd-1@example.com",
+  "type": "seriesMaster",
+  "subject": "Last weekday",
+  "body": {
+    "contentType": "text",
+    "content": ""
+  },
+  "start": {
+    "dateTime": "2026-11-30T09:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "end": {
+    "dateTime": "2026-11-30T10:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "isAllDay": false,
+  "isCancelled": false,
+  "showAs": "busy",
+  "sensitivity": "normal",
+  "categories": [],
+  "attendees": [],
+  "recurrence": {
+    "pattern": {
+      "type": "relativeMonthly",
+      "interval": 1,
+      "month": 0,
+      "dayOfMonth": 0,
+      "daysOfWeek": [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday"
+      ],
+      "firstDayOfWeek": "sunday",
+      "index": "last"
+    },
+    "range": {
+      "type": "noEnd",
+      "startDate": "2026-11-30",
+      "recurrenceTimeZone": "UTC",
+      "numberOfOccurrences": 0
+    }
+  },
+  "location": {
+    "displayName": ""
+  },
+  "isReminderOn": false,
+  "reminderMinutesBeforeStart": 0
+}

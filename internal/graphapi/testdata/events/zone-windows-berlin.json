@@ -1,0 +1,30 @@
+{
+  "id": "",
+  "iCalUId": "win-1@example.com",
+  "type": "singleInstance",
+  "subject": "Review",
+  "body": {
+    "contentType": "text",
+    "content": ""
+  },
+  "start": {
+    "dateTime": "2026-11-05T10:00:00.0000000",
+    "timeZone": "Europe/Berlin"
+  },
+  "end": {
+    "dateTime": "2026-11-05T10:45:00.0000000",
+    "timeZone": "Europe/Berlin"
+  },
+  "isAllDay": false,
+  "isCancelled": false,
+  "showAs": "busy",
+  "sensitivity": "normal",
+  "categories": [],
+  "attendees": [],
+  "recurrence": null,
+  "location": {
+    "displayName": ""
+  },
+  "isReminderOn": false,
+  "reminderMinutesBeforeStart": 0
+}

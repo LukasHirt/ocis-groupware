@@ -214,6 +214,29 @@ that is not one of the user's calendars answers `404`, whether it does not exist
 belongs to someone else. Calendars made here hold events, and the DAV URL of a new one
 carries a generated name.
 
+### Event mapping
+
+Events are stored as iCalendar and shown as Graph events. The mapping loses some detail,
+and what it does not map is kept as it is.
+
+| Graph | iCalendar |
+|---|---|
+| `subject`, `body.content`, `location.displayName` | `SUMMARY`, `DESCRIPTION`, `LOCATION`. Bodies are plain text; `html` is refused with `400` |
+| `start`, `end`, `isAllDay` | `DTSTART`, `DTEND` (or `DURATION`). Times are shown in the zone of `Prefer: outlook.timezone="..."`, UTC by default. Floating times read as UTC |
+| `showAs` | `TRANSP` and `STATUS`: `free` is transparent, `tentative` is `STATUS:TENTATIVE`, everything else is busy |
+| `sensitivity` | `CLASS`. `personal` is stored as private |
+| `categories`, `attendees` | `CATEGORIES`, `ATTENDEE` (`CN`, `ROLE`, `CUTYPE`, `PARTSTAT`). No invitations are sent |
+| `isReminderOn`, `reminderMinutesBeforeStart` | the first display `VALARM` with a trigger before the start |
+| `recurrence` | `RRULE`, for daily, weekly, monthly and yearly patterns, absolute and relative |
+
+Zone names are IANA names or Windows names. A Windows name on a single event is stored as
+the UTC time; on a recurring event it is kept as the zone of the rule. A rule the pattern
+cannot express, such as one with `BYHOUR`, comes back as `recurrence: null` with
+`"groupware.recurrenceEditable": false`, and a `PATCH` that sends `recurrence: null` leaves
+it alone. A `PATCH` changes only the fields it sends and keeps every other property, alarm
+and attendee parameter.
+
+
 ## Administration
 
 The same binary administers a running service through the admin socket. It reads the

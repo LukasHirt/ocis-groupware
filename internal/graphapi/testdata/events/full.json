@@ -1,0 +1,73 @@
+{
+  "id": "",
+  "iCalUId": "full-1@example.com",
+  "type": "singleInstance",
+  "subject": "Quarterly planning, part 1",
+  "body": {
+    "contentType": "text",
+    "content": "Agenda:\n- budget\n- hiring"
+  },
+  "start": {
+    "dateTime": "2026-11-05T10:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "end": {
+    "dateTime": "2026-11-05T11:30:00.0000000",
+    "timeZone": "UTC"
+  },
+  "isAllDay": false,
+  "isCancelled": false,
+  "showAs": "free",
+  "sensitivity": "confidential",
+  "categories": [
+    "Work",
+    "Planning",
+    "Q4"
+  ],
+  "attendees": [
+    {
+      "type": "required",
+      "status": {
+        "response": "accepted"
+      },
+      "emailAddress": {
+        "name": "Marie Curie",
+        "address": "marie@example.com"
+      }
+    },
+    {
+      "type": "optional",
+      "status": {
+        "response": "tentativelyAccepted"
+      },
+      "emailAddress": {
+        "name": "max@example.com",
+        "address": "max@example.com"
+      }
+    },
+    {
+      "type": "resource",
+      "status": {
+        "response": "notResponded"
+      },
+      "emailAddress": {
+        "name": "Room 4",
+        "address": "room4@example.com"
+      }
+    }
+  ],
+  "organizer": {
+    "emailAddress": {
+      "name": "Albert Einstein",
+      "address": "einstein@example.com"
+    }
+  },
+  "recurrence": null,
+  "location": {
+    "displayName": "Room 4; second floor"
+  },
+  "isReminderOn": true,
+  "reminderMinutesBeforeStart": 30,
+  "createdDateTime": "2026-11-01T08:00:00.0000000Z",
+  "lastModifiedDateTime": "2026-11-02T09:00:00.0000000Z"
+}

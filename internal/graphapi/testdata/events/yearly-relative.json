@@ -1,0 +1,48 @@
+{
+  "id": "",
+  "iCalUId": "yearly-rel-1@example.com",
+  "type": "seriesMaster",
+  "subject": "Fourth Thursday of November",
+  "body": {
+    "contentType": "text",
+    "content": ""
+  },
+  "start": {
+    "dateTime": "2026-11-26T18:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "end": {
+    "dateTime": "2026-11-26T19:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "isAllDay": false,
+  "isCancelled": false,
+  "showAs": "busy",
+  "sensitivity": "normal",
+  "categories": [],
+  "attendees": [],
+  "recurrence": {
+    "pattern": {
+      "type": "relativeYearly",
+      "interval": 1,
+      "month": 11,
+      "dayOfMonth": 0,
+      "daysOfWeek": [
+        "thursday"
+      ],
+      "firstDayOfWeek": "sunday",
+      "index": "fourth"
+    },
+    "range": {
+      "type": "noEnd",
+      "startDate": "2026-11-26",
+      "recurrenceTimeZone": "UTC",
+      "numberOfOccurrences": 0
+    }
+  },
+  "location": {
+    "displayName": ""
+  },
+  "isReminderOn": false,
+  "reminderMinutesBeforeStart": 0
+}

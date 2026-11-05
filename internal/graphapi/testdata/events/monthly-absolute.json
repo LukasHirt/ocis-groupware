@@ -1,0 +1,46 @@
+{
+  "id": "",
+  "iCalUId": "monthly-abs-1@example.com",
+  "type": "seriesMaster",
+  "subject": "Monthly on the 15th",
+  "body": {
+    "contentType": "text",
+    "content": ""
+  },
+  "start": {
+    "dateTime": "2026-11-15T09:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "end": {
+    "dateTime": "2026-11-15T10:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "isAllDay": false,
+  "isCancelled": false,
+  "showAs": "busy",
+  "sensitivity": "normal",
+  "categories": [],
+  "attendees": [],
+  "recurrence": {
+    "pattern": {
+      "type": "absoluteMonthly",
+      "interval": 1,
+      "month": 0,
+      "dayOfMonth": 15,
+      "daysOfWeek": [],
+      "firstDayOfWeek": "sunday",
+      "index": "first"
+    },
+    "range": {
+      "type": "noEnd",
+      "startDate": "2026-11-15",
+      "recurrenceTimeZone": "UTC",
+      "numberOfOccurrences": 0
+    }
+  },
+  "location": {
+    "displayName": ""
+  },
+  "isReminderOn": false,
+  "reminderMinutesBeforeStart": 0
+}

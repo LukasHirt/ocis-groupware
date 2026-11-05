@@ -1,0 +1,30 @@
+{
+  "id": "",
+  "iCalUId": "allday-1@example.com",
+  "type": "singleInstance",
+  "subject": "Conference",
+  "body": {
+    "contentType": "text",
+    "content": ""
+  },
+  "start": {
+    "dateTime": "2026-11-12T00:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "end": {
+    "dateTime": "2026-11-14T00:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "isAllDay": true,
+  "isCancelled": false,
+  "showAs": "tentative",
+  "sensitivity": "normal",
+  "categories": [],
+  "attendees": [],
+  "recurrence": null,
+  "location": {
+    "displayName": ""
+  },
+  "isReminderOn": false,
+  "reminderMinutesBeforeStart": 0
+}
