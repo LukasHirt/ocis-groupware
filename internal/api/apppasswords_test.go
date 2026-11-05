@@ -20,7 +20,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/owncloud/ocis-groupware/internal/auth"
+	"github.com/owncloud/ocis-groupware/internal/ocisgraph"
 	"github.com/owncloud/ocis-groupware/internal/principals"
+	"github.com/owncloud/ocis-groupware/internal/provision"
 )
 
 const base = "/groupware/v1/app-passwords"
@@ -80,7 +82,7 @@ func newFixture(t *testing.T) *fixture {
 		"tok-bob":   {Subject: "sub-bob", PreferredUsername: "bob"},
 		"tok-bad":   {Subject: "sub-bad", PreferredUsername: "bad/name"},
 	}}
-	h := AppPasswords(reg, logger)
+	h := AppPasswords(reg, nil, logger)
 	mux := http.NewServeMux()
 	mux.Handle(base, h)
 	mux.Handle(base+"/{id}", h)
@@ -150,7 +152,7 @@ func TestUnauthenticated(t *testing.T) {
 
 func TestHandlerWithoutClaims(t *testing.T) {
 	f := newFixture(t)
-	h := AppPasswords(f.reg, slog.New(slog.DiscardHandler))
+	h := AppPasswords(f.reg, nil, slog.New(slog.DiscardHandler))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, base, nil))
 	if rec.Code != http.StatusUnauthorized {
@@ -588,5 +590,37 @@ func TestClip(t *testing.T) {
 	}
 	if got := clip(strings.Repeat("a", 65)); got != strings.Repeat("a", 64)+"...(truncated)" {
 		t.Errorf("clip(65) = %q", got)
+	}
+}
+
+type graphStub struct{ tokens []string }
+
+func (g *graphStub) Me(_ context.Context, token string) (ocisgraph.User, error) {
+	g.tokens = append(g.tokens, token)
+	return ocisgraph.User{ID: "u-alice", Groups: []ocisgraph.Group{{ID: "g-1", Name: "users"}, {ID: "g-2", Name: "physics"}}}, nil
+}
+
+func TestSignInRecordsTheIdentity(t *testing.T) {
+	f := newFixture(t)
+	g := &graphStub{}
+	h := AppPasswords(f.reg, provision.NewIdentities(f.reg, g, nil), nil)
+	mux := http.NewServeMux()
+	mux.Handle(base, h)
+	f.handler = auth.Middleware(f.verifier, slog.New(slog.DiscardHandler))(mux)
+
+	if rec := f.do(http.MethodGet, base, "tok-alice", ""); rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if len(g.tokens) != 1 || g.tokens[0] != "tok-alice" {
+		t.Fatalf("tokens = %v", g.tokens)
+	}
+	id, err := f.reg.Identity("sub-alice")
+	if err != nil || id.OCISID != "u-alice" || len(id.Groups) != 2 {
+		t.Fatalf("identity = %+v, %v", id, err)
+	}
+	// A second request within the interval asks nothing.
+	f.do(http.MethodGet, base, "tok-alice", "")
+	if len(g.tokens) != 1 {
+		t.Fatalf("%d lookups, want 1", len(g.tokens))
 	}
 }

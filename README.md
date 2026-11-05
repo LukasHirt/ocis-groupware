@@ -25,6 +25,7 @@ over file, file wins over defaults.
 | `GROUPWARE_OIDC_ISSUER` | `oidc_issuer` | **Required.** The oCIS public URL, which is also the OIDC issuer |
 | `GROUPWARE_OIDC_AUDIENCE` | `oidc_audience` | Optional. If set, tokens must carry it in `aud`; oCIS sets that to the client ID of the requesting app, e.g. `web` |
 | `GROUPWARE_OIDC_CA_FILE` | `oidc_ca_file` | Optional PEM bundle of extra CAs to trust when contacting the issuer |
+| `GROUPWARE_OCIS_URL` | `ocis_url` | Optional. Where the service calls the oCIS Graph API to look up the signed-in user's id and groups. Defaults to the issuer URL. Uses the same CA file |
 | `GROUPWARE_DATA_DIR` | `data_dir` | **Required.** Directory that holds all service state. The image sets it to `/data` |
 | `GROUPWARE_ADMIN_SOCKET` | `admin_socket` | Path of the admin API's unix socket, default `admin.sock` in the data directory. Leave it alone unless the data directory cannot hold a socket (see below) |
 
@@ -48,6 +49,15 @@ know it and ignore it, so a downgrade lets disabled users sign in again.
 The same file holds a snapshot of the user's oCIS identity: `ocis_id`, the `groups` the
 user belongs to (each with `id` and `name`) and `identity_at`, the time the snapshot was
 taken. A file without these fields has no snapshot yet and loads as before.
+
+The snapshot is filled at sign-ins with a bearer token (the web app, and DAV clients that
+use OIDC). The service calls `GET /graph/v1.0/me?$expand=memberOf` on `GROUPWARE_OCIS_URL`
+with the user's own token, so it needs no credential for oCIS, and it asks at most once
+every 5 minutes per user. If the call fails, the old snapshot stays and the failure is
+logged; the sign-in still succeeds. Sign-ins with an app password carry no token and
+do not refresh it. Group membership is therefore as old as the user's last sign-in with a
+token, at most a few minutes behind while the user is active. The snapshot of a disabled
+user is not updated.
 
 The service also creates `admin.sock` in the data directory, a unix socket that serves the
 admin API: listing users, disabling and enabling them, and purging a disabled user's data.

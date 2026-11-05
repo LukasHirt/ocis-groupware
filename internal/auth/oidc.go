@@ -57,9 +57,21 @@ func NewOIDCVerifier(cfg OIDCConfig) (*OIDCVerifier, error) {
 		return nil, errors.New("auth: oidc issuer must not be empty")
 	}
 
-	client := &http.Client{Timeout: discoveryTimeout}
-	if cfg.CAFile != "" {
-		pool, err := loadCAPool(cfg.CAFile)
+	client, err := NewHTTPClient(cfg.CAFile, discoveryTimeout)
+	if err != nil {
+		return nil, err
+	}
+	return &OIDCVerifier{cfg: cfg, client: client}, nil
+}
+
+// NewHTTPClient returns an HTTP client with the given timeout that trusts the
+// system roots and, when caFile is not empty, the certificates in that PEM
+// bundle. It is how the service reaches oCIS, for the identity provider and
+// for the Graph API alike.
+func NewHTTPClient(caFile string, timeout time.Duration) (*http.Client, error) {
+	client := &http.Client{Timeout: timeout}
+	if caFile != "" {
+		pool, err := loadCAPool(caFile)
 		if err != nil {
 			return nil, err
 		}
@@ -68,7 +80,7 @@ func NewOIDCVerifier(cfg OIDCConfig) (*OIDCVerifier, error) {
 			TLSClientConfig: &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12},
 		}
 	}
-	return &OIDCVerifier{cfg: cfg, client: client}, nil
+	return client, nil
 }
 
 func loadCAPool(path string) (*x509.CertPool, error) {

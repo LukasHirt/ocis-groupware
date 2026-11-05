@@ -177,3 +177,36 @@ func TestAdminSocketFromFileAndEnv(t *testing.T) {
 		t.Errorf("AdminSocket = %q, want env value", cfg.AdminSocket)
 	}
 }
+
+func TestOCISURLDefaultsToTheIssuer(t *testing.T) {
+	t.Setenv("GROUPWARE_OIDC_ISSUER", "https://ocis.example")
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.OCISURL != "https://ocis.example" {
+		t.Errorf("OCISURL = %q, want the issuer", cfg.OCISURL)
+	}
+}
+
+func TestOCISURLFromFileAndEnv(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "groupware.yaml")
+	if err := os.WriteFile(path, []byte("oidc_issuer: https://ocis.example\nocis_url: http://ocis:9200\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.OCISURL != "http://ocis:9200" {
+		t.Errorf("OCISURL = %q, want the file value", cfg.OCISURL)
+	}
+	t.Setenv("GROUPWARE_OCIS_URL", "http://other:9200")
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.OCISURL != "http://other:9200" {
+		t.Errorf("OCISURL = %q, want the env value", cfg.OCISURL)
+	}
+}

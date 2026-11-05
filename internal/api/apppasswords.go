@@ -51,11 +51,17 @@ type issuedJSON struct {
 // must run behind auth.Middleware: the caller is the principal of the verified claims,
 // which are provisioned like the DAV handler does it. A principal reaches only
 // its own app passwords.
-func AppPasswords(reg *principals.Registry, logger *slog.Logger) http.Handler {
+//
+// ids refreshes the caller's oCIS identity snapshot at each sign-in. It may be
+// nil, which signs in without a lookup.
+func AppPasswords(reg *principals.Registry, ids *provision.Identities, logger *slog.Logger) http.Handler {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
-	h := &appPasswords{reg: reg, logger: logger}
+	if ids == nil {
+		ids = provision.NewIdentities(reg, nil, logger)
+	}
+	h := &appPasswords{reg: reg, ids: ids, logger: logger}
 	return http.HandlerFunc(h.serve)
 }
 
@@ -71,6 +77,7 @@ func NotFound() http.Handler {
 
 type appPasswords struct {
 	reg    *principals.Registry
+	ids    *provision.Identities
 	logger *slog.Logger
 }
 
@@ -96,7 +103,8 @@ func (h *appPasswords) serve(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	p, status, msg := provision.Principal(r.Context(), h.reg, claims, h.logger)
+	token, _ := auth.TokenFromContext(r.Context())
+	p, status, msg := h.ids.SignIn(r.Context(), claims, token, h.logger)
 	if status != 0 {
 		writeError(w, status, msg)
 		return

@@ -23,6 +23,10 @@ type Config struct {
 	// OIDCCAFile is an optional PEM bundle of extra CAs trusted when
 	// contacting the issuer.
 	OIDCCAFile string `yaml:"oidc_ca_file"`
+	// OCISURL is the URL the service reaches the oCIS Graph API at, with the
+	// caller's token, to learn the caller's oCIS id and groups at sign-in. It
+	// defaults to OIDCIssuer. It uses OIDCCAFile for TLS.
+	OCISURL string `yaml:"ocis_url"`
 	// DataDir is the directory that holds all service state. It must be writable.
 	DataDir string `yaml:"data_dir"`
 	// AdminSocket is the path of the unix socket that serves the admin API.
@@ -69,6 +73,12 @@ func Load(path string) (Config, error) {
 	}
 	if v, ok := os.LookupEnv("GROUPWARE_OIDC_CA_FILE"); ok {
 		cfg.OIDCCAFile = v
+	}
+	if v, ok := os.LookupEnv("GROUPWARE_OCIS_URL"); ok {
+		cfg.OCISURL = v
+	}
+	if cfg.OCISURL == "" {
+		cfg.OCISURL = cfg.OIDCIssuer
 	}
 	if v, ok := os.LookupEnv("GROUPWARE_DATA_DIR"); ok {
 		cfg.DataDir = v
