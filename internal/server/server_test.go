@@ -698,3 +698,42 @@ func TestGroupwareEndpointsRequireBearerToken(t *testing.T) {
 		t.Errorf("handler reached for %v", reached)
 	}
 }
+
+// TestCompatDAVRoutes mounts the classic layout next to /dav and checks that
+// it is reachable with an app password and refuses everything else, and that
+// without the mount the paths are not served.
+func TestCompatDAVRoutes(t *testing.T) {
+	f := newDAVFixture(t)
+	secret := f.user(t, "sub-alice", "alice")
+	compat, err := davmount.NewCompat(davmount.Config{Store: f.st, Registry: f.reg, Verifier: f.verifier, Logger: testLogger()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.srv = New(":0", testLogger(), auth.Middleware(f.verifier, testLogger(), auth.WithDAVPrefix(davmount.CompatPrefix)),
+		WithCompatDAV(compat))
+
+	for _, p := range []string{"/remote.php/dav/", "/remote.php/dav"} {
+		if rec := f.do("PROPFIND", p, "", ""); rec.Code != http.StatusUnauthorized ||
+			rec.Header().Get("WWW-Authenticate") != `Basic realm="ocis-groupware"` {
+			t.Errorf("%s without credentials: status = %d, challenge %q", p, rec.Code, rec.Header().Get("WWW-Authenticate"))
+		}
+		rec := f.do("PROPFIND", p, basicAuth("alice", secret), "")
+		if rec.Code != http.StatusMultiStatus || !strings.Contains(rec.Body.String(), "/remote.php/dav/principals/users/alice/") {
+			t.Errorf("%s with an app password: status = %d, body %q", p, rec.Code, rec.Body.String())
+		}
+	}
+	if rec := f.do("PROPFIND", "/dav/", basicAuth("alice", secret), ""); rec.Code != http.StatusNotFound {
+		t.Errorf("/dav is not mounted here: status = %d, want 404", rec.Code)
+	}
+}
+
+func TestCompatDAVOffIsNotServed(t *testing.T) {
+	f := newDAVFixture(t)
+	secret := f.user(t, "sub-alice", "alice")
+	for _, authz := range []string{"", basicAuth("alice", secret)} {
+		rec := f.do("PROPFIND", "/remote.php/dav/", authz, "")
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("status = %d, want 401 (nothing is served there)", rec.Code)
+		}
+	}
+}

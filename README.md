@@ -29,6 +29,7 @@ over file, file wins over defaults.
 | `GROUPWARE_DATA_DIR` | `data_dir` | **Required.** Directory that holds all service state. The image sets it to `/data` |
 | `GROUPWARE_ADMIN_SOCKET` | `admin_socket` | Path of the admin API's unix socket, default `admin.sock` in the data directory. Leave it alone unless the data directory cannot hold a socket (see below) |
 | `GROUPWARE_LEGACY_TOKEN_SECRET` | `legacy_token_secret` | Optional. The instance secret of a classic installation whose app tokens were imported. Without it, imported tokens do not work (see below) |
+| `GROUPWARE_COMPAT_PATHS` | `compat_paths` | Optional boolean, default `false`. Also serves the classic DAV layout below `/remote.php/dav`, for devices set up against a classic server. The ingress has to route those paths to the service (see `docs/routing.md`) |
 | `GROUPWARE_LEGACY_TOKEN_TTL` | `legacy_token_ttl` | Optional Go duration, default `4320h` (180 days). How long an imported token stays valid without being used |
 
 ## Data directory
@@ -116,6 +117,13 @@ clients sign in. A request under `/dav` without valid credentials gets `401` wit
 `WWW-Authenticate: Basic realm="ocis-groupware"`. Each user reaches only their own
 calendars and address books. A user's first request with a bearer token creates
 their default address book and calendar.
+
+With `GROUPWARE_COMPAT_PATHS=true` the same data is also served below `/remote.php/dav`
+in the classic layout: principals at `/remote.php/dav/principals/users/{user}/`, address
+books at `/remote.php/dav/addressbooks/users/{user}/` and calendars at
+`/remote.php/dav/calendars/{user}/`. Sign-in and access rules are the same as for `/dav`,
+and the classic login name has to equal the oCIS login name. `docs/routing.md` says which
+paths the ingress sends to the service.
 
 A user whose data was imported before their first sign-in has no subject yet, only the
 oCIS user id. At the first bearer sign-in with an unknown subject, the service asks oCIS

@@ -1,0 +1,22 @@
+# Serves the classic DAV paths as well.
+#
+#   docker compose -f docker-compose.yml -f deploy/compose/compat-paths.yml up --build
+#
+# The service turns on GROUPWARE_COMPAT_PATHS, and Traefik sends the classic
+# calendar, address book and principal paths below /remote.php/dav/ to it.
+# Everything else below /remote.php/ stays with oCIS. The stack tests run
+# against this in CI (STACK_COMPAT=true).
+
+services:
+  ocis-groupware:
+    environment:
+      GROUPWARE_COMPAT_PATHS: "true"
+    labels:
+      traefik.http.routers.ocis-groupware-compat.rule: >-
+        Host(`${OCIS_DOMAIN:-ocis.localhost}`) && (
+        PathPrefix(`/remote.php/dav/calendars/`) ||
+        PathPrefix(`/remote.php/dav/addressbooks/`) ||
+        PathPrefix(`/remote.php/dav/principals/`))
+      traefik.http.routers.ocis-groupware-compat.entrypoints: websecure
+      traefik.http.routers.ocis-groupware-compat.priority: "100"
+      traefik.http.routers.ocis-groupware-compat.service: ocis-groupware

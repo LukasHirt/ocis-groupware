@@ -19,8 +19,9 @@ what happens when the proxy inside oCIS is asked to do the job instead.
 | `/groupware/` | The service's own API, for example app passwords |
 | `/web/` | The web app that oCIS Web loads |
 
-Only these go to the service. `/dav/spaces/`, `/dav/files/`, `/remote.php/`, the rest of
-`/graph/` and everything else stay with oCIS. The matches are on the path only; the
+Only these go to the service, plus the classic paths below when they are switched on.
+`/dav/spaces/`, `/dav/files/`, `/remote.php/`, the rest of `/graph/` and everything else
+stay with oCIS. The matches are on the path only; the
 service does not need the ingress to rewrite anything or add headers.
 
 `/healthz` and `/metrics` are for the monitoring side. The development stack routes them
@@ -43,6 +44,83 @@ All three use the same path list. The DAV paths need the full set of WebDAV meth
 (PROPFIND, PROPPATCH, REPORT, MKCOL, MKCALENDAR, PUT, DELETE, MOVE and COPY), which
 these three pass through as they are. If an ingress or a web application firewall
 filters methods, allow them for these paths.
+
+## The classic paths
+
+A client that was set up against a classic server keeps the addresses it learned there.
+Classic servers serve DAV below `/remote.php/dav`, with principals at
+`principals/users/{user}/`, address books at `addressbooks/users/{user}/{book}/` and
+calendars at `calendars/{user}/{calendar}/`. With `GROUPWARE_COMPAT_PATHS=true` the
+service serves that layout as well, under the same prefix, from the same data and behind
+the same sign-in as `/dav`: app passwords, imported classic tokens and bearer tokens, and
+the same view of shared collections. `/dav` itself is unchanged, and the classic paths
+are off by default. They only work for a user whose classic login name is the same as the
+oCIS login name, because the user's name is part of every address. Other users add their
+devices again.
+
+The ingress has to send these paths to the service, and only these:
+
+| Path | What it is |
+|---|---|
+| `/remote.php/dav/principals/` | Principals, which clients ask for their home sets |
+| `/remote.php/dav/addressbooks/` | CardDAV |
+| `/remote.php/dav/calendars/` | CalDAV |
+
+`/remote.php/dav/files/`, `/remote.php/dav/spaces/` and the rest of `/remote.php/` stay
+with oCIS, which answers those and has nothing at the three paths above, so routing them
+takes nothing away from it. The bare `/remote.php/dav/` is not in the list: oCIS answers
+it for its file clients. Clients with a stored address do not need it.
+
+The compose file `deploy/compose/compat-paths.yml` turns the option on and adds the
+Traefik route, and CI runs the stack tests against it:
+
+```sh
+docker compose -f docker-compose.yml -f deploy/compose/compat-paths.yml up --build
+```
+
+The same routes for the other ingresses. Traefik, next to the existing router:
+
+```yaml
+    ocis-groupware-compat:
+      rule: >-
+        Host(`ocis.example.com`) && (
+        PathPrefix(`/remote.php/dav/principals/`) ||
+        PathPrefix(`/remote.php/dav/addressbooks/`) ||
+        PathPrefix(`/remote.php/dav/calendars/`))
+      entryPoints: [websecure]
+      service: ocis-groupware
+      priority: 100
+```
+
+nginx, in the oCIS server block with the other locations:
+
+```nginx
+    location ^~ /remote.php/dav/principals/ {
+        proxy_pass http://ocis_groupware;
+    }
+    location ^~ /remote.php/dav/addressbooks/ {
+        proxy_pass http://ocis_groupware;
+    }
+    location ^~ /remote.php/dav/calendars/ {
+        proxy_pass http://ocis_groupware;
+    }
+```
+
+Caddy, next to the `@groupware` matcher, handled by the same `handle` block (or add the
+paths to that matcher):
+
+```caddy
+    @groupware_compat path /remote.php/dav/principals/* /remote.php/dav/addressbooks/* /remote.php/dav/calendars/*
+
+    handle @groupware_compat {
+        reverse_proxy ocis-groupware:8080
+    }
+```
+
+These paths are supported through an ingress only. The oCIS proxy route below cannot
+carry them for the reason given there: oCIS answers every REPORT below `/remote.php/dav`
+with its search service, so no query or sync request would reach the service. Nothing in
+the service or the compose files adds such a route.
 
 ## The oCIS proxy route
 

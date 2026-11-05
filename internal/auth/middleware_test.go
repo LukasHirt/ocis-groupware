@@ -224,3 +224,43 @@ func TestClaimsFromContextEmpty(t *testing.T) {
 		t.Error("ClaimsFromContext on an empty context reported ok")
 	}
 }
+
+// TestMiddlewareExtraDAVPrefix checks that a prefix added with WithDAVPrefix
+// is left to its DAV handler like /dav, and that without the option the same
+// paths need a bearer token.
+func TestMiddlewareExtraDAVPrefix(t *testing.T) {
+	paths := []string{
+		"/remote.php/dav",
+		"/remote.php/dav/",
+		"/remote.php/dav/principals/users/alice/",
+		"/web/../remote.php/dav/calendars/alice/",
+	}
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+
+			rec := httptest.NewRecorder()
+			Middleware(&fakeVerifier{}, testLogger(), WithDAVPrefix("/remote.php/dav"))(next).
+				ServeHTTP(rec, httptest.NewRequest("PROPFIND", path, nil))
+			if rec.Code != http.StatusNoContent {
+				t.Errorf("with the prefix: status = %d, want the request to pass through", rec.Code)
+			}
+
+			rec = httptest.NewRecorder()
+			Middleware(&fakeVerifier{}, testLogger())(next).
+				ServeHTTP(rec, httptest.NewRequest("PROPFIND", path, nil))
+			if rec.Code != http.StatusUnauthorized {
+				t.Errorf("without the prefix: status = %d, want 401", rec.Code)
+			}
+		})
+	}
+	for _, path := range []string{"/remote.php/davx", "/remote.php/webdav/", "/remote.php/dav%2F..%2Fx"} {
+		rec := httptest.NewRecorder()
+		next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+		Middleware(&fakeVerifier{}, testLogger(), WithDAVPrefix("/remote.php/dav"))(next).
+			ServeHTTP(rec, httptest.NewRequest("PROPFIND", path, nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s: status = %d, want 401", path, rec.Code)
+		}
+	}
+}
