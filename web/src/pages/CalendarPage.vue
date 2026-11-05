@@ -1,53 +1,162 @@
 <template>
-  <app-shell :title="$gettext('Calendar')" :loading="loading">
-    <p v-if="calendars.length === 0" class="oc-text-muted oc-mt-m" data-testid="empty">
-      {{ $gettext('You have no calendars yet.') }}
-    </p>
-    <template v-else>
-    <div class="oc-flex groupware-calendar-page oc-mt-m">
-      <aside class="oc-mr-m groupware-calendar-side">
-        <calendar-list
-          :calendars="calendars"
-          :hidden="hidden"
-          @toggle="toggle"
-          @add="dialog = { kind: 'create' }"
-          @edit="(calendar: GraphCalendar) => (dialog = { kind: 'edit', calendar })"
-          @share="(calendar: GraphCalendar) => (dialog = { kind: 'share', calendar })"
-          @remove="(calendar: GraphCalendar) => (dialog = { kind: 'delete', calendar })"
-          @import="importFile"
-          @export="exportCalendar"
-        />
-        <button
-          type="button"
-          class="oc-button oc-button-s oc-button-passive oc-mt-m"
-          data-testid="settings-open"
-          @click="dialog = { kind: 'settings' }"
+  <app-shell
+    :title="view.title || $gettext('Calendar')"
+    :loading="loading"
+    :list-toggle-label="$gettext('Show calendars')"
+  >
+    <template #list="{ nested }">
+      <calendar-list
+        :calendars="calendars"
+        :nested="nested"
+        :hidden="hidden"
+        @toggle="toggle"
+        @add="dialog = { kind: 'create' }"
+        @edit="(calendar: GraphCalendar) => (dialog = { kind: 'edit', calendar })"
+        @share="(calendar: GraphCalendar) => (dialog = { kind: 'share', calendar })"
+        @remove="(calendar: GraphCalendar) => (dialog = { kind: 'delete', calendar })"
+        @import="chooseFile"
+        @export="exportCalendar"
+      />
+    </template>
+    <template v-if="calendars.length > 0" #title>
+      <!-- On a phone the stepping buttons move to the second row, to leave
+           room for the title. -->
+      <calendar-steps v-if="!phone" :view="view" @today="grid?.today()" @prev="grid?.prev()" @next="grid?.next()" />
+      <h1 class="gw-app-title" :class="{ 'oc-ml-s': !phone }" aria-live="polite" data-testid="calendar-title">
+        {{ view.title }}
+      </h1>
+    </template>
+    <template v-if="calendars.length > 0" #viewControls>
+      <div v-if="!phone" class="oc-button-group oc-mr-s" role="group" :aria-label="$gettext('View')">
+        <oc-button
+          v-for="v in views"
+          :key="v.type"
+          variation="primary"
+          :appearance="view.type === v.type ? 'filled' : 'outline'"
+          size="small"
+          :aria-pressed="view.type === v.type ? 'true' : 'false'"
+          @click="grid?.changeView(v.type)"
         >
-          {{ $gettext('Settings') }}
-        </button>
-      </aside>
-      <div class="groupware-calendar-main">
-        <div class="oc-flex oc-flex-right oc-mb-s">
-          <button
-            type="button"
-            class="oc-button oc-button-m oc-button-primary oc-button-primary-filled"
-            data-testid="event-add"
-            @click="newEvent()"
-          >
-            {{ $gettext('New event') }}
-          </button>
-        </div>
-        <calendar-grid
-          :events="shown"
-          :time-zone="settings.timeZone"
-          :first-day="settings.firstDay"
-          :week-numbers="settings.weekNumbers"
-          @range="onRange"
-          @select="onSelect"
-          @open="openEvent"
-        />
+          {{ v.label }}
+        </oc-button>
       </div>
-    </div>
+      <template v-else>
+        <oc-button id="gw-view-toggle" variation="passive" appearance="outline" size="small" class="oc-mr-s">
+          {{ currentViewLabel }}
+          <oc-icon name="arrow-down-s" fill-type="line" size="small" />
+        </oc-button>
+        <oc-drop drop-id="gw-view-drop" toggle="#gw-view-toggle" mode="click" close-on-click padding-size="small">
+          <ul class="oc-list">
+            <li v-for="v in views" :key="v.type">
+              <oc-button
+                appearance="raw"
+                justify-content="left"
+                class="oc-width-1-1"
+                :aria-pressed="view.type === v.type ? 'true' : 'false'"
+                @click="grid?.changeView(v.type)"
+              >
+                {{ v.label }}
+              </oc-button>
+            </li>
+          </ul>
+        </oc-drop>
+      </template>
+      <oc-button appearance="raw" :aria-label="$gettext('Calendar settings')" data-testid="settings-open" @click="dialog = { kind: 'settings' }">
+        <oc-icon name="settings-3" fill-type="line" />
+      </oc-button>
+    </template>
+    <template v-if="calendars.length > 0" #actions>
+      <template v-if="phone">
+        <calendar-steps :view="view" @today="grid?.today()" @prev="grid?.prev()" @next="grid?.next()" />
+        <span class="gw-spacer" />
+        <oc-button
+          variation="primary"
+          appearance="filled"
+          size="small"
+          :aria-label="$gettext('New event')"
+          :disabled="writable.length === 0"
+          data-testid="event-add"
+          @click="newEvent()"
+        >
+          <oc-icon name="add" fill-type="line" size="small" />
+          {{ $gettext('New event') }}
+        </oc-button>
+      </template>
+      <template v-else>
+      <oc-button
+        v-oc-tooltip="writable.length === 0 ? $gettext('You have no calendar you can write to') : ''"
+        variation="primary"
+        appearance="filled"
+        class="oc-mr-s"
+        :disabled="writable.length === 0"
+        data-testid="event-add"
+        @click="newEvent()"
+      >
+        <oc-icon name="add" fill-type="line" size="small" />
+        {{ $gettext('New event') }}
+      </oc-button>
+      <oc-button id="gw-import-toggle" appearance="raw" :disabled="writable.length === 0" data-testid="import-open">
+        <oc-icon name="upload" fill-type="line" size="small" />
+        {{ $gettext('Import') }}
+      </oc-button>
+      <oc-drop drop-id="gw-import-drop" toggle="#gw-import-toggle" mode="click" close-on-click padding-size="small">
+        <ul class="oc-list">
+          <li v-for="c in writable" :key="c.id">
+            <oc-button
+              appearance="raw"
+              justify-content="left"
+              class="oc-width-1-1"
+              data-testid="import-into"
+              @click="chooseFile(c)"
+            >
+              {{ $gettext('Import into %{name}', { name: c.name }) }}
+            </oc-button>
+          </li>
+        </ul>
+      </oc-drop>
+      </template>
+    </template>
+
+    <no-content-message v-if="calendars.length === 0" icon="calendar" icon-fill-type="line">
+      <template #message>
+        <span data-testid="empty">{{ $gettext('You have no calendars yet') }}</span>
+      </template>
+      <template #callToAction>
+        <oc-button variation="primary" appearance="filled" data-testid="empty-add" @click="dialog = { kind: 'create' }">
+          {{ $gettext('Add calendar') }}
+        </oc-button>
+      </template>
+    </no-content-message>
+    <template v-else>
+      <oc-progress v-if="loadingEvents" indeterminate size="small" class="gw-events-progress" />
+      <p v-if="allHidden" class="oc-text-muted oc-mt-s oc-mb-s" data-testid="all-hidden">
+        {{ $gettext('All calendars are hidden. Show a calendar in the list to see its events.') }}
+      </p>
+      <calendar-grid
+        ref="grid"
+        :events="shown"
+        :initial-view="phone ? 'timeGridDay' : 'dayGridMonth'"
+        :auto-height="phone"
+        :compact="compact"
+        :time-zone="settings.timeZone"
+        :first-day="settings.firstDay"
+        :week-numbers="settings.weekNumbers"
+        @range="onRange"
+        @view="(state: ViewState) => (view = state)"
+        @select="onSelect"
+        @open="openEvent"
+      />
+    </template>
+    <input
+      ref="fileInput"
+      type="file"
+      class="oc-invisible-sr"
+      accept=".ics,text/calendar"
+      tabindex="-1"
+      aria-hidden="true"
+      data-testid="calendar-import-file"
+      @change="fileChosen"
+    />
     <settings-dialog
       v-if="dialog?.kind === 'settings'"
       :settings="settings"
@@ -127,17 +236,19 @@
       @cancel="dialog = undefined"
       @confirm="remove"
     />
-    </template>
   </app-shell>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useGettext } from 'vue3-gettext'
 import AppShell from '../components/AppShell.vue'
 import CalendarGrid from '../calendar/CalendarGrid.vue'
 import CalendarDialog from '../calendar/CalendarDialog.vue'
 import CalendarList from '../calendar/CalendarList.vue'
+import CalendarSteps from '../calendar/CalendarSteps.vue'
+import type { ViewState, ViewType } from '../calendar/view'
+import { NoContentMessage } from '@ownclouders/web-pkg'
 import SettingsDialog from '../calendar/SettingsDialog.vue'
 import ImportReportDialog from '../calendar/ImportReportDialog.vue'
 import { fileNameFor, saveBlob } from '../components/download'
@@ -162,8 +273,28 @@ const { hidden, isHidden, toggle } = useHiddenCalendars()
 const { settings, update: updateSettings, zone } = useCalendarSettings()
 
 const calendars = ref<GraphCalendar[]>([])
+const grid = ref<InstanceType<typeof CalendarGrid>>()
+
+// Below 640px the page opens on the day and the view buttons fold into a menu.
+const phoneQuery = window.matchMedia('(max-width: 639px)')
+const phone = ref(phoneQuery.matches)
+const onPhoneChange = () => (phone.value = phoneQuery.matches)
+// Below 960px the month shows dots instead of titles.
+const compactQuery = window.matchMedia('(max-width: 959px)')
+const compact = ref(compactQuery.matches)
+const onCompactChange = () => (compact.value = compactQuery.matches)
+
+const views = computed<{ type: ViewType; label: string }[]>(() => [
+  { type: 'dayGridMonth', label: $gettext('Month') },
+  { type: 'timeGridWeek', label: $gettext('Week') },
+  { type: 'timeGridDay', label: $gettext('Day') }
+])
+// The toolbar shows what the grid reports. Until it has, the page is a month.
+const view = ref<ViewState>({ type: phone.value ? 'timeGridDay' : 'dayGridMonth', title: '', isToday: true })
+const currentViewLabel = computed(() => views.value.find((v) => v.type === view.value.type)?.label ?? '')
 const events = ref<GraphEvent[]>([])
 const loading = ref(true)
+const loadingEvents = ref(false)
 type Scope = 'single' | 'this' | 'all'
 const dialog = ref<
   | { kind: 'settings' }
@@ -186,6 +317,10 @@ const dialog = ref<
   | { kind: 'event-delete'; event: GraphEvent; scope: Scope }
 >()
 
+const allHidden = computed(
+  () => calendars.value.length > 0 && calendars.value.every((c) => isHidden(c.id))
+)
+
 const byId = computed(() => new Map(calendars.value.map((c) => [c.id, c])))
 const shown = computed(() =>
   events.value
@@ -201,9 +336,13 @@ async function loadEvents() {
     return
   }
   const asked = range
+  loadingEvents.value = true
   const loaded = await run($gettext('Could not load the events'), (c) => c.calendarView({ ...asked, zone: zone() }))
-  if (loaded && range === asked) {
-    events.value = loaded
+  if (range === asked) {
+    loadingEvents.value = false
+    if (loaded) {
+      events.value = loaded
+    }
   }
 }
 
@@ -367,6 +506,27 @@ function saveSettings(next: CalendarSettings) {
   return loadEvents()
 }
 
+// One hidden file input serves every calendar; the one asked for is kept until
+// a file is chosen.
+const fileInput = ref<HTMLInputElement>()
+let importTarget: GraphCalendar | undefined
+
+function chooseFile(calendar: GraphCalendar) {
+  importTarget = calendar
+  fileInput.value?.click()
+}
+
+function fileChosen() {
+  const input = fileInput.value
+  const file = input?.files?.[0]
+  if (importTarget && file) {
+    importFile(importTarget, file)
+  }
+  if (input) {
+    input.value = ''
+  }
+}
+
 async function importFile(calendar: GraphCalendar, file: File) {
   const report = await run($gettext('Could not import the file'), (c) => c.importCalendar(calendar.id, file))
   if (report) {
@@ -419,21 +579,55 @@ async function remove() {
   }
 }
 
+// Shortcuts for the toolbar, while the focus is not in a field.
+function onKey(event: KeyboardEvent) {
+  const target = event.target instanceof Element ? event.target : null
+  if (
+    event.ctrlKey ||
+    event.metaKey ||
+    event.altKey ||
+    dialog.value ||
+    target?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')
+  ) {
+    return
+  }
+  const actions: Record<string, () => void> = {
+    t: () => grid.value?.today(),
+    n: () => grid.value?.next(),
+    p: () => grid.value?.prev(),
+    m: () => grid.value?.changeView('dayGridMonth'),
+    w: () => grid.value?.changeView('timeGridWeek'),
+    d: () => grid.value?.changeView('timeGridDay'),
+    c: () => newEvent()
+  }
+  const action = actions[event.key]
+  if (action && calendars.value.length > 0) {
+    event.preventDefault()
+    action()
+  }
+}
+
 onMounted(async () => {
+  phoneQuery.addEventListener('change', onPhoneChange)
+  compactQuery.addEventListener('change', onCompactChange)
+  document.addEventListener('keydown', onKey)
   calendars.value = (await run($gettext('Could not load the calendars'), (c) => c.listCalendars())) ?? []
   loading.value = false
+})
+
+onBeforeUnmount(() => {
+  phoneQuery.removeEventListener('change', onPhoneChange)
+  compactQuery.removeEventListener('change', onCompactChange)
+  document.removeEventListener('keydown', onKey)
 })
 </script>
 
 <style>
-.groupware-calendar-side {
-  flex: 0 0 16rem;
-  min-width: 0;
-}
-.groupware-calendar-main {
-  display: flex;
-  flex-direction: column;
+.gw-spacer {
   flex: 1 1 auto;
-  min-width: 0;
+}
+.gw-events-progress {
+  flex: none;
+  margin-bottom: var(--oc-space-xsmall);
 }
 </style>

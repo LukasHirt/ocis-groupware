@@ -60,3 +60,11 @@ export async function pickOption(scope: Page | Locator, testId: string, label: s
 export function textField(scope: Page | Locator, testId: string) {
   return scope.locator(`input[data-testid="${testId}"], textarea[data-testid="${testId}"]`)
 }
+
+// calendarAction runs an action from the menu of a calendar in the list. The
+// menu opens beside the button and is not inside the row, so the action is
+// looked up on the page, among the ones that are visible.
+export async function calendarAction(page: Page, item: Locator, action: string) {
+  await item.getByTestId('calendar-actions').click()
+  await page.locator(`[data-testid="${action}"]:visible`).click()
+}

@@ -4,6 +4,7 @@ import CalendarList from '../../../src/calendar/CalendarList.vue'
 import calendars from '../../../../internal/graphapi/testdata/contract/calendars.json'
 import permissions from '../../../../internal/graphapi/testdata/contract/calendar-permissions.json'
 import CalendarPage from '../../../src/pages/CalendarPage.vue'
+import { mockMedia } from '../helpers/media'
 
 // The design system and the host's services are not here; see mocks/webPkg.
 vi.mock('@ownclouders/web-pkg', async () => (await import('../mocks/webPkg')).webPkgMock())
@@ -29,6 +30,7 @@ const gettext = (s: string, params: Record<string, string> = {}) =>
 const global = { mocks: { $gettext: gettext } }
 
 beforeEach(() => {
+  mockMedia()
   localStorage.clear()
   document.body.innerHTML = ''
   api.listCalendars.mockResolvedValue(structuredClone(calendars.value))
@@ -50,8 +52,8 @@ describe('calendar list', () => {
     const editable = { ...team, id: 'x', canEdit: true }
     const wrapper = mount(CalendarList, { props: { calendars: [team, editable], hidden: [] }, global })
     const [ro, rw] = wrapper.findAll('[data-testid="calendar-item"]')
-    expect(ro.text()).toContain('Marie Curie, read only')
-    expect(rw.text()).toContain('Marie Curie, can edit')
+    expect(ro.text()).toContain('Marie Curie · Read only')
+    expect(rw.text()).toContain('Marie Curie · Can edit')
   })
 
   it('asks the page to share the calendar', async () => {

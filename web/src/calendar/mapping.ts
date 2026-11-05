@@ -39,6 +39,6 @@ export function toCalendarEvent(
     backgroundColor: color,
     borderColor: color,
     textColor: readableTextColor(color),
-    extendedProps: { calendarId, graph: event }
+    extendedProps: { calendarId, calendarName: calendar?.name ?? '', graph: event }
   }
 }

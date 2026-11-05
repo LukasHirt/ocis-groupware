@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openApp, openNav, signIn, textField } from './helpers'
+import { calendarAction, openApp, openNav, signIn, textField } from './helpers'
 
 // The revoke question of the Devices page gives the confirm dialog an icon
 // of its own.
@@ -23,7 +23,7 @@ async function openDeleteCalendarDialog(page: Page) {
   await textField(page, 'calendar-name').fill(name)
   await page.getByTestId('dialog-confirm').click()
   await expect(page.getByRole('dialog')).toBeHidden()
-  await page.getByTestId('calendar-item').filter({ hasText: name }).getByTestId('calendar-delete').first().click()
+  await calendarAction(page, page.getByTestId('calendar-item').filter({ hasText: name }), 'calendar-delete')
 }
 
 const dialogs = { revoke: openRevokeDialog, 'delete calendar': openDeleteCalendarDialog }

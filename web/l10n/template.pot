@@ -20,6 +20,9 @@ msgstr ""
 msgid "%{total} found: %{created} added, %{updated} replaced, %{failed} failed."
 msgstr ""
 
+msgid "+%{n} more"
+msgstr ""
+
 msgid "1 minute before"
 msgstr ""
 
@@ -30,6 +33,9 @@ msgid "Access of %{name}"
 msgstr ""
 
 msgid "Actions"
+msgstr ""
+
+msgid "Actions for %{name}"
 msgstr ""
 
 msgid "Add"
@@ -63,6 +69,9 @@ msgid "Address books"
 msgstr ""
 
 msgid "After a number of times"
+msgstr ""
+
+msgid "All calendars are hidden. Show a calendar in the list to see its events."
 msgstr ""
 
 msgid "All contacts"
@@ -129,9 +138,6 @@ msgid "Calendar: New Calendar, On the Network, CalDAV, and paste the calendar ho
 msgstr ""
 
 msgid "Calendars"
-msgstr ""
-
-msgid "can edit"
 msgstr ""
 
 msgid "Can edit"
@@ -332,9 +338,6 @@ msgstr ""
 msgid "Delete"
 msgstr ""
 
-msgid "Delete %{name}"
-msgstr ""
-
 msgid "Delete %{name} and all of its events? This cannot be undone."
 msgstr ""
 
@@ -399,9 +402,6 @@ msgid "Download vCard"
 msgstr ""
 
 msgid "Edit"
-msgstr ""
-
-msgid "Edit %{name}"
 msgstr ""
 
 msgid "Edit all events"
@@ -483,9 +483,6 @@ msgid "Expires after"
 msgstr ""
 
 msgid "Export"
-msgstr ""
-
-msgid "Export %{name}"
 msgstr ""
 
 msgid "February"
@@ -641,13 +638,22 @@ msgstr ""
 msgid "New name of the group"
 msgstr ""
 
-msgid "Next"
+msgid "Next day"
+msgstr ""
+
+msgid "Next month"
+msgstr ""
+
+msgid "Next week"
 msgstr ""
 
 msgid "Nickname"
 msgstr ""
 
 msgid "No contact matches your search."
+msgstr ""
+
+msgid "No events"
 msgstr ""
 
 msgid "No reminder"
@@ -719,16 +725,19 @@ msgstr ""
 msgid "Postal code"
 msgstr ""
 
-msgid "Previous"
+msgid "Previous day"
+msgstr ""
+
+msgid "Previous month"
+msgstr ""
+
+msgid "Previous week"
 msgstr ""
 
 msgid "Profession"
 msgstr ""
 
 msgid "Purple"
-msgstr ""
-
-msgid "read only"
 msgstr ""
 
 msgid "Read only"
@@ -821,9 +830,6 @@ msgstr ""
 msgid "Set up a device"
 msgstr ""
 
-msgid "Settings"
-msgstr ""
-
 msgid "Share"
 msgstr ""
 
@@ -833,6 +839,9 @@ msgstr ""
 msgid "Shared with"
 msgstr ""
 
+msgid "Shared with you"
+msgstr ""
+
 msgid "Show %{name}"
 msgstr ""
 
@@ -840,6 +849,9 @@ msgid "Show address books"
 msgstr ""
 
 msgid "Show as"
+msgstr ""
+
+msgid "Show calendars"
 msgstr ""
 
 msgid "Show week numbers"
@@ -986,6 +998,9 @@ msgstr ""
 msgid "Username"
 msgstr ""
 
+msgid "View"
+msgstr ""
+
 msgid "W"
 msgstr ""
 
@@ -1031,7 +1046,10 @@ msgstr ""
 msgid "You have no app passwords yet"
 msgstr ""
 
-msgid "You have no calendars yet."
+msgid "You have no calendar you can write to"
+msgstr ""
+
+msgid "You have no calendars yet"
 msgstr ""
 
 msgid "Your app passwords have stopped working. Open oCIS Web to renew them."

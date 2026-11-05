@@ -1,7 +1,7 @@
 <template>
   <main class="gw-app oc-flex oc-height-1-1 app-content oc-width-1-1">
     <aside v-if="$slots.list && listVisible" class="gw-list-pane" data-testid="list-pane">
-      <slot name="list" />
+      <slot name="list" :nested="false" />
     </aside>
     <div class="gw-main oc-width-expand oc-height-1-1">
       <div class="gw-app-bar oc-py-s oc-px-m">
@@ -25,7 +25,8 @@
                 padding-size="small"
                 class="gw-list-drop"
               >
-                <slot name="list" />
+                <!-- A drop inside this one has to say so. -->
+                <slot name="list" :nested="true" />
               </oc-drop>
             </template>
             <slot name="title">

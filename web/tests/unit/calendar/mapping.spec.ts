@@ -68,6 +68,7 @@ describe('toCalendarEvent', () => {
     const fc = toCalendarEvent(view[0], byId, 'Untitled')
     expect(fc.backgroundColor).toBe(calendarColor(calendar))
     expect(fc.extendedProps?.calendarId).toBe(calendar.id)
+    expect(fc.extendedProps?.calendarName).toBe(calendar.name)
     expect(fc.extendedProps?.graph).toEqual(view[0])
   })
 })
