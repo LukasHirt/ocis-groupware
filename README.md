@@ -45,6 +45,10 @@ app passwords stay, so enabling the user restores every device without pairing i
 A file without the field counts as enabled. Releases before the field was added do not
 know it and ignore it, so a downgrade lets disabled users sign in again.
 
+The same file holds a snapshot of the user's oCIS identity: `ocis_id`, the `groups` the
+user belongs to (each with `id` and `name`) and `identity_at`, the time the snapshot was
+taken. A file without these fields has no snapshot yet and loads as before.
+
 The service also creates `admin.sock` in the data directory, a unix socket that serves the
 admin API: listing users, disabling and enabling them, and purging a disabled user's data.
 The `admin` command (see [Administration](#administration)) uses it; so can

@@ -73,6 +73,11 @@ type record struct {
 	// with bearer tokens alike, until an administrator enables it again. A
 	// file without the field counts as enabled.
 	Disabled bool `json:"disabled"`
+	// OCISID, Groups and IdentityAt are the snapshot of the user's oCIS
+	// identity, see Identity. A file without them has no snapshot yet.
+	OCISID     string    `json:"ocis_id,omitempty"`
+	Groups     []Group   `json:"groups,omitempty"`
+	IdentityAt time.Time `json:"identity_at,omitzero"`
 }
 
 func (rec record) principal() Principal {
