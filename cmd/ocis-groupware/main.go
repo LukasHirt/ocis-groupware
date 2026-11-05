@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/LukasHirt/groupkit/store/filestore"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/owncloud/ocis-groupware/internal/admin"
 	"github.com/owncloud/ocis-groupware/internal/api"
@@ -25,6 +26,7 @@ import (
 	"github.com/owncloud/ocis-groupware/internal/ocisgraph"
 	"github.com/owncloud/ocis-groupware/internal/principals"
 	"github.com/owncloud/ocis-groupware/internal/provision"
+	"github.com/owncloud/ocis-groupware/internal/ratelimit"
 	"github.com/owncloud/ocis-groupware/internal/server"
 	"github.com/owncloud/ocis-groupware/web"
 )
@@ -96,8 +98,23 @@ func run(args []string, stderr io.Writer) error {
 		}
 	}()
 
+	proxies, err := ratelimit.ParseProxies(cfg.TrustedProxies)
+	if err != nil {
+		return err
+	}
+	limiter, err := ratelimit.New(ratelimit.Config{
+		MaxFailures:    cfg.AuthMaxFailures,
+		Window:         cfg.AuthFailureWindow,
+		TrustedProxies: proxies,
+		Registerer:     prometheus.DefaultRegisterer,
+	})
+	if err != nil {
+		return err
+	}
+
 	registry, err := principals.NewRegistry(cfg.DataDir, store, store.OwnerDir, logger,
-		principals.WithLegacyTokens(cfg.LegacyTokenSecret, cfg.LegacyTokenTTL))
+		principals.WithLegacyTokens(cfg.LegacyTokenSecret, cfg.LegacyTokenTTL),
+		principals.WithLegacyGate(limiter.Gate))
 	if err != nil {
 		return err
 	}
@@ -124,6 +141,7 @@ func run(args []string, stderr io.Writer) error {
 		Registry:   registry,
 		Verifier:   verifier,
 		Identities: identities,
+		Limiter:    limiter,
 		Logger:     logger,
 	})
 	if err != nil {
@@ -154,6 +172,7 @@ func run(args []string, stderr io.Writer) error {
 			Registry:   registry,
 			Verifier:   verifier,
 			Identities: identities,
+			Limiter:    limiter,
 			Logger:     logger,
 		})
 		if err != nil {
