@@ -42,7 +42,7 @@
     "happy-dom": "21.0.4",
     "luxon": "3.7.2",
     "typescript": "5.9.3",
-    "vite": "7.3.7",
+    "vite": "8.3.5",
     "vitest": "4.1.12",
     "vue": "3.5.43",
     "vue-router": "5.0.6",
