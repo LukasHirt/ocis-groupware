@@ -34,9 +34,12 @@ The web service's configuration lists the application under
 web:
   config:
     external_apps:
-      - id: groupware
+      - id: organizer
         path: /web/groupware.js
 ```
+
+The `id` of an entry is a label; the application's own id, `organizer`, comes
+from its `appInfo`. The file keeps the name `groupware.js`.
 
 The compose stack mounts `deploy/ocis/web.yaml` with that content as
 `/etc/ocis/web.yaml`. Web joins a relative `path` with its own server URL and
@@ -80,7 +83,12 @@ with `exports: 'default'`. `setup` runs inside the host's Vue app context,
 so composables such as `useGettext` work there. It returns:
 
 - `appInfo` with a required `id` and `name`. Routes are mounted below
-  `/:scope(vault)?/<id>` and route names are prefixed with `<id>-`.
+  `/:scope(vault)?/<id>`. The application names its routes `<id>-...` itself.
+  The id is `organizer`. It must not be a path that the ingress or the oCIS proxy
+  sends to this service (`groupware`, `dav`, `graph`, `web`, `remote.php`,
+  `.well-known`): a reload or a bookmark of an application page asks the server
+  for that URL, and the service would answer it instead of oCIS Web. The first
+  id, `groupware`, had this problem.
 - `routes`, plain vue-router records. `meta.authContext: 'user'` makes Web
   require a signed-in user.
 - `navItems`, which become the sidebar of the application (an extension
@@ -88,6 +96,27 @@ so composables such as `useGettext` work there. It returns:
 - `extensions`, a computed list. An extension of type `appMenuItem` with a
   `path` puts the application into the application switcher, rendered as a
   link. Without it the application has routes but no entry in the menu.
+  The menu is built from extensions, not from applications, so one
+  application can add several entries.
+## Calendar and Contacts as two menu entries
+
+One application serves two areas, and `extensions` holds one `appMenuItem` for
+each: Calendar (`organizer.calendar.app-menu-item`, icon `calendar`, path
+`/organizer/calendar`) and Contacts (`organizer.contacts.app-menu-item`, icon
+`contacts-book`, path `/organizer/contacts`). Web marks a menu entry as active
+when the current path starts with its path, so each area highlights its own.
+
+The pages sit below `/organizer/calendar/` and `/organizer/contacts/`, since
+Web mounts every route of an application below its id. Each area has two
+navigation items, its main page and Devices, which shows the DAV address and the
+app passwords and is the same page in both areas. A navigation item has an
+`isVisible` function that Web evaluates for the current route, so the items of
+the other area are hidden. The area comes from the route name
+(`web/src/composables/useArea.ts`). The mobile navigation uses the same list.
+
+An administrator can hide one entry with `disabledExtensions` in the Web
+configuration, for example `organizer.contacts.app-menu-item`. That hides the
+link only; the pages stay reachable by their URL.
 
 Two more fields of the contract carry the application's look and language.
 `appInfo.img` is an image address; the application passes its icon as a data

@@ -7,8 +7,8 @@ test.use({ timezoneId: 'Europe/Prague' })
 
 async function openCalendar(page: Page) {
   await signIn(page)
-  await openApp(page, 'Calendar and Contacts')
-  await expect(page).toHaveURL(/\/groupware\/calendar$/)
+  await openApp(page, 'Calendar')
+  await expect(page).toHaveURL(/\/organizer\/calendar\/events$/)
 }
 
 test('the calendar page shows month, week and day views and hides a calendar', async ({ page }) => {
@@ -37,8 +37,8 @@ test('the calendar page shows month, week and day views and hides a calendar', a
 
   // The choice stays when the page is opened again. A reload would go to the
   // service itself, since the application's paths are not served by Web.
-  await openNav(page, 'Contacts')
-  await expect(page).toHaveURL(/\/groupware\/contacts$/)
+  await openNav(page, 'Devices')
+  await expect(page).toHaveURL(/\/organizer\/calendar\/devices$/)
   await openNav(page, 'Calendar')
   await expect(page.getByTestId('calendar-item').first().getByTestId('calendar-toggle')).not.toBeChecked()
   await page.getByTestId('calendar-item').first().getByTestId('calendar-toggle').check()
@@ -77,7 +77,7 @@ test('a calendar can be created, renamed, recoloured and deleted', async ({ page
   await expect(page.getByRole('dialog')).toBeHidden()
 
   // The server has it: it is still there when the page is opened again.
-  await openNav(page, 'Contacts')
+  await openNav(page, 'Devices')
   await openNav(page, 'Calendar')
   await expect(items.filter({ hasText: 'Lab notes' })).toHaveCount(1)
 
@@ -250,7 +250,7 @@ test('the settings change the first day, week numbers and time zone, and are kep
   await page.getByTestId('dialog-cancel').click()
 
   // The settings are still there when the page is opened again.
-  await openNav(page, 'Contacts')
+  await openNav(page, 'Devices')
   await openNav(page, 'Calendar')
   await expect(page.locator('.fc-col-header-cell').first()).toContainText('Sun')
   await page.getByTestId('settings-open').click()

@@ -1,7 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-
-// The demo users that oCIS creates with IDM_CREATE_DEMO_USERS.
-const user = { name: 'einstein', password: 'relativity' }
+import { openApp, openNav, signIn } from './helpers'
 
 // A short window makes every page and dialog taller than the window, so the
 // checks below hold whatever data the account has. The wide window is a
@@ -11,22 +9,17 @@ const windows = [
   { name: 'phone', width: 390, height: 260 }
 ]
 
-// openApp signs in with a desktop-sized window, because the sidebar and the
+// openPage signs in with a desktop-sized window, because the sidebar and the
 // menu fold away in a narrow one, opens the page and then resizes the window.
-async function openApp(
+async function openPage(
   page: Page,
-  entry: 'Calendar' | 'Contacts' | 'Account',
+  entry: 'Calendar' | 'Contacts' | 'Devices',
   size: { width: number; height: number }
 ) {
   await page.setViewportSize({ width: 1280, height: 800 })
-  await page.goto('/')
-  await page.locator('#oc-login-username').fill(user.name)
-  await page.locator('#oc-login-password').fill(user.password)
-  await page.locator('button[type="submit"]').click()
-  await expect(page.locator('#web-content')).toBeVisible()
-  await page.locator('#_appSwitcherButton').click()
-  await page.getByRole('link', { name: 'Calendar and Contacts' }).click()
-  await page.locator('#web-nav-sidebar').getByRole('link', { name: entry }).click()
+  await signIn(page)
+  await openApp(page, entry === 'Contacts' ? 'Contacts' : 'Calendar')
+  if (entry === 'Devices') await openNav(page, 'Devices')
   await expect(page.locator('main.groupware-page')).toBeVisible()
   await page.setViewportSize(size)
 }
@@ -72,25 +65,25 @@ async function expectScrollsToEnd(page: Page, selector: string, height: number) 
 for (const size of windows) {
   test.describe(size.name, () => {
     test('the calendar page scrolls', async ({ page }) => {
-      await openApp(page, 'Calendar', size)
+      await openPage(page, 'Calendar', size)
       await expect(page.locator('h1')).toHaveText('Calendar')
       await expectScrollsToEnd(page, 'main.groupware-page', size.height)
     })
 
     test('the contacts page scrolls', async ({ page }) => {
-      await openApp(page, 'Contacts', size)
+      await openPage(page, 'Contacts', size)
       await expect(page.locator('h1')).toHaveText('Contacts')
       await expectScrollsToEnd(page, 'main.groupware-page', size.height)
     })
 
-    test('the account page scrolls', async ({ page }) => {
-      await openApp(page, 'Account', size)
-      await expect(page.locator('h1')).toHaveText('Account')
+    test('the devices page scrolls', async ({ page }) => {
+      await openPage(page, 'Devices', size)
+      await expect(page.locator('h1')).toHaveText('Devices')
       await expectScrollsToEnd(page, 'main.groupware-page', size.height)
     })
 
     test('a long dialog scrolls', async ({ page }) => {
-      await openApp(page, 'Calendar', size)
+      await openPage(page, 'Calendar', size)
       await page.getByTestId('event-add').click()
       await expect(page.getByRole('dialog')).toBeVisible()
       await expectScrollsToEnd(page, '.groupware-modal', size.height)

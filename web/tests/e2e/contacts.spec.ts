@@ -1,11 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openApp, openNav, signIn } from './helpers'
+import { openApp, signIn } from './helpers'
 
 // openContacts goes to the Contacts page through the application menu, since
 // a reload of the page would end the session.
 async function openContacts(page: Page) {
-  await openApp(page, 'Calendar and Contacts')
-  await openNav(page, 'Contacts')
+  await openApp(page, 'Contacts')
   await expect(page.locator('h1')).toHaveText('Contacts')
 }
 

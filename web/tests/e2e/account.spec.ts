@@ -3,8 +3,8 @@ import { openApp, openNav, signIn, user } from './helpers'
 
 async function openAccount(page: Page) {
   await signIn(page)
-  await openApp(page, 'Calendar and Contacts')
-  await openNav(page, 'Account')
+  await openApp(page, 'Calendar')
+  await openNav(page, 'Devices')
 }
 
 // A DAV client's first request: the calendars of the user, with the app
@@ -25,7 +25,7 @@ test('an app password is created, works for a DAV client and is revoked', async 
   page.on('pageerror', (err) => pageErrors.push(err.message))
   const me = page.waitForResponse((r) => r.url().endsWith('/groupware/v1/me') && r.request().method() === 'GET')
   await openAccount(page)
-  await expect(page.locator('h1')).toHaveText('Account')
+  await expect(page.locator('h1')).toHaveText('Devices')
   const { app_passwords_valid_until: validUntil } = await (await me).json()
 
   // The DAV address and the username are shown.

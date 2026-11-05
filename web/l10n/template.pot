@@ -26,9 +26,6 @@ msgstr ""
 msgid "Access of %{name}"
 msgstr ""
 
-msgid "Account"
-msgstr ""
-
 msgid "Add"
 msgstr ""
 
@@ -342,6 +339,9 @@ msgid "Delete this event"
 msgstr ""
 
 msgid "Department"
+msgstr ""
+
+msgid "Devices"
 msgstr ""
 
 msgid "Devices that use %{name} will no longer be able to sign in. This cannot be undone."

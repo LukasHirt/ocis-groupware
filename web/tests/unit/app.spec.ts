@@ -15,7 +15,8 @@ vi.mock('vue3-gettext', () => ({
 // needs its defineWebApplication wrapper.
 vi.mock('@ownclouders/web-pkg', () => ({
   defineWebApplication: (args: unknown) => args,
-  useAuthStore: () => ({ userContextReady: false, publicLinkContextReady: false })
+  useAuthStore: () => ({ userContextReady: false, publicLinkContextReady: false }),
+  useRouter: () => ({ currentRoute })
 }))
 
 // The pages read through the API composable; the host's services are not
@@ -40,63 +41,115 @@ vi.mock('../../src/composables/useApi', async () => {
 
 const mountOptions = { global: { mocks: { $gettext: (s: string) => s } } }
 
+const currentRoute = vi.hoisted(() => ({ value: { name: undefined as string | undefined } }))
+
 describe('the application', () => {
   const script = app.setup({ applicationConfig: {} })
+  const inArea = (name: string | undefined) => {
+    currentRoute.value = { name }
+  }
 
-  it('registers under the id groupware with a name', () => {
-    expect(script.appInfo?.id).toBe('groupware')
+  it('registers under the id organizer with a name', () => {
+    expect(script.appInfo?.id).toBe('organizer')
     expect(script.appInfo?.name).toBe('Calendar and Contacts')
   })
 
-  it('carries its icon and brand colour', () => {
+  it('does not take an id that the proxy sends to the service', () => {
+    for (const reserved of ['groupware', 'dav', 'graph', 'web', 'remote.php', '.well-known']) {
+      expect(script.appInfo?.id).not.toBe(reserved)
+    }
+  })
+
+  it('carries its icon', () => {
     expect(script.appInfo?.img).toMatch(/^data:image\/svg\+xml/)
-    const [item] = script.extensions?.value as AppMenuItemExtension[]
-    expect(item.color).toBe('#1f6f8b')
   })
 
   it('hands its compiled translations to the host', () => {
     expect(script.translations).toEqual(translations)
   })
 
-  it('has a calendar and a contacts route, and a redirect from its root', () => {
+  it('has one route per page and redirects from its root and its areas', () => {
     const routes = script.routes as RouteRecordRaw[]
     const byPath = Object.fromEntries(routes.map((r) => [r.path, r]))
-    expect(Object.keys(byPath).sort()).toEqual(['/', '/account', '/calendar', '/contacts'])
-    expect(byPath['/'].redirect).toEqual({ name: 'groupware-calendar' })
-    expect(byPath['/calendar'].name).toBe('groupware-calendar')
-    expect(byPath['/contacts'].name).toBe('groupware-contacts')
-    expect(byPath['/account'].name).toBe('groupware-account')
-    for (const path of ['/calendar', '/contacts', '/account']) {
+    expect(Object.keys(byPath).sort()).toEqual([
+      '/',
+      '/calendar',
+      '/calendar/devices',
+      '/calendar/events',
+      '/contacts',
+      '/contacts/devices',
+      '/contacts/list'
+    ])
+    expect(byPath['/'].redirect).toEqual({ name: 'organizer-calendar-events' })
+    expect(byPath['/calendar'].redirect).toEqual({ name: 'organizer-calendar-events' })
+    expect(byPath['/contacts'].redirect).toEqual({ name: 'organizer-contacts-list' })
+    expect(byPath['/calendar/events'].name).toBe('organizer-calendar-events')
+    expect(byPath['/calendar/devices'].name).toBe('organizer-calendar-devices')
+    expect(byPath['/contacts/list'].name).toBe('organizer-contacts-list')
+    expect(byPath['/contacts/devices'].name).toBe('organizer-contacts-devices')
+    expect(byPath['/calendar/devices'].component).toBe(byPath['/contacts/devices'].component)
+    for (const path of Object.keys(byPath).filter((p) => !byPath[p].redirect)) {
       expect(byPath[path].meta?.authContext).toBe('user')
     }
+    expect(byPath['/calendar/devices'].meta?.title).toBe('Devices')
   })
 
-  it('offers calendar, contacts and the account in the sidebar', () => {
-    const items = script.navItems as { name: string | (() => string); route?: unknown }[]
-    const names = items.map((i) => (typeof i.name === 'function' ? i.name() : i.name))
-    expect(names).toEqual(['Calendar', 'Contacts', 'Account'])
-    expect(items.map((i) => i.route)).toEqual([
-      { name: 'groupware-calendar' },
-      { name: 'groupware-contacts' },
-      { name: 'groupware-account' }
+  type Item = {
+    name: string
+    icon: string
+    priority: number
+    route: unknown
+    isVisible: () => boolean
+  }
+  const items = () => script.navItems as unknown as Item[]
+
+  it('has two navigation items for each area, the second one for devices', () => {
+    expect(items().map((i) => [i.name, i.icon, i.priority])).toEqual([
+      ['Calendar', 'calendar', 10],
+      ['Devices', 'smartphone', 90],
+      ['Contacts', 'contacts-book', 10],
+      ['Devices', 'smartphone', 90]
+    ])
+    expect(items().map((i) => i.route)).toEqual([
+      { name: 'organizer-calendar-events' },
+      { name: 'organizer-calendar-devices' },
+      { name: 'organizer-contacts-list' },
+      { name: 'organizer-contacts-devices' }
     ])
   })
 
-  it('adds itself to the application menu', () => {
+  it.each([
+    ['organizer-calendar-events', [true, true, false, false]],
+    ['organizer-calendar-devices', [true, true, false, false]],
+    ['organizer-contacts-list', [false, false, true, true]],
+    ['organizer-contacts-devices', [false, false, true, true]],
+    ['files-spaces-generic', [false, false, false, false]],
+    [undefined, [false, false, false, false]]
+  ])('shows the navigation of the area of the route %s', (name, visible) => {
+    inArea(name)
+    expect(items().map((i) => i.isVisible())).toEqual(visible)
+  })
+
+  it('adds an entry per area to the application menu', () => {
     const extensions = script.extensions?.value as AppMenuItemExtension[]
-    expect(extensions).toHaveLength(1)
-    const [item] = extensions
-    expect(item.type).toBe('appMenuItem')
-    expect(item.label()).toBe('Calendar and Contacts')
-    expect(item.path).toBe('/groupware')
+    expect(extensions).toHaveLength(2)
+    expect(extensions.map((e) => e.type)).toEqual(['appMenuItem', 'appMenuItem'])
+    expect(extensions.map((e) => e.id)).toEqual([
+      'organizer.calendar.app-menu-item',
+      'organizer.contacts.app-menu-item'
+    ])
+    expect(extensions.map((e) => e.label())).toEqual(['Calendar', 'Contacts'])
+    expect(extensions.map((e) => e.icon)).toEqual(['calendar', 'contacts-book'])
+    expect(extensions.map((e) => e.color)).toEqual(['#1f6f8b', '#2f9e6e'])
+    expect(extensions.map((e) => e.path)).toEqual(['/organizer/calendar', '/organizer/contacts'])
   })
 
   it('renders a heading on each page', () => {
     const routes = script.routes as RouteRecordRaw[]
     for (const [path, heading] of [
-      ['/calendar', 'Calendar'],
-      ['/contacts', 'Contacts'],
-      ['/account', 'Account']
+      ['/calendar/events', 'Calendar'],
+      ['/contacts/list', 'Contacts'],
+      ['/calendar/devices', 'Devices']
     ]) {
       const route = routes.find((r) => r.path === path)
       const wrapper = mount(route!.component as never, mountOptions)
@@ -106,7 +159,7 @@ describe('the application', () => {
 
   it('lists the calendars with their owners', async () => {
     const routes = script.routes as RouteRecordRaw[]
-    const wrapper = mount(routes.find((r) => r.path === '/calendar')!.component as never, mountOptions)
+    const wrapper = mount(routes.find((r) => r.path === '/calendar/events')!.component as never, mountOptions)
     await flushPromises()
     const items = wrapper.findAll('[data-testid="calendar-item"]')
     expect(items.map((i) => i.find('.name').text())).toEqual(['Personal', 'Work', 'Team'])
@@ -115,7 +168,7 @@ describe('the application', () => {
 
   it('lists the address books', async () => {
     const routes = script.routes as RouteRecordRaw[]
-    const wrapper = mount(routes.find((r) => r.path === '/contacts')!.component as never, mountOptions)
+    const wrapper = mount(routes.find((r) => r.path === '/contacts/list')!.component as never, mountOptions)
     await flushPromises()
     const items = wrapper.findAll('[data-testid="folder-item"]')
     expect(items.map((i) => i.find('.name').text())).toEqual(['Contacts', 'Team'])

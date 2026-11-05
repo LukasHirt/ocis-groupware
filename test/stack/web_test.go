@@ -26,14 +26,14 @@ func TestWebAppIsAnnouncedToWeb(t *testing.T) {
 		t.Fatalf("GET /config.json: %v: %s", err, body)
 	}
 	for _, app := range cfg.ExternalApps {
-		if app.ID == "groupware" {
+		if app.ID == "organizer" {
 			if app.Path != "/web/groupware.js" {
-				t.Fatalf("external app groupware has path %q, want /web/groupware.js", app.Path)
+				t.Fatalf("external app organizer has path %q, want /web/groupware.js", app.Path)
 			}
 			return
 		}
 	}
-	t.Fatalf("external_apps lacks groupware: %s", body)
+	t.Fatalf("external_apps lacks organizer: %s", body)
 }
 
 // TestWebAppBundleIsServed checks that the entry oCIS Web loads is reachable

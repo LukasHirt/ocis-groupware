@@ -18,12 +18,20 @@ export async function signIn(page: Page, who: TestUser = user) {
   await expect(page.locator('#web-content')).toBeVisible()
 }
 
+// menuEntry is the link of an application in the application menu. The
+// left navigation can have an item of the same name, so the menu's own
+// attribute picks it out.
+export function menuEntry(page: Page, label: string) {
+  const exact = new RegExp(`^\\s*${label}\\s*$`)
+  return page.locator('[data-test-id$=".app-menu-item"]').filter({ hasText: exact })
+}
+
 // openApp opens an application from the application menu. The application's
 // paths are not served by Web, so a reload would leave it; tests move
 // between pages through the menu and the navigation instead.
 export async function openApp(page: Page, label: string) {
   await page.locator('#_appSwitcherButton').click()
-  await page.getByRole('link', { name: label, exact: true }).click()
+  await menuEntry(page, label).click()
 }
 
 // openNav follows an item of the navigation inside the open application.
