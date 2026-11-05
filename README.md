@@ -68,6 +68,18 @@ grantee in memory, so a share is stored once, with its owner. A `shares.json` th
 cannot parse is logged and skipped, which means its owner shares nothing until the file
 is fixed. Deleting the file stops all sharing by that user.
 
+A recipient sees a shared collection among their own as `shared-<collection id>`, with the
+owner's name for it followed by the owner's display name in brackets. The access level of the
+share decides what the recipient may do: `read` reads, `readwrite` also writes objects, and
+only the owner changes the collection's description, time zone and components, or deletes it.
+The recipient may change the display name, colour and order, because clients do that on
+every calendar they add. Those changes are kept for that recipient alone, in
+`shared_with_me.json` in the recipient's own directory, next to a flag that hides the
+collection from listings. The file holds nothing else about the share. Access is decided
+on each request from the recipient's oCIS id and group snapshot, so a revoked share, or a
+group the user has left, stops working at once. The snapshot itself is as fresh as the
+user's last sign-in with a token.
+
 The service also creates `admin.sock` in the data directory, a unix socket that serves the
 admin API: listing users, disabling and enabling them, and purging a disabled user's data.
 The `admin` command (see [Administration](#administration)) uses it; so can
