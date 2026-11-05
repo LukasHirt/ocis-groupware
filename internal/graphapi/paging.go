@@ -67,15 +67,10 @@ func nextLink(r *http.Request, q url.Values, top, skip int) string {
 	if r.Host == "" {
 		return ""
 	}
-	scheme := "http"
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
 	q = cloneValues(q)
 	q.Set("$skip", strconv.Itoa(skip))
 	q.Set("$top", strconv.Itoa(top))
-	u := url.URL{Scheme: scheme, Host: r.Host, Path: r.URL.Path, RawQuery: q.Encode()}
-	return u.String()
+	return requestOrigin(r) + (&url.URL{Path: r.URL.Path, RawQuery: q.Encode()}).String()
 }
 
 func cloneValues(q url.Values) url.Values {

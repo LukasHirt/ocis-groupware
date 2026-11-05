@@ -70,6 +70,7 @@ func (a *Handler) importExportRoutes() []route {
 		return route{method: method, segments: strings.Split(pattern, "/"), handle: h}
 	}
 	return []route{
+		r(http.MethodGet, "me", a.accountInfo),
 		r(http.MethodPost, "calendars/{id}/import", a.importFile(store.KindCalendar)),
 		r(http.MethodGet, "calendars/{id}/export", a.exportFile(store.KindCalendar)),
 		r(http.MethodPost, "addressbooks/{id}/import", a.importFile(store.KindAddressBook)),

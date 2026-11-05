@@ -686,7 +686,7 @@ func TestGroupwareEndpointsRequireBearerToken(t *testing.T) {
 		s.httpServer.Handler.ServeHTTP(rec, req)
 		return rec.Code
 	}
-	for _, target := range []string{"/groupware/v1/calendars/abc/import", "/groupware/v1/calendars/abc/export", "/groupware/v1/addressbooks/abc/import", "/groupware/v1/addressbooks/abc/export"} {
+	for _, target := range []string{"/groupware/v1/me", "/groupware/v1/calendars/abc/import", "/groupware/v1/calendars/abc/export", "/groupware/v1/addressbooks/abc/import", "/groupware/v1/addressbooks/abc/export"} {
 		if code := do(http.MethodGet, target, ""); code != http.StatusUnauthorized {
 			t.Errorf("%s without a token: %d, want 401", target, code)
 		}
@@ -694,7 +694,7 @@ func TestGroupwareEndpointsRequireBearerToken(t *testing.T) {
 			t.Errorf("%s with a token: %d, want 204", target, code)
 		}
 	}
-	if len(reached) != 4 {
+	if len(reached) != 5 {
 		t.Errorf("handler reached for %v", reached)
 	}
 }

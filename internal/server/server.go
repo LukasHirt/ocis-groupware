@@ -60,7 +60,7 @@ func WithGraph(h http.Handler) Option {
 
 // WithGroupware serves the endpoints that are not part of Graph: the import and
 // export of calendars and address books below /groupware/v1/calendars/ and
-// /groupware/v1/addressbooks/. The handler runs behind the authn middleware,
+// /groupware/v1/addressbooks/, and the account information at /groupware/v1/me. The handler runs behind the authn middleware,
 // which requires a bearer token.
 func WithGroupware(h http.Handler) Option {
 	return func(o *options) { o.groupware = h }
@@ -110,6 +110,7 @@ func New(addr string, logger *slog.Logger, authn func(http.Handler) http.Handler
 	}
 
 	if o.groupware != nil {
+		mux.Handle("/groupware/v1/me", o.groupware)
 		mux.Handle("/groupware/v1/calendars/", o.groupware)
 		mux.Handle("/groupware/v1/addressbooks/", o.groupware)
 	}
