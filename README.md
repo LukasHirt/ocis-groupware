@@ -430,7 +430,7 @@ device needs no new setup. The web application does this by itself: once per pag
 soon as oCIS Web knows the user, it calls `GET /groupware/v1/me` with the user's token,
 whichever app of oCIS Web is open, so a user who only works in Files keeps their devices
 signed in. The call is skipped in public link pages, and a failure is ignored. `GET /groupware/v1/me` returns `app_passwords_valid_until`, the
-end of the current lease, or `null` when the check is off. The service logs a refusal at
+end of the current lease, or `null` when the check is off. The Account page shows that date, with a warning when fewer than 7 days remain, and shows nothing when it is `null`. The service logs a refusal at
 Info once per user and hour and counts them in `groupware_auth_identity_stale_total`.
 `admin principals list` shows the age of each user's last confirmation and marks those that
 are past the lease as stale.

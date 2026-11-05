@@ -30,8 +30,10 @@ async function davStatus(page: Page, password: string): Promise<number> {
 test('an app password is created, works for a DAV client and is revoked', async ({ page }) => {
   const pageErrors: string[] = []
   page.on('pageerror', (err) => pageErrors.push(err.message))
+  const me = page.waitForResponse((r) => r.url().endsWith('/groupware/v1/me') && r.request().method() === 'GET')
   await signIn(page)
   await expect(page.locator('h1')).toHaveText('Account')
+  const { app_passwords_valid_until: validUntil } = await (await me).json()
 
   // The DAV address and the username are shown.
   const dav = page.getByTestId('dav-account')
@@ -39,6 +41,8 @@ test('an app password is created, works for a DAV client and is revoked', async 
   await expect(dav.getByTestId('dav-url-value')).toHaveText(/\/dav\/$/)
   await expect(dav.getByTestId('dav-calendar-value')).toHaveText(new RegExp(`/dav/calendars/${user.name}/$`))
   await expect(page.getByTestId('dav-setup')).toContainText('DAVx5')
+  // The end of the lease is shown when the service limits it, and only then.
+  await expect(dav.getByTestId('dav-valid-until')).toHaveCount(validUntil === null ? 0 : 1)
 
   // Create one with a shorter lifetime. The password is shown once.
   const name = `Browser test ${Date.now()}`
