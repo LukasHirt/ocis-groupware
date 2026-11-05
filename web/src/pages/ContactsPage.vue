@@ -30,8 +30,11 @@
               <span class="name">{{ folder.displayName }}</span>
               <span class="oc-text-muted oc-ml-s">
                 {{ folder['groupware.owner'].name
-                }}<template v-if="!folder['groupware.canEdit']"
-                  >, {{ $gettext('read only') }}</template
+                }}<template v-if="!folder['groupware.canShare']"
+                  >,
+                  {{
+                    folder['groupware.canEdit'] ? $gettext('can edit') : $gettext('read only')
+                  }}</template
                 >
               </span>
             </button>
@@ -43,6 +46,7 @@
           @rename="renameBook"
           @remove="deleteBook"
           @download="downloadBook"
+          @share="sharing = true"
           @import="importBook"
         />
         <div
@@ -298,6 +302,13 @@
         </contact-detail>
       </section>
     </div>
+    <share-dialog
+      v-if="sharing && currentFolder"
+      kind="addressBook"
+      :collection-id="currentFolder.id"
+      :name="currentFolder.displayName"
+      @close="sharing = false"
+    />
   </page-layout>
 </template>
 
@@ -305,6 +316,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useGettext } from 'vue3-gettext'
 import PageLayout from '../components/PageLayout.vue'
+import ShareDialog from '../sharing/ShareDialog.vue'
 import ContactDetail from '../contacts/ContactDetail.vue'
 import BookTools from '../contacts/BookTools.vue'
 import ContactForm from '../contacts/ContactForm.vue'
@@ -331,6 +343,7 @@ const folders = ref<GraphContactFolder[]>([])
 const loadingFolders = ref(true)
 // null shows the contacts of every address book.
 const folderId = ref<string | null>(null)
+const sharing = ref(false)
 const contacts = ref<GraphContact[]>([])
 const loadingContacts = ref(false)
 const query = ref('')

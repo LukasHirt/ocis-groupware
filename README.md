@@ -89,7 +89,8 @@ user's last sign-in with a token.
 DAV clients find these collections in the recipient's own home, for example
 `/dav/calendars/bob/shared-<id>/`, with the privileges of the share. A write the share does
 not allow is answered `403` with `DAV:need-privileges`. This works for HTTP Basic and Bearer
-requests alike. There is no way to create a share over DAV or through the service's API yet.
+requests alike. There is no way to create a share over DAV; the web application and the Graph
+permission endpoints below create them.
 
 The service also creates `admin.sock` in the data directory, a unix socket that serves the
 admin API: listing users, disabling and enabling them, and purging a disabled user's data.
@@ -232,6 +233,18 @@ user may write, a vCard file can be imported into it: the browser sends the file
 is, and the page lists how many cards were created, updated or failed, with the reason
 for each failed one, then reloads the contacts. Both use the import and export
 endpoints described below.
+
+Sharing is done from the lists. The owner of a calendar or address book gets a Share
+button that opens a dialog with everyone it is shared with, each with an access menu
+(can view or can edit) and a button to remove them. People are added by searching the
+oCIS directory: the dialog calls oCIS Graph `users` and `groups` with `$search` from the
+browser, using the signed-in user's own token, and offers users and groups together once
+three characters are typed, because the directory answers nothing shorter. A search that
+the directory refuses, such as the group search for a user who may not list groups, leaves
+out those results and keeps the others. Someone who already has access is not offered
+again. The service checks the chosen user or group against the directory when it saves the
+share. Calendars and address books shared with the user show who owns them and whether
+they are read only or can be edited, and only the owner sees the Share button.
 
 Development needs Node 24:
 

@@ -101,6 +101,14 @@
         <button
           type="button"
           class="oc-button oc-button-s oc-button-passive oc-mr-xs"
+          data-testid="book-share"
+          @click="emit('share')"
+        >
+          {{ $gettext('Share') }}
+        </button>
+        <button
+          type="button"
+          class="oc-button oc-button-s oc-button-passive oc-mr-xs"
           data-testid="book-rename"
           @click="start('rename', folder.displayName)"
         >
@@ -135,6 +143,7 @@ const emit = defineEmits<{
   rename: [name: string]
   remove: []
   download: []
+  share: []
   import: [file: File]
 }>()
 const { $gettext } = useGettext()

@@ -6,6 +6,7 @@ import type {
   GraphContact,
   GraphContactFolder,
   GraphEvent,
+  GraphPermission,
   ImportReport,
   Page
 } from '../../src/api/types'
@@ -16,6 +17,9 @@ import calendarShared from '../../../internal/graphapi/testdata/contract/calenda
 import calendarview from '../../../internal/graphapi/testdata/contract/calendarview.json'
 import contact from '../../../internal/graphapi/testdata/contract/contact.json'
 import contactFolder from '../../../internal/graphapi/testdata/contract/contact-folder.json'
+import calendarPermission from '../../../internal/graphapi/testdata/contract/calendar-permission.json'
+import calendarPermissions from '../../../internal/graphapi/testdata/contract/calendar-permissions.json'
+import contactFolderPermission from '../../../internal/graphapi/testdata/contract/contactfolder-permission.json'
 import contactFolderShared from '../../../internal/graphapi/testdata/contract/contact-folder-shared.json'
 import contactFolders from '../../../internal/graphapi/testdata/contract/contact-folders.json'
 import importReport from '../../../internal/graphapi/testdata/contract/import-report-contacts.json'
@@ -53,6 +57,11 @@ const contactKeys = {
   businessHomePage: 1, personalNotes: 1, emailAddresses: 1, imAddresses: 1, homeAddress: 1,
   businessAddress: 1, otherAddress: 1, 'groupware.groups': 1, 'groupware.hasPhoto': 1
 } satisfies Record<keyof GraphContact, 1>
+
+const permissionKeys = {
+  id: 1, emailAddress: 1, isInsideOrganization: 1, isRemovable: 1, role: 1, allowedRoles: 1,
+  grantee: 1
+} satisfies Record<keyof GraphPermission, 1>
 
 function onlyKnown(items: object[], known: object) {
   for (const item of items) {
@@ -93,6 +102,19 @@ describe('the golden files match the client types', () => {
   it('contact folders', () => {
     const all: GraphContactFolder[] = [...contactFolders.value, contactFolder, contactFolderShared]
     onlyKnown(all, folderKeys)
+  })
+
+  it('permissions', () => {
+    const all: GraphPermission[] = [
+      ...calendarPermissions.value,
+      calendarPermission,
+      contactFolderPermission
+    ]
+    onlyKnown(all, permissionKeys)
+    for (const p of all) {
+      expect(['user', 'group']).toContain(p.grantee.type)
+      expect(p.allowedRoles).toContain(p.role)
+    }
   })
 
   it('contacts', () => {
@@ -369,5 +391,52 @@ describe('errors', () => {
     )
     const err = await client.listCalendars().catch((e) => e)
     expect(err).toMatchObject({ status: 502, code: 'generalException' })
+  })
+})
+
+describe('sharing', () => {
+  const dir = `${graph}/me`
+  it('lists the permissions of a calendar and of an address book', async () => {
+    const { client, calls } = fake({
+      [`GET ${dir}/calendars/c%2F1/calendarPermissions`]: {
+        status: 200,
+        data: calendarPermissions as Page<GraphPermission>
+      },
+      [`GET ${dir}/contactFolders/b1/permissions`]: { status: 200, data: { value: [] } }
+    })
+    const calendarList = await client.listPermissions('calendar', 'c/1')
+    expect(calendarList.map((p) => p.grantee)).toEqual([
+      { type: 'user', id: 'u-marie' },
+      { type: 'group', id: 'g-physics' }
+    ])
+    expect(await client.listPermissions('addressBook', 'b1')).toEqual([])
+    expect(calls).toHaveLength(2)
+  })
+
+  it('shares, changes the role and revokes', async () => {
+    const { client, calls } = fake({
+      [`POST ${dir}/calendars/c1/calendarPermissions`]: { status: 201, data: calendarPermission },
+      [`PATCH ${dir}/calendars/c1/calendarPermissions/p%2F1`]: { status: 200, data: calendarPermission },
+      [`DELETE ${dir}/contactFolders/b1/permissions/p1`]: { status: 204, data: undefined }
+    })
+    await client.createPermission('calendar', 'c1', { type: 'user', id: 'u-marie' }, 'read')
+    await client.updatePermission('calendar', 'c1', 'p/1', 'write')
+    await client.deletePermission('addressBook', 'b1', 'p1')
+    expect(calls[0].data).toEqual({ role: 'read', grantee: { type: 'user', id: 'u-marie' } })
+    expect(calls[1].data).toEqual({ role: 'write' })
+    expect(calls.map((c) => c.method)).toEqual(['POST', 'PATCH', 'DELETE'])
+  })
+
+  it('searches users and groups of the directory with $search', async () => {
+    const { client, calls } = fake({
+      [`GET /graph/v1.0/users`]: {
+        status: 200,
+        data: { value: [{ id: 'u1', displayName: 'Marie Curie', mail: 'marie@example.org' }] }
+      },
+      [`GET /graph/v1.0/groups`]: { status: 200, data: { value: [{ id: 'g1', displayName: 'physics-lovers' }] } }
+    })
+    expect(await client.searchUsers('mar')).toEqual([{ id: 'u1', displayName: 'Marie Curie' }])
+    expect(await client.searchGroups('phy')).toEqual([{ id: 'g1', displayName: 'physics-lovers' }])
+    expect(calls.map((c) => c.params)).toEqual([{ $search: 'mar', $top: '10' }, { $search: 'phy', $top: '10' }])
   })
 })

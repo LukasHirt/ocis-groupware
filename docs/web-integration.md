@@ -106,6 +106,14 @@ absolute paths below `/graph/v1.0/me`. A status that is not 2xx makes it
 throw an axios error; the client turns that into an `ApiError` with the code
 and message of the Graph error body.
 
+The sharing dialog also reads the oCIS directory, with the same client. `GET
+/graph/v1.0/users?$search=<text>` and `/groups?$search=<text>` work with the
+signed-in user's own token and need at least three characters; a user who is not an
+administrator gets the id and display name of each match, and cannot list a group's
+members. The paths are served by oCIS itself, since the ingress routes only
+`/graph/v1.0/me/...` to this service, so no extra route is needed. The dialog does
+not fall back to typing an id, because the search is available to every signed-in user.
+
 ## Build output and caching
 
 The SDK's production build names the entry with a content hash. The build

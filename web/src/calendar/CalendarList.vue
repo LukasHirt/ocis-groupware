@@ -34,9 +34,21 @@
         <span class="name">{{ calendar.name }}</span>
       </label>
       <span v-if="!calendar.isDefaultCalendar && calendar.owner.name" class="oc-text-muted oc-ml-s">
-        {{ calendar.owner.name }}<template v-if="!calendar.canEdit">, {{ $gettext('read only') }}</template>
+        {{ calendar.owner.name }}<template v-if="!calendar.canShare"
+          >, {{ calendar.canEdit ? $gettext('can edit') : $gettext('read only') }}</template
+        >
       </span>
       <span class="groupware-calendar-actions">
+        <button
+          v-if="calendar.canShare"
+          type="button"
+          class="oc-button oc-button-s oc-button-passive"
+          :aria-label="$gettext('Share %{name}', { name: calendar.name })"
+          data-testid="calendar-share"
+          @click="emit('share', calendar)"
+        >
+          {{ $gettext('Share') }}
+        </button>
         <button
           v-if="calendar.canEdit"
           type="button"
@@ -74,6 +86,7 @@ const emit = defineEmits<{
   toggle: [id: string]
   add: []
   edit: [calendar: GraphCalendar]
+  share: [calendar: GraphCalendar]
   remove: [calendar: GraphCalendar]
 }>()
 

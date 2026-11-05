@@ -231,3 +231,34 @@ export interface ImportReport {
   failed: number
   results: ImportResult[]
 }
+
+// What a collection can be shared as. A calendar's permissions are below it
+// as calendarPermissions, an address book's as permissions.
+export type ShareKind = 'calendar' | 'addressBook'
+
+export type Role = 'read' | 'write'
+
+export interface Grantee {
+  type: 'user' | 'group'
+  // The id of the user or group in the oCIS directory.
+  id: string
+}
+
+// What the server writes for a permission. Role and grantee type are plain
+// strings, as for the other enumerations, and are one of Role and Grantee's
+// types today.
+export interface GraphPermission {
+  id: string
+  emailAddress: OwnerName
+  isInsideOrganization: boolean
+  isRemovable: boolean
+  role: string
+  allowedRoles: string[]
+  grantee: { type: string; id: string }
+}
+
+// A user or group as the directory's search returns it.
+export interface DirectoryEntry {
+  id: string
+  displayName: string
+}
