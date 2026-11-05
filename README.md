@@ -23,7 +23,7 @@ over file, file wins over defaults.
 | `GROUPWARE_HTTP_ADDR` | `http_addr` | Listen address, default `:8080` |
 | `GROUPWARE_LOG_LEVEL` | `log_level` | `debug`, `info`, `warn` or `error`, default `info` |
 | `GROUPWARE_OIDC_ISSUER` | `oidc_issuer` | **Required.** The oCIS public URL, which is also the OIDC issuer |
-| `GROUPWARE_OIDC_AUDIENCE` | `oidc_audience` | Optional. If set, tokens must carry it in `aud`; oCIS sets that to the client ID of the requesting app, e.g. `web` |
+| `GROUPWARE_OIDC_AUDIENCE` | `oidc_audience` | Optional. The OAuth client IDs whose tokens are accepted, comma-separated (in YAML a string or a list). Default `web`, the client of oCIS Web. `*` accepts every client and logs a warning at startup. An empty value is refused (see "Accepted clients") |
 | `GROUPWARE_OIDC_CA_FILE` | `oidc_ca_file` | Optional PEM bundle of extra CAs to trust when contacting the issuer |
 | `GROUPWARE_OCIS_URL` | `ocis_url` | Optional. Where the service calls the oCIS Graph API to look up the signed-in user's id and groups, and to check the users and groups a share names. Defaults to the issuer URL. Uses the same CA file |
 | `GROUPWARE_DATA_DIR` | `data_dir` | **Required.** Directory that holds all service state. The image sets it to `/data` |
@@ -136,6 +136,31 @@ is bound to it and the user finds the imported data. A user that already has a s
 never taken over, and a disabled imported user is refused with `403`. While imported users
 without a subject exist and oCIS cannot be reached, a sign-in with a new subject gets `503`
 and is tried again on the next request, so that it does not create a second, empty user.
+
+### Accepted clients
+
+A token is accepted only when it was issued to one of the clients in
+`GROUPWARE_OIDC_AUDIENCE`: its `aud` claim contains one of them, or its `azp` claim
+equals one. oCIS puts the client ID of the requesting app in `aud`, and the oCIS Web
+client is `web`, which is the default. Identity providers such as Keycloak often put a
+generic value like `account` in `aud` and name the client in `azp`, so both claims are
+checked. Tokens for other clients of the same identity provider get `401` with
+`error="invalid_token"`, which keeps a token leaked from an unrelated application from
+working here.
+
+The check does not look at the token type. In oCIS the ID token of the `web` client
+carries the same audience as its access token, so refusing it would add nothing, and
+the claims that tell the types apart differ between identity providers.
+
+`*` turns the check off. An explicitly empty value is a configuration error, so that a
+blank variable cannot disable the check by accident.
+
+Upgrading: before this check existed, `GROUPWARE_OIDC_AUDIENCE` was optional and empty
+meant that any token of the identity provider was accepted. If your oCIS Web uses a
+client ID other than `web` (`WEB_OIDC_CLIENT_ID`), set `GROUPWARE_OIDC_AUDIENCE` to it
+before upgrading, or every web sign-in gets `401`. The same goes for scripts that call
+the Graph API with a token of another client: list that client too. A setting that held
+one client ID keeps working unchanged.
 
 ## Web application
 

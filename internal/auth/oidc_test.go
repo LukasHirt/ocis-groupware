@@ -106,6 +106,9 @@ func signTokenAlg(t *testing.T, alg jose.SignatureAlgorithm, key *rsa.PrivateKey
 	return raw
 }
 
+// anyClient skips the client check in tests that are about something else.
+var anyClient = []string{"*"}
+
 func newVerifier(t *testing.T, cfg OIDCConfig) *OIDCVerifier {
 	t.Helper()
 	v, err := NewOIDCVerifier(cfg)
@@ -117,7 +120,7 @@ func newVerifier(t *testing.T, cfg OIDCConfig) *OIDCVerifier {
 
 func TestOIDCVerifierAcceptsValidToken(t *testing.T) {
 	idp := newFakeIdP(t, false)
-	v := newVerifier(t, OIDCConfig{Issuer: idp.URL})
+	v := newVerifier(t, OIDCConfig{Issuer: idp.URL, Clients: anyClient})
 
 	got, err := v.Verify(context.Background(), idp.token(t, map[string]any{
 		"sub":                "u-123",
@@ -135,7 +138,7 @@ func TestOIDCVerifierAcceptsValidToken(t *testing.T) {
 // oCIS's built-in identity provider signs access tokens with PS256.
 func TestOIDCVerifierAcceptsSigningAlgorithmsOfOCIS(t *testing.T) {
 	idp := newFakeIdP(t, false)
-	v := newVerifier(t, OIDCConfig{Issuer: idp.URL})
+	v := newVerifier(t, OIDCConfig{Issuer: idp.URL, Clients: anyClient})
 
 	for _, alg := range []jose.SignatureAlgorithm{jose.RS256, jose.PS256, jose.PS512} {
 		t.Run(string(alg), func(t *testing.T) {
@@ -149,7 +152,7 @@ func TestOIDCVerifierAcceptsSigningAlgorithmsOfOCIS(t *testing.T) {
 
 func TestOIDCVerifierUsernameFallsBackToOCISLoginClaim(t *testing.T) {
 	idp := newFakeIdP(t, false)
-	v := newVerifier(t, OIDCConfig{Issuer: idp.URL})
+	v := newVerifier(t, OIDCConfig{Issuer: idp.URL, Clients: anyClient})
 
 	// oCIS access tokens carry no preferred_username. The identity sits in a
 	// claim whose name is literally "lg.i" (a flat key with a dot, not a nested
@@ -210,7 +213,7 @@ func TestOIDCVerifierRejectsBadTokens(t *testing.T) {
 	}
 	for name, raw := range tests {
 		t.Run(name, func(t *testing.T) {
-			v := newVerifier(t, OIDCConfig{Issuer: idp.URL})
+			v := newVerifier(t, OIDCConfig{Issuer: idp.URL, Clients: anyClient})
 			_, err := v.Verify(context.Background(), raw)
 			if !errors.Is(err, ErrInvalidToken) {
 				t.Fatalf("err = %v, want ErrInvalidToken", err)
@@ -219,34 +222,51 @@ func TestOIDCVerifierRejectsBadTokens(t *testing.T) {
 	}
 }
 
-func TestOIDCVerifierAudience(t *testing.T) {
+func TestOIDCVerifierClients(t *testing.T) {
 	idp := newFakeIdP(t, false)
 
-	t.Run("matching audience accepted", func(t *testing.T) {
-		v := newVerifier(t, OIDCConfig{Issuer: idp.URL, Audience: "groupware"})
-		if _, err := v.Verify(context.Background(), idp.token(t, map[string]any{"aud": "groupware"})); err != nil {
-			t.Fatalf("Verify: %v", err)
-		}
-	})
-	t.Run("other audience rejected", func(t *testing.T) {
-		v := newVerifier(t, OIDCConfig{Issuer: idp.URL, Audience: "groupware"})
-		_, err := v.Verify(context.Background(), idp.token(t, map[string]any{"aud": "web"}))
-		if !errors.Is(err, ErrInvalidToken) {
-			t.Fatalf("err = %v, want ErrInvalidToken", err)
-		}
-	})
-	t.Run("audience ignored when not configured", func(t *testing.T) {
-		v := newVerifier(t, OIDCConfig{Issuer: idp.URL})
-		if _, err := v.Verify(context.Background(), idp.token(t, map[string]any{"aud": "anything"})); err != nil {
-			t.Fatalf("Verify: %v", err)
-		}
-	})
+	tests := []struct {
+		name    string
+		clients []string
+		claims  map[string]any
+		ok      bool
+	}{
+		{"aud is the client", []string{"web"}, map[string]any{"aud": "web"}, true},
+		{"aud is another client", []string{"web"}, map[string]any{"aud": "other"}, false},
+		{"aud list contains the client", []string{"web"}, map[string]any{"aud": []string{"other", "web"}}, true},
+		{"aud list without the client", []string{"web"}, map[string]any{"aud": []string{"other", "third"}}, false},
+		{"aud account and azp is the client", []string{"web"}, map[string]any{"aud": "account", "azp": "web"}, true},
+		{"aud account and azp is another client", []string{"web"}, map[string]any{"aud": "account", "azp": "other"}, false},
+		{"no aud and no azp", []string{"web"}, nil, false},
+		{"second of two clients", []string{"web", "desktop"}, map[string]any{"aud": "desktop"}, true},
+		{"third client not listed", []string{"web", "desktop"}, map[string]any{"aud": "mobile"}, false},
+		{"wildcard accepts any client", []string{"*"}, map[string]any{"aud": "anything"}, true},
+		{"wildcard accepts a token without aud", []string{"*"}, nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := newVerifier(t, OIDCConfig{Issuer: idp.URL, Clients: tt.clients})
+			_, err := v.Verify(context.Background(), idp.token(t, tt.claims))
+			if tt.ok && err != nil {
+				t.Fatalf("Verify: %v", err)
+			}
+			if !tt.ok && !errors.Is(err, ErrInvalidToken) {
+				t.Fatalf("err = %v, want ErrInvalidToken", err)
+			}
+		})
+	}
+}
+
+func TestNewOIDCVerifierRequiresClients(t *testing.T) {
+	if _, err := NewOIDCVerifier(OIDCConfig{Issuer: "https://idp.example"}); err == nil {
+		t.Fatal("no clients: want an error, so a forgotten setting cannot turn the check off")
+	}
 }
 
 func TestOIDCVerifierRecoversWhenIdentityProviderComesUp(t *testing.T) {
 	idp := newFakeIdP(t, false)
 	idp.down.Store(true)
-	v := newVerifier(t, OIDCConfig{Issuer: idp.URL})
+	v := newVerifier(t, OIDCConfig{Issuer: idp.URL, Clients: anyClient})
 	raw := idp.token(t, nil)
 
 	if _, err := v.Verify(context.Background(), raw); !errors.Is(err, ErrUnavailable) {
@@ -264,7 +284,7 @@ func TestOIDCVerifierUnreachableIssuer(t *testing.T) {
 	issuer := idp.URL
 	idp.Close()
 
-	v := newVerifier(t, OIDCConfig{Issuer: issuer})
+	v := newVerifier(t, OIDCConfig{Issuer: issuer, Clients: anyClient})
 	_, err := v.Verify(context.Background(), "a.b.c")
 	if !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("err = %v, want ErrUnavailable", err)
@@ -276,7 +296,7 @@ func TestOIDCVerifierCABundle(t *testing.T) {
 	raw := idp.token(t, nil)
 
 	t.Run("untrusted certificate", func(t *testing.T) {
-		v := newVerifier(t, OIDCConfig{Issuer: idp.URL})
+		v := newVerifier(t, OIDCConfig{Issuer: idp.URL, Clients: anyClient})
 		if _, err := v.Verify(context.Background(), raw); !errors.Is(err, ErrUnavailable) {
 			t.Fatalf("err = %v, want ErrUnavailable", err)
 		}
@@ -287,7 +307,7 @@ func TestOIDCVerifierCABundle(t *testing.T) {
 		if err := os.WriteFile(caFile, pemBytes, 0o600); err != nil {
 			t.Fatal(err)
 		}
-		v := newVerifier(t, OIDCConfig{Issuer: idp.URL, CAFile: caFile})
+		v := newVerifier(t, OIDCConfig{Issuer: idp.URL, CAFile: caFile, Clients: anyClient})
 		if _, err := v.Verify(context.Background(), raw); err != nil {
 			t.Fatalf("Verify: %v", err)
 		}
@@ -303,8 +323,8 @@ func TestNewOIDCVerifierValidatesConfig(t *testing.T) {
 
 	tests := map[string]OIDCConfig{
 		"empty issuer":          {},
-		"missing CA file":       {Issuer: "https://ocis.example", CAFile: filepath.Join(dir, "nope.pem")},
-		"CA file without certs": {Issuer: "https://ocis.example", CAFile: emptyPEM},
+		"missing CA file":       {Issuer: "https://ocis.example", Clients: anyClient, CAFile: filepath.Join(dir, "nope.pem")},
+		"CA file without certs": {Issuer: "https://ocis.example", Clients: anyClient, CAFile: emptyPEM},
 	}
 	for name, cfg := range tests {
 		t.Run(name, func(t *testing.T) {

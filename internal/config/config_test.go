@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -68,7 +69,7 @@ func TestLoadEnvOverridesFileAndDefaults(t *testing.T) {
 	if cfg.OIDCIssuer != "https://idp.example.com" {
 		t.Errorf("OIDCIssuer = %q, want env value", cfg.OIDCIssuer)
 	}
-	if cfg.OIDCAudience != "groupware" {
+	if !reflect.DeepEqual(cfg.OIDCAudience, StringList{"groupware"}) {
 		t.Errorf("OIDCAudience = %q, want env value", cfg.OIDCAudience)
 	}
 	if cfg.OIDCCAFile != "/etc/groupware/ca.pem" {
@@ -105,7 +106,7 @@ func TestLoadFileReadsOIDCSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load(%q): unexpected error: %v", path, err)
 	}
-	if cfg.OIDCIssuer != "https://ocis.example" || cfg.OIDCAudience != "groupware" || cfg.OIDCCAFile != "/etc/groupware/ca.pem" {
+	if cfg.OIDCIssuer != "https://ocis.example" || !reflect.DeepEqual(cfg.OIDCAudience, StringList{"groupware"}) || cfg.OIDCCAFile != "/etc/groupware/ca.pem" {
 		t.Errorf("OIDC settings = %q, %q, %q", cfg.OIDCIssuer, cfg.OIDCAudience, cfg.OIDCCAFile)
 	}
 }
@@ -122,16 +123,16 @@ func TestValidate(t *testing.T) {
 		cfg     Config
 		wantErr bool
 	}{
-		{"valid", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, false},
-		{"empty addr", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: "", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
-		{"bad level", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "bogus", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
+		{"valid", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data"}, false},
+		{"empty addr", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: "", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data"}, true},
+		{"bad level", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "bogus", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data"}, true},
 		{"missing issuer", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", DataDir: "/data"}, true},
-		{"negative legacy lifetime", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data", LegacyTokenTTL: -time.Hour}, true},
-		{"no failure limit", Config{AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
-		{"no failure window", Config{AuthMaxFailures: 10, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
-		{"bad proxy", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, TrustedProxies: []string{"nope"}, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
-		{"good proxies", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, TrustedProxies: []string{"10.0.0.0/8", "::1"}, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, false},
-		{"missing data dir", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example"}, true},
+		{"negative legacy lifetime", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data", LegacyTokenTTL: -time.Hour}, true},
+		{"no failure limit", Config{AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data"}, true},
+		{"no failure window", Config{AuthMaxFailures: 10, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data"}, true},
+		{"bad proxy", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, TrustedProxies: []string{"nope"}, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data"}, true},
+		{"good proxies", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, TrustedProxies: []string{"10.0.0.0/8", "::1"}, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data"}, false},
+		{"missing data dir", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}}, true},
 	}
 
 	for _, tc := range cases {
@@ -331,5 +332,73 @@ func TestSignInLimitSettings(t *testing.T) {
 	t.Setenv("GROUPWARE_AUTH_FAILURE_WINDOW", "soon")
 	if _, err := Load(path); err == nil {
 		t.Fatal("a window that is not a duration was accepted")
+	}
+}
+
+func TestOIDCAudienceDefaultsToWeb(t *testing.T) {
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(cfg.OIDCAudience, StringList{"web"}) {
+		t.Fatalf("OIDCAudience = %q, want [web]", cfg.OIDCAudience)
+	}
+}
+
+func TestOIDCAudienceForms(t *testing.T) {
+	for name, tc := range map[string]struct {
+		yaml, env string
+		want      StringList
+	}{
+		"yaml scalar":     {yaml: "oidc_audience: desktop\n", want: StringList{"desktop"}},
+		"yaml list":       {yaml: "oidc_audience: [web, desktop]\n", want: StringList{"web", "desktop"}},
+		"yaml comma":      {yaml: "oidc_audience: web, desktop\n", want: StringList{"web", "desktop"}},
+		"env comma list":  {env: "web, desktop ,", want: StringList{"web", "desktop"}},
+		"env beats yaml":  {yaml: "oidc_audience: web\n", env: "desktop", want: StringList{"desktop"}},
+		"yaml empty":      {yaml: "oidc_audience: \"\"\n", want: StringList{}},
+		"yaml empty list": {yaml: "oidc_audience: []\n", want: StringList{}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := ""
+			if tc.yaml != "" {
+				path = filepath.Join(t.TempDir(), "groupware.yaml")
+				if err := os.WriteFile(path, []byte(tc.yaml), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.env != "" {
+				t.Setenv("GROUPWARE_OIDC_AUDIENCE", tc.env)
+			}
+			cfg, err := Load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(cfg.OIDCAudience, tc.want) {
+				t.Fatalf("OIDCAudience = %#v, want %#v", cfg.OIDCAudience, tc.want)
+			}
+		})
+	}
+}
+
+func TestOIDCAudienceExplicitlyEmptyFailsValidation(t *testing.T) {
+	t.Setenv("GROUPWARE_OIDC_ISSUER", "https://ocis.example")
+	t.Setenv("GROUPWARE_DATA_DIR", "/data")
+	t.Setenv("GROUPWARE_OIDC_AUDIENCE", "")
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), `"*"`) {
+		t.Fatalf("Validate = %v, want an error that points to \"*\"", err)
+	}
+}
+
+func TestOIDCAudienceWildcard(t *testing.T) {
+	if !(StringList{"*"}).AllowsAnyClient() {
+		t.Error("[*] should allow any client")
+	}
+	if (StringList{"web", "*"}).AllowsAnyClient() || (StringList{"web"}).AllowsAnyClient() {
+		t.Error("only the sole entry * is the wildcard")
 	}
 }
