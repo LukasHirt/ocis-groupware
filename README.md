@@ -173,6 +173,11 @@ its values; saving sends only the fields that changed, with the event's ETag in
 time zone with `Prefer: outlook.timezone`, as Graph clients do, so an event is shown and
 edited in that zone whatever zone it was created in.
 
+The dialog sets a display reminder: none, at the time of the event, or a number of
+minutes, hours, days or a week before. It is stored as the event's first display alarm,
+so other calendar apps show it too. A reminder an event already has with another number
+of minutes stays selectable. This page does not show notifications itself.
+
 The dialog also edits the pattern of a repeating event: daily, weekly (with days),
 monthly and yearly (on a day of the month or on a weekday such as the second Thursday),
 an interval, and an end after a number of times or on a date. The server writes a

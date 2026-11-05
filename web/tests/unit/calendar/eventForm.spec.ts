@@ -248,3 +248,32 @@ describe('recurrence in the form', () => {
     expect(formProblem({ ...base, recurrence: { ...base.recurrence, frequency: 'daily', interval: 0 } })).toBe('interval')
   })
 })
+
+describe('reminder in the form', () => {
+  const base = formFromEvent(planning)
+
+  it('reads the reminder of an event, and none when it has none', () => {
+    expect(base.reminder).toBe(15)
+    expect(formFromEvent({ ...planning, isReminderOn: false, reminderMinutesBeforeStart: 0 }).reminder).toBeNull()
+  })
+
+  it('writes the reminder of a new event only when there is one', () => {
+    expect(inputFromForm(base)).toMatchObject({ isReminderOn: true, reminderMinutesBeforeStart: 15 })
+    const none = inputFromForm({ ...base, reminder: null })
+    expect(none.isReminderOn).toBeUndefined()
+    expect(none.reminderMinutesBeforeStart).toBeUndefined()
+  })
+
+  it('sends a change of the reminder, and turning it off', () => {
+    expect(changeFromForms(base, { ...base, reminder: 60 })).toEqual({
+      isReminderOn: true,
+      reminderMinutesBeforeStart: 60
+    })
+    expect(changeFromForms(base, { ...base, reminder: null })).toEqual({ isReminderOn: false })
+    expect(changeFromForms({ ...base, reminder: null }, { ...base, reminder: 0 })).toEqual({
+      isReminderOn: true,
+      reminderMinutesBeforeStart: 0
+    })
+    expect(changeFromForms(base, { ...base })).toEqual({})
+  })
+})

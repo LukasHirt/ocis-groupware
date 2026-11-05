@@ -36,6 +36,8 @@ export interface EventForm {
   categories: string
   attendees: FormAttendee[]
   recurrence: RecurrenceForm
+  // Minutes before the start, or null for no reminder.
+  reminder: number | null
 }
 
 const dateFormat = 'yyyy-MM-dd'
@@ -74,7 +76,8 @@ export function formFromEvent(event: GraphEvent): EventForm {
       name: a.emailAddress.name,
       address: a.emailAddress.address
     })),
-    recurrence: recurrenceFormFromEvent(event.recurrence, start.toFormat(dateFormat))
+    recurrence: recurrenceFormFromEvent(event.recurrence, start.toFormat(dateFormat)),
+    reminder: event.isReminderOn ? event.reminderMinutesBeforeStart : null
   }
 }
 
@@ -110,7 +113,8 @@ export function blankForm(s: Selection): EventForm {
     showAs: 'busy',
     categories: '',
     attendees: [],
-    recurrence: defaultRecurrence(start.toFormat(dateFormat))
+    recurrence: defaultRecurrence(start.toFormat(dateFormat)),
+    reminder: null
   }
 }
 
@@ -156,6 +160,7 @@ export function inputFromForm(f: EventForm): EventInput {
   const recurrence = recurrenceFromForm(f.recurrence, f.startDate, f.timeZone)
   return {
     ...(recurrence ? { recurrence } : {}),
+    ...(f.reminder === null ? {} : { isReminderOn: true, reminderMinutesBeforeStart: f.reminder }),
     subject: f.subject.trim(),
     body: { contentType: 'text', content: f.notes },
     location: { displayName: f.location.trim() },
@@ -207,6 +212,14 @@ export function changeFromForms(original: EventForm, edited: EventForm): EventIn
   }
   if (JSON.stringify(original.recurrence) !== JSON.stringify(edited.recurrence)) {
     change.recurrence = recurrenceFromForm(edited.recurrence, edited.startDate, edited.timeZone)
+  }
+  if (edited.reminder !== original.reminder) {
+    Object.assign(
+      change,
+      edited.reminder === null
+        ? { isReminderOn: false }
+        : { isReminderOn: true, reminderMinutesBeforeStart: edited.reminder }
+    )
   }
   return change
 }

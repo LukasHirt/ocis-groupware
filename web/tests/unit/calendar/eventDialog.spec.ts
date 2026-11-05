@@ -291,3 +291,26 @@ describe('EventDialog, repeating', () => {
     expect(wrapper.find('[data-testid="repeat-frequency"]').exists()).toBe(false)
   })
 })
+
+describe('EventDialog, reminders', () => {
+  it('has no reminder for a new event, and saves one that was chosen', async () => {
+    const wrapper = create()
+    const select = wrapper.get<HTMLSelectElement>('[data-testid="event-reminder"]')
+    expect(select.element.value).toBe('none')
+    await select.setValue('30')
+    await wrapper.get('form').trigger('submit')
+    const [[saved]] = wrapper.emitted('save') as [[{ input: Record<string, unknown> }]]
+    expect(saved.input).toMatchObject({ isReminderOn: true, reminderMinutesBeforeStart: 30 })
+  })
+
+  it('shows the reminder an event has and turns it off', async () => {
+    const wrapper = edit()
+    const select = wrapper.get<HTMLSelectElement>('[data-testid="event-reminder"]')
+    expect(select.element.value).toBe('15')
+    expect(select.findAll('option').map((o) => o.text())[0]).toBe('No reminder')
+    await select.setValue('none')
+    await wrapper.get('form').trigger('submit')
+    const [[saved]] = wrapper.emitted('save') as [[{ input: object }]]
+    expect(saved.input).toEqual({ isReminderOn: false })
+  })
+})

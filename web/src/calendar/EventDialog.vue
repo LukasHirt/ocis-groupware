@@ -249,6 +249,22 @@
           data-testid="event-location"
         />
 
+        <label class="oc-text-bold oc-mt-s oc-display-block" for="groupware-event-reminder">{{
+          $gettext('Reminder')
+        }}</label>
+        <select
+          id="groupware-event-reminder"
+          :value="edited.reminder === null ? 'none' : String(edited.reminder)"
+          class="oc-select oc-width-1-1"
+          data-testid="event-reminder"
+          @change="edited.reminder = reminderFromValue(($event.target as HTMLSelectElement).value)"
+        >
+          <option value="none">{{ $gettext('No reminder') }}</option>
+          <option v-for="m in reminderChoices" :key="m" :value="String(m)">
+            {{ reminderLabel(m, $gettext) }}
+          </option>
+        </select>
+
         <label class="oc-text-bold oc-mt-s oc-display-block" for="groupware-event-status">{{
           $gettext('Show as')
         }}</label>
@@ -385,6 +401,7 @@ import {
   inputFromForm,
   type EventForm
 } from './eventForm'
+import { reminderLabel, reminderOptions } from './reminders'
 import { zoneNames } from './zones'
 
 defineOptions({ name: 'EventDialog' })
@@ -472,6 +489,9 @@ const repeatMessages = computed<Record<string, string>>(() => ({
   count: $gettext('The number of times must be between 1 and 999.'),
   endDate: $gettext('The last date must not be before the start.')
 }))
+
+const reminderChoices = computed(() => reminderOptions(original.reminder))
+const reminderFromValue = (value: string) => (value === 'none' ? null : Number(value))
 
 const attendeeText = ref('')
 const attendeeProblem = ref<'invalid' | 'duplicate' | undefined>()
