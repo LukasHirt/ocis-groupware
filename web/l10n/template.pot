@@ -98,6 +98,9 @@ msgstr ""
 msgid "Birthday"
 msgstr ""
 
+msgid "Blue"
+msgstr ""
+
 msgid "Browser time zone (%{zone})"
 msgstr ""
 
@@ -143,16 +146,13 @@ msgstr ""
 msgid "Categories"
 msgstr ""
 
-msgid "Change"
-msgstr ""
-
 msgid "Change photo"
 msgstr ""
 
-msgid "Children"
+msgid "Change the person to share with"
 msgstr ""
 
-msgid "Choose another colour"
+msgid "Children"
 msgstr ""
 
 msgid "City"
@@ -314,6 +314,9 @@ msgstr ""
 msgid "Created %{date}"
 msgstr ""
 
+msgid "Custom colour"
+msgstr ""
+
 msgid "Daily"
 msgstr ""
 
@@ -449,6 +452,9 @@ msgstr ""
 msgid "Enter this password in your app. Each app needs its own."
 msgstr ""
 
+msgid "Error"
+msgstr ""
+
 msgid "Event"
 msgstr ""
 
@@ -509,6 +515,9 @@ msgstr ""
 msgid "Friday"
 msgstr ""
 
+msgid "Green"
+msgstr ""
+
 msgid "Group"
 msgstr ""
 
@@ -537,6 +546,9 @@ msgid "Import into %{name}"
 msgstr ""
 
 msgid "Import vCard"
+msgstr ""
+
+msgid "Item"
 msgstr ""
 
 msgid "January"
@@ -656,6 +668,9 @@ msgstr ""
 msgid "October"
 msgstr ""
 
+msgid "Olive"
+msgstr ""
+
 msgid "On a date"
 msgstr ""
 
@@ -663,6 +678,9 @@ msgid "On a day of the month"
 msgstr ""
 
 msgid "On a weekday"
+msgstr ""
+
+msgid "Orange"
 msgstr ""
 
 msgid "Other address"
@@ -698,7 +716,13 @@ msgstr ""
 msgid "Profession"
 msgstr ""
 
+msgid "Purple"
+msgstr ""
+
 msgid "read only"
+msgstr ""
+
+msgid "Red"
 msgstr ""
 
 msgid "Reminder"
@@ -797,6 +821,9 @@ msgstr ""
 msgid "Show week numbers"
 msgstr ""
 
+msgid "Slate"
+msgstr ""
+
 msgid "Sort by"
 msgstr ""
 
@@ -828,6 +855,9 @@ msgid "Sunday"
 msgstr ""
 
 msgid "Surname"
+msgstr ""
+
+msgid "Teal"
 msgstr ""
 
 msgid "Tentative"

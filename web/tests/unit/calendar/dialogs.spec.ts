@@ -90,7 +90,12 @@ describe('CalendarDialog', () => {
     const wrapper = mount(CalendarDialog, { props: { title: 'New calendar' } })
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('save')).toBeUndefined()
-    expect(wrapper.get('[data-testid="calendar-name-error"]').text()).toContain('name')
+    const message = wrapper.get('#gw-calendar-name-message')
+    expect(message.text()).toContain('name')
+    // The message belongs to the field.
+    const field = wrapper.get('[data-testid="calendar-name"]')
+    expect(field.attributes('aria-describedby')).toBe('gw-calendar-name-message')
+    expect(field.attributes('aria-invalid')).toBe('true')
   })
 
   it('saves the trimmed name and the chosen colour', async () => {
@@ -129,6 +134,39 @@ describe('CalendarDialog', () => {
       props: { title: 'Edit', calendar: { id: 'cGVyc29uYWwtY2Fs', name: 'Personal', hexColor: '' } }
     })
     expect(wrapper.findAll('[aria-checked="true"]')).toHaveLength(1)
+  })
+
+  it('offers the colours as radios with names', () => {
+    const wrapper = mount(CalendarDialog, { props: { title: 'New calendar' } })
+    const group = wrapper.get('[role="radiogroup"]')
+    const names = group.findAll('[role="radio"]').map((r) => r.attributes('aria-label'))
+    expect(names.slice(0, 3)).toEqual(['Blue', 'Green', 'Orange'])
+    expect(names.at(-1)).toBe('Custom colour')
+    expect(wrapper.findAll('[aria-checked="true"]')).toHaveLength(1)
+  })
+
+  it('moves the choice with the arrow keys and keeps one tab stop', async () => {
+    const wrapper = mount(CalendarDialog, { props: { title: 'New calendar' }, attachTo: document.body })
+    const radios = () => wrapper.findAll('[role="radio"]')
+    // The eight palette swatches are one tab stop; the custom one is the next.
+    expect(radios().slice(0, 8).filter((r) => r.attributes('tabindex') === '0')).toHaveLength(1)
+    await radios()[0].trigger('keydown', { key: 'ArrowRight' })
+    expect(radios()[1].attributes('aria-checked')).toBe('true')
+    expect(radios()[1].attributes('tabindex')).toBe('0')
+    expect(radios()[0].attributes('tabindex')).toBe('-1')
+    await radios()[1].trigger('keydown', { key: 'ArrowLeft' })
+    await radios()[0].trigger('keydown', { key: 'ArrowLeft' })
+    // It wraps around to the last colour of the palette.
+    expect(radios()[7].attributes('aria-checked')).toBe('true')
+    wrapper.unmount()
+  })
+
+  it('takes a custom colour', async () => {
+    const wrapper = mount(CalendarDialog, { props: { title: 'New calendar' } })
+    await wrapper.get('[data-testid="calendar-name"]').setValue('Trips')
+    await wrapper.get('[data-testid="calendar-color-custom"]').setValue('#123456')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('save')).toEqual([[{ name: 'Trips', hexColor: '#123456' }]])
   })
 
   it('cancels', async () => {

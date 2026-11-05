@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test'
-import { openApp, openNav, signIn, user, type TestUser } from './helpers'
+import { openApp, openNav, pickOption, selectBox, signIn, textField, user, type TestUser } from './helpers'
 
 // Demo users that oCIS creates with IDM_CREATE_DEMO_USERS. Both are members
 // of the group physics-lovers.
@@ -31,9 +31,9 @@ async function reload(page: Page, name: 'Calendar' | 'Contacts') {
 
 // share searches the directory and adds the first match with a role.
 async function share(page: Page, search: string, label: string, role: 'read' | 'write') {
-  await page.getByTestId('share-search').fill(search)
+  await textField(page, 'share-search').fill(search)
   await page.getByTestId('share-result').filter({ hasText: label }).first().click()
-  await page.getByTestId('share-new-role').selectOption(role)
+  await pickOption(page, 'share-new-role', role === 'write' ? 'Can edit' : 'Can view')
   await page.getByTestId('share-add').click()
   await expect(page.getByTestId('share-chosen')).toHaveCount(0)
 }
@@ -47,7 +47,7 @@ test('a calendar is shared with a user and with a group, and the role and revoki
 
   await expect(owner).toHaveURL(/\/organizer\/calendar\/events$/)
   await owner.getByTestId('calendar-add').click()
-  await owner.getByTestId('calendar-name').fill('Shared notes')
+  await textField(owner, 'calendar-name').fill('Shared notes')
   await owner.getByTestId('dialog-confirm').click()
   await expect(items(owner)).toHaveCount(1)
   // Nobody else sees it yet.
@@ -57,14 +57,14 @@ test('a calendar is shared with a user and with a group, and the role and revoki
   // Share with a user, who may only read.
   await items(owner).getByTestId('calendar-share').click()
   await expect(owner.getByTestId('share-none')).toBeVisible()
-  await owner.getByTestId('share-search').fill('ma')
-  await expect(owner.getByTestId('share-hint')).toBeVisible()
+  await textField(owner, 'share-search').fill('ma')
+  await expect(owner.locator('#gw-share-search-message')).toContainText('at least 3')
   await share(owner, 'marie', 'Marie', 'read')
   const row = owner.getByTestId('share-item').filter({ hasText: 'Marie' })
   await expect(row).toHaveCount(1)
-  await expect(row.getByTestId('share-role')).toHaveValue('read')
+  await expect(selectBox(row, 'share-role')).toContainText('Can view')
   // The person is no longer offered.
-  await owner.getByTestId('share-search').fill('marie')
+  await textField(owner, 'share-search').fill('marie')
   await expect(owner.getByTestId('share-no-match')).toBeVisible()
   await owner.getByTestId('dialog-cancel').click()
 
@@ -77,7 +77,7 @@ test('a calendar is shared with a user and with a group, and the role and revoki
 
   // The role changes to edit.
   await items(owner).getByTestId('calendar-share').click()
-  await owner.getByTestId('share-item').filter({ hasText: 'Marie' }).getByTestId('share-role').selectOption('write')
+  await pickOption(owner.getByTestId('share-item').filter({ hasText: 'Marie' }), 'share-role', 'Can edit')
   await owner.getByTestId('dialog-cancel').click()
   await reload(guest, 'Calendar')
   await expect(items(guest)).toContainText('can edit')
@@ -139,7 +139,7 @@ test('an address book is shared with a user and shows as read only and then edit
   await expect(guest.getByTestId('contact-new')).toBeDisabled()
 
   await owner.getByTestId('book-share').click()
-  await owner.getByTestId('share-role').selectOption('write')
+  await pickOption(owner, 'share-role', 'Can edit')
   await owner.getByTestId('dialog-cancel').click()
   await reload(guest, 'Contacts')
   await expect(folders(guest)).toContainText('can edit')

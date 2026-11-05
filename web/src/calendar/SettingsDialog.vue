@@ -2,55 +2,48 @@
   <gw-modal
     :title="$gettext('Calendar settings')"
     form
-    initial-focus="[data-testid=settings-zone]"
+    initial-focus="[data-testid=settings-zone] input"
     @close="emit('close')"
     @submit="submit"
   >
-      <label class="oc-text-bold" for="groupware-settings-zone">{{ $gettext('Time zone') }}</label>
-      <select
-        id="groupware-settings-zone"
-        v-model="edited.timeZone"
-        class="oc-select oc-width-1-1"
-        data-testid="settings-zone"
-      >
-        <option value="">{{ $gettext('Browser time zone (%{zone})', { zone: browserZone }) }}</option>
-        <option v-for="z in zones" :key="z" :value="z">{{ z }}</option>
-      </select>
+    <oc-select
+      v-model="edited.timeZone"
+      :label="$gettext('Time zone')"
+      :options="zoneOptions"
+      :reduce="(o: Choice<string>) => o.value"
+      :clearable="false"
+      searchable
+      class="oc-mb-s"
+      data-testid="settings-zone"
+    />
+    <oc-select
+      v-model="edited.firstDay"
+      :label="$gettext('First day of the week')"
+      :options="dayOptions"
+      :reduce="(o: Choice<number>) => o.value"
+      :clearable="false"
+      :searchable="false"
+      class="oc-mb-m"
+      data-testid="settings-first-day"
+    />
+    <oc-checkbox
+      v-model="edited.weekNumbers"
+      :label="$gettext('Show week numbers')"
+      data-testid="settings-week-numbers"
+    />
 
-      <label class="oc-text-bold oc-mt-s oc-display-block" for="groupware-settings-first-day">{{
-        $gettext('First day of the week')
-      }}</label>
-      <select
-        id="groupware-settings-first-day"
-        v-model.number="edited.firstDay"
-        class="oc-select oc-width-1-1"
-        data-testid="settings-first-day"
-      >
-        <option v-for="(name, i) in dayNames" :key="name" :value="i">{{ name }}</option>
-      </select>
+    <p class="oc-text-muted oc-text-small oc-mt-m oc-mb-rm">
+      {{ $gettext('These settings are kept in this browser.') }}
+    </p>
 
-      <label class="oc-flex oc-flex-middle oc-mt-m">
-        <input
-          v-model="edited.weekNumbers"
-          type="checkbox"
-          class="groupware-check oc-mr-s"
-          data-testid="settings-week-numbers"
-        />
-        {{ $gettext('Show week numbers') }}
-      </label>
-
-      <p class="oc-text-muted oc-mt-m">
-        {{ $gettext('These settings are kept in this browser.') }}
-      </p>
-
-      <template #actions>
+    <template #actions>
       <oc-button variation="passive" appearance="outline" data-testid="dialog-cancel" @click="emit('close')">
         {{ $gettext('Cancel') }}
       </oc-button>
       <oc-button variation="primary" appearance="filled" submit="submit" data-testid="dialog-confirm">
         {{ $gettext('Save') }}
       </oc-button>
-      </template>
+    </template>
   </gw-modal>
 </template>
 
@@ -70,6 +63,15 @@ const { $gettext } = useGettext()
 
 const edited = reactive<CalendarSettings>({ ...props.settings })
 const zones = computed(() => zoneNames(props.settings.timeZone))
+interface Choice<T> {
+  label: string
+  value: T
+}
+
+const zoneOptions = computed<Choice<string>[]>(() => [
+  { label: $gettext('Browser time zone (%{zone})', { zone: props.browserZone }), value: '' },
+  ...zones.value.map((z) => ({ label: z, value: z }))
+])
 const dayNames = computed(() => [
   $gettext('Sunday'),
   $gettext('Monday'),
@@ -79,6 +81,8 @@ const dayNames = computed(() => [
   $gettext('Friday'),
   $gettext('Saturday')
 ])
+
+const dayOptions = computed<Choice<number>[]>(() => dayNames.value.map((label, value) => ({ label, value })))
 
 function submit() {
   emit('save', { ...edited })

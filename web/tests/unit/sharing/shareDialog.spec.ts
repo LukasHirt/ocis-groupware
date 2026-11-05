@@ -4,7 +4,10 @@ import permissions from '../../../../internal/graphapi/testdata/contract/calenda
 import permission from '../../../../internal/graphapi/testdata/contract/calendar-permission.json'
 
 vi.mock('vue3-gettext', () => ({
-  useGettext: () => ({ $gettext: (s: string) => s })
+  useGettext: () => ({
+    $gettext: (s: string, vars?: Record<string, string>) =>
+      s.replace(/%\{(\w+)\}/g, (_m, k: string) => vars?.[k] ?? '')
+  })
 }))
 
 const api = {
@@ -23,6 +26,7 @@ vi.mock('../../../src/composables/useApi', () => ({
 }))
 
 import ShareDialog from '../../../src/sharing/ShareDialog.vue'
+import { choose, selectedLabel } from '../helpers/select'
 
 const gettext = (s: string, params: Record<string, string> = {}) =>
   s.replace(/%\{(\w+)\}/g, (_, k: string) => params[k] ?? '')
@@ -35,6 +39,14 @@ async function open(kind: 'calendar' | 'addressBook' = 'calendar') {
   })
   await flushPromises()
   return wrapper
+}
+
+// The role the control of a row is given, as the model of the select.
+function roleOf(wrapper: Awaited<ReturnType<typeof open>>, row: number) {
+  const selects = wrapper
+    .findAllComponents({ name: 'OcSelect' })
+    .filter((c) => c.find('[data-testid="share-role"]').exists())
+  return selects[row].props('modelValue')
 }
 
 // The search waits for the typing to stop.
@@ -62,10 +74,7 @@ describe('the share dialog', () => {
     expect(rows.map((r) => r.get('.name').text())).toEqual(['Marie Curie', 'physics-lovers'])
     expect(rows[0].text()).toContain('User')
     expect(rows[1].text()).toContain('Group')
-    expect(rows.map((r) => (r.get('[data-testid="share-role"]').element as HTMLSelectElement).value)).toEqual([
-      'read',
-      'write'
-    ])
+    expect(rows.map((r) => selectedLabel(r, 'share-role'))).toEqual(['Can view', 'Can edit'])
   })
 
   it('says so when nobody has access yet', async () => {
@@ -77,20 +86,19 @@ describe('the share dialog', () => {
   it('changes a role', async () => {
     api.updatePermission.mockResolvedValue({ ...permission, role: 'write' })
     const wrapper = await open()
-    await wrapper.findAll('[data-testid="share-role"]')[0].setValue('write')
+    await choose(wrapper.findAll('[data-testid="share-item"]')[0], 'share-role', 'Can edit')
     await flushPromises()
     expect(api.updatePermission).toHaveBeenCalledWith('calendar', 'c1', permission.id, 'write')
-    const select = wrapper.findAll('[data-testid="share-role"]')[0].element as HTMLSelectElement
-    expect(select.value).toBe('write')
+    expect(roleOf(wrapper, 0)).toBe('write')
   })
 
   it('keeps the old role when the change fails', async () => {
     api.updatePermission.mockRejectedValue(new Error('no'))
     const wrapper = await open()
-    await wrapper.findAll('[data-testid="share-role"]')[0].setValue('write')
+    await choose(wrapper.findAll('[data-testid="share-item"]')[0], 'share-role', 'Can edit')
     await flushPromises()
-    const select = wrapper.findAll('[data-testid="share-role"]')[0].element as HTMLSelectElement
-    expect(select.value).toBe('read')
+    // The list still holds the old role, which the control shows.
+    expect(roleOf(wrapper, 0)).toBe('read')
   })
 
   it('revokes a share', async () => {
@@ -106,7 +114,7 @@ describe('the share dialog', () => {
     const wrapper = await open()
     await type(wrapper, 'ma')
     expect(api.searchUsers).not.toHaveBeenCalled()
-    expect(wrapper.find('[data-testid="share-hint"]').exists()).toBe(true)
+    expect(wrapper.get('#gw-share-search-message').text()).toContain('at least 3')
   })
 
   it('searches users and groups once typing stops, and leaves out those who already have access', async () => {
@@ -143,7 +151,7 @@ describe('the share dialog', () => {
     await type(wrapper, 'max')
     await wrapper.get('[data-testid="share-result"]').trigger('click')
     expect(wrapper.get('[data-testid="share-chosen"]').text()).toContain('Max Planck')
-    await wrapper.get('[data-testid="share-new-role"]').setValue('write')
+    await choose(wrapper, 'share-new-role', 'Can edit')
     await wrapper.get('[data-testid="share-add"]').trigger('click')
     await flushPromises()
     expect(api.createPermission).toHaveBeenCalledWith(
@@ -157,9 +165,48 @@ describe('the share dialog', () => {
     expect(wrapper.find('[data-testid="share-chosen"]').exists()).toBe(false)
   })
 
-  it('cannot share before someone is chosen', async () => {
+  it('picks a result with the arrow keys and Enter', async () => {
+    api.searchUsers.mockResolvedValue([
+      { id: 'u-max', displayName: 'Max Planck' },
+      { id: 'u-mia', displayName: 'Mia Hamm' }
+    ])
     const wrapper = await open()
-    expect(wrapper.get('[data-testid="share-add"]').attributes('disabled')).toBeDefined()
+    await type(wrapper, 'm')
+    await type(wrapper, 'mia')
+    const search = wrapper.get('[data-testid="share-search"]')
+    await search.trigger('keydown', { key: 'ArrowDown' })
+    await search.trigger('keydown', { key: 'ArrowDown' })
+    const options = wrapper.findAll('[role="option"]')
+    expect(options[1].attributes('aria-selected')).toBe('true')
+    expect(search.attributes('aria-activedescendant')).toBe(options[1].attributes('id'))
+    await search.trigger('keydown', { key: 'Enter' })
+    expect(wrapper.get('[data-testid="share-chosen"]').text()).toContain('Mia Hamm')
+  })
+
+  it('shows the results as a listbox', async () => {
+    api.searchUsers.mockResolvedValue([{ id: 'u-max', displayName: 'Max Planck' }])
+    const wrapper = await open()
+    await type(wrapper, 'max')
+    expect(wrapper.get('[role="listbox"]').findAll('[role="option"]')).toHaveLength(1)
+  })
+
+  it('removes the chosen person again', async () => {
+    api.searchUsers.mockResolvedValue([{ id: 'u-max', displayName: 'Max Planck' }])
+    const wrapper = await open()
+    await type(wrapper, 'max')
+    await wrapper.get('[data-testid="share-result"]').trigger('click')
+    await wrapper.get('[data-testid="share-unchoose"]').trigger('click')
+    expect(wrapper.find('[data-testid="share-chosen"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="share-search"]').exists()).toBe(true)
+  })
+
+  it('offers Share only once someone is chosen', async () => {
+    api.searchUsers.mockResolvedValue([{ id: 'u-max', displayName: 'Max Planck' }])
+    const wrapper = await open()
+    expect(wrapper.find('[data-testid="share-add"]').exists()).toBe(false)
+    await type(wrapper, 'max')
+    await wrapper.get('[data-testid="share-result"]').trigger('click')
+    expect(wrapper.find('[data-testid="share-add"]').exists()).toBe(true)
   })
 
   it('shows a group search that failed as no groups and still lists the users', async () => {
