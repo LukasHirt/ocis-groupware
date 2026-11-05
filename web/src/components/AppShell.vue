@@ -153,6 +153,15 @@ const listVisible = computed(() => props.listOpen && !folded.value)
   font-weight: var(--oc-font-weight-semibold);
   margin: 0;
 }
+/* The second row of the app bar wraps onto a further line on a narrow window,
+   with the buttons keeping their labels on one line each. */
+.gw-app-actions {
+  flex-wrap: wrap;
+  row-gap: var(--oc-space-xsmall);
+}
+.gw-app-actions .oc-button {
+  white-space: nowrap;
+}
 .gw-body {
   display: flex;
   flex-direction: column;

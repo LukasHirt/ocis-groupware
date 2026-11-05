@@ -308,10 +308,14 @@ test('a weekly pattern is set with the weekday buttons', async ({ page }) => {
   await openCalendar(page)
   await page.getByTestId('event-add').click()
   await textField(page, 'event-subject').fill('Weekly sync')
+  // The weekday of the start is pressed already. The default start is the next
+  // hour, which late in the evening is tomorrow, so a day that is neither
+  // today nor tomorrow is used.
   await pickOption(page, 'repeat-frequency', 'Weekly')
   const group = page.getByRole('group', { name: 'Repeat on' })
   await expect(group.getByRole('button')).toHaveCount(7)
-  const friday = page.getByTestId('repeat-day-friday')
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+  const friday = page.getByTestId(`repeat-day-${days[(new Date().getDay() + 3) % 7]}`)
   await expect(friday).toHaveAttribute('aria-pressed', 'false')
   await friday.click()
   await expect(friday).toHaveAttribute('aria-pressed', 'true')
@@ -343,6 +347,7 @@ test('Escape closes every dialog of the calendar', async ({ page }) => {
   // A confirmation and a question about a series, from the sidebar.
   await page.getByTestId('event-add').click()
   await textField(page, 'event-subject').fill('Escape test')
+  await textField(page, 'event-start-date').fill(today())
   await textField(page, 'event-start-time').fill('09:00')
   await textField(page, 'event-end-date').fill(today())
   await textField(page, 'event-end-time').fill('10:00')

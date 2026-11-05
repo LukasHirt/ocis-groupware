@@ -213,6 +213,16 @@ jobs:
         env:
           STACK_URL: https://ocis.localhost
         run: npm run test:e2e
+      # The screen test saves a picture of every screen in light, dark and
+      # phone sizes. They are for a person to look at, so they are kept
+      # whether the run passed or not.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: screens-${{ matrix.name }}
+          path: web/test-results/screens/
+          if-no-files-found: ignore
+          retention-days: 7
       # Changes the stack's data and restarts the service, so it runs last.
       # Needs the classic paths, which only this entry of the matrix has.
       - name: Migrate the classic fixture into the stack

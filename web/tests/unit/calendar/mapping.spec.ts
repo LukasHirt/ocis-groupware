@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { calendarIdOf, toCalendarEvent } from '../../../src/calendar/mapping'
-import { calendarColor, readableTextColor } from '../../../src/calendar/colors'
+import { calendarColor, palette, readableTextColor } from '../../../src/calendar/colors'
 import type { GraphCalendar, GraphEvent } from '../../../src/api/types'
 import calendars from '../../../../internal/graphapi/testdata/contract/calendars.json'
 import calendarview from '../../../../internal/graphapi/testdata/contract/calendarview.json'
@@ -98,5 +98,21 @@ describe('readableTextColor', () => {
   it('picks white on dark and black on light', () => {
     expect(readableTextColor('#112233')).toBe('#ffffff')
     expect(readableTextColor('#f5f5a0')).toBe('#000000')
+  })
+
+  it('keeps a contrast of 4.5 or more on every palette colour', () => {
+    const luminance = (hex: string) => {
+      const n = parseInt(hex.slice(1), 16)
+      const c = (v: number) => {
+        const s = v / 255
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * c((n >> 16) & 255) + 0.7152 * c((n >> 8) & 255) + 0.0722 * c(n & 255)
+    }
+    for (const colour of palette) {
+      const a = luminance(colour)
+      const b = luminance(readableTextColor(colour))
+      expect((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05), colour).toBeGreaterThanOrEqual(4.5)
+    }
   })
 })
