@@ -83,6 +83,20 @@ describe('ConfirmDialog', () => {
     await wrapper.get('[role="dialog"]').trigger('keydown', { key: 'Escape' })
     expect(wrapper.emitted('cancel')).toHaveLength(1)
   })
+
+  it('shows a trash icon in the title by default', () => {
+    const wrapper = mount(ConfirmDialog, {
+      props: { title: 'Delete', message: 'Sure?', confirmLabel: 'Delete' }
+    })
+    expect(wrapper.get('.oc-modal-title .oc-icon').attributes('data-name')).toBe('delete-bin')
+  })
+
+  it('shows the icon it is given in the title', () => {
+    const wrapper = mount(ConfirmDialog, {
+      props: { title: 'Revoke', message: 'Sure?', confirmLabel: 'Revoke', icon: 'error-warning' }
+    })
+    expect(wrapper.get('.oc-modal-title .oc-icon').attributes('data-name')).toBe('error-warning')
+  })
 })
 
 describe('CalendarDialog', () => {
