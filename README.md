@@ -161,6 +161,10 @@ switched off is kept in the browser's local storage. A calendar without a colour
 from a fixed palette that depends only on its id. Event times are converted from the
 zone the server reports to the browser's zone.
 
+A user adds, renames, recolours and deletes calendars from the list beside the grid.
+Calendars shared by someone else show no such buttons, because the server marks them as
+not editable. A delete asks for confirmation first.
+
 Development needs Node 24:
 
 ```sh

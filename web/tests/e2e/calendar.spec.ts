@@ -11,14 +11,18 @@ async function signIn(page: Page) {
   await expect(page.locator('#web-content')).toBeVisible()
 }
 
-test('the calendar page shows month, week and day views and hides a calendar', async ({ page }) => {
-  const pageErrors: string[] = []
-  page.on('pageerror', (err) => pageErrors.push(err.message))
-
+async function openCalendar(page: Page) {
   await signIn(page)
   await page.locator('#_appSwitcherButton').click()
   await page.getByRole('link', { name: 'Calendar and Contacts' }).click()
   await expect(page).toHaveURL(/\/groupware\/calendar$/)
+}
+
+test('the calendar page shows month, week and day views and hides a calendar', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', (err) => pageErrors.push(err.message))
+
+  await openCalendar(page)
 
   // The month view is the first one.
   await expect(page.locator('.fc-dayGridMonth-view')).toBeVisible()
@@ -48,4 +52,48 @@ test('the calendar page shows month, week and day views and hides a calendar', a
   await page.getByTestId('calendar-item').first().getByTestId('calendar-toggle').check()
 
   expect(pageErrors).toEqual([])
+})
+
+test('a calendar can be created, renamed, recoloured and deleted', async ({ page }) => {
+  await openCalendar(page)
+  const items = page.getByTestId('calendar-item')
+  const mine = items.filter({ hasText: 'Field notes' })
+
+  await page.getByTestId('calendar-add').click()
+  await page.getByTestId('calendar-name').fill('Field notes')
+  await page.getByTestId('calendar-color-#c2415d').click()
+  await page.getByTestId('dialog-confirm').click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(mine).toHaveCount(1)
+
+  await mine.getByTestId('calendar-edit').click()
+  await expect(page.getByTestId('calendar-name')).toHaveValue('Field notes')
+  await page.getByTestId('calendar-name').fill('Lab notes')
+  await page.getByTestId('calendar-color-#2f9e6e').click()
+  await page.getByTestId('dialog-confirm').click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  const renamed = items.filter({ hasText: 'Lab notes' })
+  await expect(renamed).toHaveCount(1)
+  await expect(renamed.locator('.groupware-swatch')).toHaveCSS('background-color', 'rgb(47, 158, 110)')
+
+  // A name is required.
+  await renamed.getByTestId('calendar-edit').click()
+  await page.getByTestId('calendar-name').fill('')
+  await page.getByTestId('dialog-confirm').click()
+  await expect(page.getByTestId('calendar-name-error')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toBeHidden()
+
+  // The server has it: it is still there when the page is opened again.
+  const sidebar = page.locator('#web-nav-sidebar')
+  await sidebar.getByRole('link', { name: 'Contacts' }).click()
+  await sidebar.getByRole('link', { name: 'Calendar' }).click()
+  await expect(items.filter({ hasText: 'Lab notes' })).toHaveCount(1)
+
+  await renamed.getByTestId('calendar-delete').click()
+  await page.getByTestId('dialog-cancel').click()
+  await expect(renamed).toHaveCount(1)
+  await renamed.getByTestId('calendar-delete').click()
+  await page.getByTestId('dialog-confirm').click()
+  await expect(items.filter({ hasText: 'Lab notes' })).toHaveCount(0)
 })

@@ -2,7 +2,7 @@ import type { GraphCalendar } from '../api/types'
 
 // Colours for calendars that have none of their own. They are mid-tone so
 // that both white and black text stay readable in light and dark themes.
-const palette = [
+export const palette = [
   '#3b82c4',
   '#2f9e6e',
   '#d1752b',
