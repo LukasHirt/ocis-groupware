@@ -1,0 +1,39 @@
+{
+  "version": "10.15.3",
+  "secret": "fixture-secret-9f3b1c7a5e2d4f60",
+  "users": [
+    {"name": "alice", "password": "alice-pass", "groups": ["staff"]},
+    {"name": "bob", "password": "bob-pass", "groups": ["staff", "team"]},
+    {"name": "carol", "password": "carol-pass", "groups": ["team"]}
+  ],
+  "app_tokens": [
+    {"user": "alice", "name": "Phone One", "token": "HEBOU-ZJIHT-AQTJG-XMVMW", "sha512": "856d5b9ce86eaa6eb9766b80552d81c495c34d5d20ec04a6d267ff206e7c49a5d361858d4f57fdc5d75bbb8db8ff95110652bacb5590da9f95b5f9b6d5dbad33"},
+    {"user": "alice", "name": "DAVx5 on Pixel", "token": "JIICV-YUYZL-OXCXD-JKBUU", "sha512": "102bc8e56e47a66db39ebc98fc748718c2412b66247a890670f1eb06dc68bad7fefc17dc3c566226d556c39b12f937690fd20759513d0ec29f93c818730026de"},
+    {"user": "bob", "name": "Thunderbird", "token": "JRYCZ-IHSFY-WYHKI-BVMLI", "sha512": "f1bca621910c2bffe2e4bf03b7a71f0c5b3f692608035a9e363daf0443a4872cd0bec428afb5d2bcf0aadce18acb2bde33f042c50e3788b9d54923b2649bb938"}
+  ],
+  "rows": {
+    "oc_users": 4,
+    "oc_accounts": 4,
+    "oc_groups": 3,
+    "oc_group_user": 5,
+    "oc_calendars": 8,
+    "oc_calendarobjects": 5022,
+    "oc_calendarchanges": 5022,
+    "oc_calendarsubscriptions": 2,
+    "oc_schedulingobjects": 0,
+    "oc_dav_shares": 8,
+    "oc_dav_properties": 0,
+    "oc_addressbooks": 4,
+    "oc_cards": 149,
+    "oc_cards_properties": 786,
+    "oc_addressbookchanges": 152,
+    "oc_authtoken": 3
+  },
+  "calendars": {
+    "alice/work": 5000,
+    "alice/personal": 3,
+    "alice/archive": 2,
+    "bob/projects": 3,
+    "system/contact_birthdays": 14
+  }
+}

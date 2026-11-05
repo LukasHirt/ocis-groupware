@@ -384,6 +384,14 @@ ocis-groupware trusts it through `GROUPWARE_OIDC_CA_FILE`.
 Set `OCIS_DOMAIN`, `OCIS_VERSION` or `IDM_ADMIN_PASSWORD` in the environment
 or a `.env` file to override the defaults. This stack is for development only.
 
+### Classic test instance
+
+`test/classic` holds a classic ownCloud 10 server with seeded calendars, contacts,
+shares, a public link, subscriptions and app tokens, together with committed
+MariaDB and PostgreSQL dumps of it. It uses its own compose project and ports, so it
+runs next to the stack above. The dumps are what tests read; the compose file and the
+seeding script regenerate them. See [test/classic/README.md](test/classic/README.md).
+
 ### Stack tests
 
 `test/stack` holds end-to-end tests that need the running stack. They sign in as the
