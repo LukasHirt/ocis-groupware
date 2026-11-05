@@ -18,6 +18,9 @@ together (what CI runs).
 Config is env vars and/or a YAML file passed via `--config groupware.yaml`; env wins
 over file, file wins over defaults.
 
+[docs/administration.md](docs/administration.md) is the operator's guide. It lists every
+setting and a test keeps that list complete.
+
 | Env var | YAML key | Notes |
 |---|---|---|
 | `GROUPWARE_HTTP_ADDR` | `http_addr` | Listen address, default `:8080` |
