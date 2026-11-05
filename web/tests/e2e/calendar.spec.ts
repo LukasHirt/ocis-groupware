@@ -268,6 +268,58 @@ test('the grid follows the width of its container when the sidebar opens and clo
   await expect(event('Width check')).toHaveCount(0)
 })
 
+test('the month shows long titles with an ellipsis and a readable link to more events', async ({ page }) => {
+  await openCalendar(page)
+  const items = page.getByTestId('calendar-item')
+  const mine = items.filter({ hasText: 'Field notes' })
+  await page.getByTestId('calendar-add').click()
+  await textField(page, 'calendar-name').fill('Field notes')
+  await page.getByTestId('dialog-confirm').click()
+  await expect(mine).toHaveCount(1)
+
+  const title = 'Quarterly planning with the whole team'
+  for (let i = 1; i <= 5; i++) {
+    await page.getByTestId('event-add').click()
+    await textField(page, 'event-subject').fill(`${title} ${i}`)
+    await pickOption(page, 'event-calendar', 'Field notes')
+    await textField(page, 'event-start-date').fill(today())
+    await textField(page, 'event-start-time').fill('09:00')
+    await textField(page, 'event-end-date').fill(today())
+    await textField(page, 'event-end-time').fill('10:00')
+    await page.getByTestId('dialog-confirm').click()
+    await expect(page.getByRole('dialog')).toBeHidden()
+    await settled(page)
+  }
+
+  const day = page.locator(`.fc-daygrid-day[data-date="${today()}"]`)
+  const first = day.locator('.fc-daygrid-dot-event').first()
+  await expect(first).toBeVisible()
+
+  // The title is cut with an ellipsis, not in the middle of a letter, and the
+  // time before it stays whole. The tooltip has the full text.
+  const style = await first.locator('.fc-event-title').evaluate((el) => {
+    const css = getComputedStyle(el)
+    return { overflow: css.textOverflow, clipped: el.scrollWidth > el.clientWidth }
+  })
+  expect(style).toEqual({ overflow: 'ellipsis', clipped: true })
+  await expect(first.locator('.fc-event-time')).toHaveText(/9:00/)
+  await expect(first).toHaveAttribute('title', new RegExp(`9:00.*${title}`))
+
+  // The link to the rest reads as a link.
+  const more = day.locator('.fc-daygrid-more-link')
+  await expect(more).toBeVisible()
+  const link = await more.evaluate((el) => {
+    const css = getComputedStyle(el)
+    return { size: parseFloat(css.fontSize), weight: Number(css.fontWeight), underline: css.textDecorationLine }
+  })
+  expect(link.size).toBeGreaterThanOrEqual(12)
+  expect(link.weight).toBeGreaterThanOrEqual(600)
+
+  await calendarAction(page, mine, 'calendar-delete')
+  await page.getByTestId('dialog-confirm').click()
+  await expect(mine).toHaveCount(0)
+})
+
 test('an all-day event is made by clicking a day', async ({ page }) => {
   await openCalendar(page)
   await page.locator(`.fc-daygrid-day[data-date="${today()}"]`).click()
