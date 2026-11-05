@@ -38,7 +38,7 @@ func (r *Registry) SetShares(s ShareCleaner) { r.shares = s }
 
 // Purge deletes a disabled principal with its collections, app passwords and
 // owner directory. With dryRun it only counts them. It returns ErrNotDisabled
-// for a principal that is still enabled and ErrNotFound for a sub that has
+// for a principal that is still enabled and ErrNotFound for a owner that has
 // neither a principal file nor an owner directory.
 //
 // The collections go first, through the store, then the principal's files
@@ -46,16 +46,16 @@ func (r *Registry) SetShares(s ShareCleaner) { r.shares = s }
 // stays in the index, disabled, until its files are gone, so nothing can
 // sign in as it while its data is being removed. A purge that fails half
 // way can be run again: it finishes what is left.
-func (r *Registry) Purge(ctx context.Context, sub string, dryRun bool) (PurgeReport, error) {
+func (r *Registry) Purge(ctx context.Context, owner string, dryRun bool) (PurgeReport, error) {
 	if err := ctx.Err(); err != nil {
 		return PurgeReport{}, err
 	}
-	dir := r.ownerDir(sub)
+	dir := r.ownerDir(owner)
 	if dir == "" {
 		return PurgeReport{}, ErrNotFound
 	}
 	r.mu.RLock()
-	rec, ok := r.principals[sub]
+	rec, ok := r.principals[owner]
 	r.mu.RUnlock()
 	switch {
 	case ok && !rec.Disabled:
@@ -71,7 +71,7 @@ func (r *Registry) Purge(ctx context.Context, sub string, dryRun bool) (PurgeRep
 		cols   []store.Collection
 	)
 	for _, kind := range []store.Kind{store.KindCalendar, store.KindAddressBook} {
-		list, err := r.st.ListCollections(ctx, sub, kind)
+		list, err := r.st.ListCollections(ctx, owner, kind)
 		if err != nil {
 			return PurgeReport{}, fmt.Errorf("principals: purge: list %ss: %w", kind, err)
 		}
@@ -82,13 +82,13 @@ func (r *Registry) Purge(ctx context.Context, sub string, dryRun bool) (PurgeRep
 			report.AddressBooks = len(list)
 		}
 	}
-	apps, err := r.appPasswordRecords(sub)
+	apps, err := r.appPasswordRecords(owner)
 	if err != nil {
 		return PurgeReport{}, fmt.Errorf("principals: purge: %w", err)
 	}
 	report.AppPasswords = len(apps)
 	if r.shares != nil {
-		report.Shares = r.shares.Count(sub)
+		report.Shares = r.shares.Count(owner)
 	}
 	if dryRun {
 		return report, nil
@@ -104,12 +104,12 @@ func (r *Registry) Purge(ctx context.Context, sub string, dryRun bool) (PurgeRep
 	// The shares go with the collections, before the principal does: a purge
 	// that fails here can be run again.
 	if r.shares != nil {
-		if _, err := r.shares.RemoveOwner(ctx, sub); err != nil {
+		if _, err := r.shares.RemoveOwner(ctx, owner); err != nil {
 			return PurgeReport{}, fmt.Errorf("principals: purge: remove shares: %w", err)
 		}
 	}
 
-	if err := r.forget(sub, dir); err != nil {
+	if err := r.forget(owner, dir); err != nil {
 		return PurgeReport{}, err
 	}
 	if r.beforeOwnerDirRemoved != nil {
@@ -134,7 +134,7 @@ func isDir(path string) bool {
 // forget removes the principal's files in dir and drops it from the index,
 // the app password sets and the credential cache. A file that is already
 // gone is fine.
-func (r *Registry) forget(sub, dir string) error {
+func (r *Registry) forget(owner, dir string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, name := range []string{appPasswordsFileName, principalFileName} {
@@ -142,15 +142,18 @@ func (r *Registry) forget(sub, dir string) error {
 			return fmt.Errorf("principals: purge: remove %s: %w", name, err)
 		}
 	}
-	if rec, ok := r.principals[sub]; ok {
-		if rec.Username != "" && r.byUsername[rec.Username] == sub {
+	if rec, ok := r.principals[owner]; ok {
+		if rec.Username != "" && r.byUsername[rec.Username] == owner {
 			delete(r.byUsername, rec.Username)
 		}
-		delete(r.principals, sub)
+		if rec.Sub != "" && r.bySub[rec.Sub] == owner {
+			delete(r.bySub, rec.Sub)
+		}
+		delete(r.principals, owner)
 	}
 	r.appsMu.Lock()
-	delete(r.apps, sub)
+	delete(r.apps, owner)
 	r.appsMu.Unlock()
-	r.cache.invalidate(sub)
+	r.cache.invalidate(owner)
 	return nil
 }

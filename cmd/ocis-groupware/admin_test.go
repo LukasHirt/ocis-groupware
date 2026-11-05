@@ -46,6 +46,13 @@ type service struct {
 // admin API.
 func startService(t *testing.T) *service {
 	t.Helper()
+	return startServiceWith(t, nil)
+}
+
+// startServiceWith is startService with a hook that runs on the data
+// directory before the registry reads it.
+func startServiceWith(t *testing.T, prepare func(dir string, st *filestore.Store)) *service {
+	t.Helper()
 	dir := shortDir(t)
 	t.Setenv("GROUPWARE_DATA_DIR", dir)
 	t.Setenv("GROUPWARE_ADMIN_SOCKET", "")
@@ -56,6 +63,9 @@ func startService(t *testing.T) *service {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
+	if prepare != nil {
+		prepare(dir, st)
+	}
 
 	clock := time.Date(2026, 10, 30, 9, 12, 44, 0, time.UTC)
 	reg, err := principals.NewRegistry(dir, st, st.OwnerDir, discardLogger(),
@@ -495,6 +505,8 @@ func TestAdminUsage(t *testing.T) {
 		"unknown flag":        {"admin", "principals", "list", "--yaml"},
 		"missing name":        {"admin", "principals", "disable"},
 		"name and sub":        {"admin", "principals", "enable", "alice", "--sub", "sub-1"},
+		"sub and owner":       {"admin", "principals", "enable", "--sub", "sub-1", "--owner", "sub-1"},
+		"empty owner":         {"admin", "principals", "disable", "--owner", ""},
 		"two names":           {"admin", "principals", "purge", "alice", "bob"},
 		"list with a name":    {"admin", "principals", "list", "alice"},
 		"unknown global flag": {"admin", "--verbose", "principals", "list"},
@@ -513,5 +525,57 @@ func TestAdminUsage(t *testing.T) {
 				t.Errorf("stderr = %q, want usage", stderr)
 			}
 		})
+	}
+}
+
+// importedUser writes the principal file of a user who has an owner and no
+// sub, as an import leaves it.
+func importedUser(t *testing.T, st *filestore.Store) {
+	t.Helper()
+	dir := st.OwnerDir("migrated-1")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	file := `{"owner":"migrated-1","username":"dave","display_name":"Dave Doe","created_at":"2026-10-30T09:00:00Z","defaults_created":true}`
+	if err := os.WriteFile(filepath.Join(dir, "principal.json"), []byte(file), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestUserWithoutSubIsListedAndAddressedByOwner(t *testing.T) {
+	startServiceWith(t, func(_ string, st *filestore.Store) { importedUser(t, st) })
+
+	code, stdout, stderr := runMain(t, "admin", "principals", "list")
+	if code != 0 || stderr != "" {
+		t.Fatalf("list: code %d, stderr %q", code, stderr)
+	}
+	if !strings.Contains(stdout, "OWNER") || !strings.Contains(stdout, "dave") || !strings.Contains(stdout, "migrated-1") {
+		t.Fatalf("list output:\n%s", stdout)
+	}
+
+	code, stdout, stderr = runMain(t, "admin", "principals", "disable", "dave")
+	if code != 0 || stdout != "disabled dave (owner migrated-1)\n" {
+		t.Fatalf("disable: code %d, stdout %q, stderr %q", code, stdout, stderr)
+	}
+	code, stdout, stderr = runMain(t, "admin", "principals", "enable", "--owner", "migrated-1")
+	if code != 0 || stdout != "enabled dave (owner migrated-1)\n" {
+		t.Fatalf("enable: code %d, stdout %q, stderr %q", code, stdout, stderr)
+	}
+	code, _, stderr = runMain(t, "admin", "principals", "purge", "--owner", "migrated-1", "--yes")
+	if code == 0 || !strings.Contains(stderr, `run "admin principals disable --owner migrated-1" first`) {
+		t.Fatalf("purge of an enabled user: code %d, stderr %q", code, stderr)
+	}
+	runMain(t, "admin", "principals", "disable", "--owner", "migrated-1")
+	code, stdout, stderr = runMain(t, "admin", "principals", "purge", "--owner", "migrated-1", "--yes")
+	if code != 0 || stdout != "purged dave (owner migrated-1)\n" {
+		t.Fatalf("purge: code %d, stdout %q, stderr %q", code, stdout, stderr)
+	}
+}
+
+func TestUnknownOwner(t *testing.T) {
+	startService(t)
+	code, _, stderr := runMain(t, "admin", "principals", "disable", "--owner", "nobody")
+	if code != 1 || !strings.Contains(stderr, `no user with owner "nobody"`) {
+		t.Fatalf("code %d, stderr %q", code, stderr)
 	}
 }

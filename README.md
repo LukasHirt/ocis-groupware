@@ -302,6 +302,12 @@ sub; `--json` prints the admin API's answer as it is. A user whose username was 
 over by a newer account shows `-` as username, and `--sub <sub>` reaches it where a
 username is needed.
 
+Every user also has an owner, the name the user's data is kept under. For someone who
+signed in on their own it is the sub, and `list` leaves it out. A user can exist without a
+sub, for example when their data was imported before their first sign-in. Then the owner
+differs from the sub, `list` adds an OWNER column, and `--owner <owner>` reaches the user
+wherever a username is needed.
+
 `disable` refuses every sign-in of the user, with app passwords and with bearer tokens
 alike, and takes effect at once. Nothing is deleted, and `enable` lets the user back in
 with every device still paired. Both are safe to repeat.
@@ -317,11 +323,11 @@ add --yes to delete this data; it cannot be undone
 A user that is not disabled is refused, so the account cannot collect new data while
 you decide. Purging does not keep the user out: if the account still exists in oCIS and
 signs in again, it gets a fresh, empty profile with default collections. To keep someone
-out, use `disable`. `purge --sub <sub> --yes` also removes a user directory that lost its
-`principal.json`, say after an interrupted purge; such a directory does not appear in
-`list`.
+out, use `disable`. `purge --owner <owner> --yes` also removes a user directory that lost
+its `principal.json`, say after an interrupted purge; such a directory does not appear in
+`list`. For a directory named after a sub, `--sub <sub>` does the same.
 
-Every change is logged by the service at Info with the sub and username.
+Every change is logged by the service at Info with the owner and username.
 
 ## Docker
 

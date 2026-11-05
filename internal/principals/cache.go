@@ -18,7 +18,7 @@ type cacheKey [sha256.Size]byte
 // cacheEntry is a credential that was verified recently. It names the
 // principal and the app password, never the credential itself.
 type cacheEntry struct {
-	sub string
+	sub string // the owner
 	id  string
 	// gen is the principal's generation when the verification started.
 	gen uint64

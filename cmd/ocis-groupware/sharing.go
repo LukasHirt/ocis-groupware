@@ -20,14 +20,14 @@ func openSharing(st *filestore.Store, reg *principals.Registry, logger *slog.Log
 		OwnerDir: st.OwnerDir,
 		Owners: func() []string {
 			all := reg.ListPrincipals(context.Background())
-			subs := make([]string, 0, len(all))
+			owners := make([]string, 0, len(all))
 			for _, p := range all {
-				subs = append(subs, p.Sub)
+				owners = append(owners, p.Owner)
 			}
-			return subs
+			return owners
 		},
-		OCISID: func(sub string) string {
-			id, err := reg.Identity(sub)
+		OCISID: func(owner string) string {
+			id, err := reg.Identity(owner)
 			if err != nil {
 				return ""
 			}
@@ -48,8 +48,8 @@ func openSharing(st *filestore.Store, reg *principals.Registry, logger *slog.Log
 	view, err := sharing.NewView(sharing.ViewConfig{
 		Inner:  st,
 		Shares: shares,
-		Identity: func(sub string) (string, []string) {
-			id, err := reg.Identity(sub)
+		Identity: func(owner string) (string, []string) {
+			id, err := reg.Identity(owner)
 			if err != nil {
 				return "", nil
 			}
@@ -59,8 +59,8 @@ func openSharing(st *filestore.Store, reg *principals.Registry, logger *slog.Log
 			}
 			return id.OCISID, groups
 		},
-		OwnerName: func(sub string) string {
-			p, err := reg.Get(sub)
+		OwnerName: func(owner string) string {
+			p, err := reg.Get(owner)
 			if err != nil {
 				return ""
 			}

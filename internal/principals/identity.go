@@ -28,10 +28,10 @@ type Identity struct {
 
 // Identity returns the identity snapshot of the principal, or ErrNotFound.
 // The result is a copy.
-func (r *Registry) Identity(sub string) (Identity, error) {
+func (r *Registry) Identity(owner string) (Identity, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	rec, ok := r.principals[sub]
+	rec, ok := r.principals[owner]
 	if !ok {
 		return Identity{}, ErrNotFound
 	}
@@ -41,15 +41,15 @@ func (r *Registry) Identity(sub string) (Identity, error) {
 // SetIdentity replaces the identity snapshot of the principal and writes it.
 // Nothing else in the principal file changes, in particular not updated_at, so
 // a snapshot cannot move a username between principals. It returns
-// ErrNotFound for an unknown sub and ErrDisabled, with nothing written, for a
+// ErrNotFound for an unknown owner and ErrDisabled, with nothing written, for a
 // disabled principal.
-func (r *Registry) SetIdentity(ctx context.Context, sub string, id Identity) error {
+func (r *Registry) SetIdentity(ctx context.Context, owner string, id Identity) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	rec, ok := r.principals[sub]
+	rec, ok := r.principals[owner]
 	if !ok {
 		return ErrNotFound
 	}
@@ -62,6 +62,6 @@ func (r *Registry) SetIdentity(ctx context.Context, sub string, id Identity) err
 	if err := r.writeRecord(rec); err != nil {
 		return err
 	}
-	r.principals[sub] = rec
+	r.principals[owner] = rec
 	return nil
 }

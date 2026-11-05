@@ -3,8 +3,11 @@ package davmount
 import (
 	"context"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/LukasHirt/groupkit/store"
 
@@ -24,13 +27,39 @@ type shareFixture struct {
 
 func newShareFixture(t *testing.T) *shareFixture {
 	t.Helper()
+	return newShareFixtureFor(t, "sub-alice")
+}
+
+// newShareFixtureFor is newShareFixture with alice's data kept under
+// aliceOwner. When that is not her sub, alice is a principal that was bound
+// to her sub after it was created, as an imported user is.
+func newShareFixtureFor(t *testing.T, aliceOwner string) *shareFixture {
+	t.Helper()
 	f := newFixture(t)
 	sf := &shareFixture{fixture: f}
-	sf.alice = basic("alice", f.user(t, "sub-alice", "alice"))
-	sf.bob = basic("bob", f.user(t, "sub-bob", "bob"))
 	ctx := context.Background()
-	for sub, id := range map[string]string{"sub-alice": "u-alice", "sub-bob": "u-bob"} {
-		if err := f.reg.SetIdentity(ctx, sub, principals.Identity{OCISID: id}); err != nil {
+	if aliceOwner != "sub-alice" {
+		dir := f.st.OwnerDir(aliceOwner)
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		file := `{"owner":"` + aliceOwner + `","sub":"sub-alice","username":"alice","display_name":"alice","created_at":"2026-11-01T09:00:00Z"}`
+		if err := os.WriteFile(filepath.Join(dir, "principal.json"), []byte(file), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		f.reg = f.newRegistry(t)
+	}
+	if _, _, err := f.reg.Provision(ctx, "sub-alice", "alice", "alice"); err != nil {
+		t.Fatal(err)
+	}
+	_, secret, err := f.reg.IssueAppPassword(ctx, aliceOwner, "Phone", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sf.alice = basic("alice", secret)
+	sf.bob = basic("bob", f.user(t, "sub-bob", "bob"))
+	for owner, id := range map[string]string{aliceOwner: "u-alice", "sub-bob": "u-bob"} {
+		if err := f.reg.SetIdentity(ctx, owner, principals.Identity{OCISID: id}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -38,11 +67,11 @@ func newShareFixture(t *testing.T) *shareFixture {
 	shares, err := sharing.Open(sharing.Config{
 		OwnerDir: f.st.OwnerDir,
 		Owners: func() []string {
-			var subs []string
+			var owners []string
 			for _, p := range f.reg.ListPrincipals(ctx) {
-				subs = append(subs, p.Sub)
+				owners = append(owners, p.Owner)
 			}
-			return subs
+			return owners
 		},
 	})
 	if err != nil {
@@ -51,15 +80,15 @@ func newShareFixture(t *testing.T) *shareFixture {
 	view, err := sharing.NewView(sharing.ViewConfig{
 		Inner:  f.st,
 		Shares: shares,
-		Identity: func(sub string) (string, []string) {
-			id, _ := f.reg.Identity(sub)
+		Identity: func(owner string) (string, []string) {
+			id, _ := f.reg.Identity(owner)
 			ids := make([]string, 0, len(id.Groups))
 			for _, g := range id.Groups {
 				ids = append(ids, g.ID)
 			}
 			return id.OCISID, ids
 		},
-		OwnerName: func(sub string) string { p, _ := f.reg.Get(sub); return p.DisplayName },
+		OwnerName: func(owner string) string { p, _ := f.reg.Get(owner); return p.DisplayName },
 		OwnerDir:  f.st.OwnerDir,
 		Logger:    f.logger,
 	})
@@ -72,7 +101,7 @@ func newShareFixture(t *testing.T) *shareFixture {
 	}
 	f.dav, f.wk = dav, wk
 	sf.shares = shares
-	sf.cal, err = f.st.GetCollection(ctx, store.CollectionRef{Owner: "sub-alice", Kind: store.KindCalendar, Name: "personal"})
+	sf.cal, err = f.st.GetCollection(ctx, store.CollectionRef{Owner: aliceOwner, Kind: store.KindCalendar, Name: "personal"})
 	if err != nil {
 		t.Fatalf("alice's default calendar: %v", err)
 	}
@@ -207,5 +236,26 @@ func TestRevokedShareDisappears(t *testing.T) {
 	rec = sf.do(t, http.MethodPut, sf.sharedPath()+"x.ics", event, "Authorization", sf.bob, "Content-Type", "text/calendar")
 	if rec.Code != http.StatusNotFound && rec.Code != http.StatusConflict {
 		t.Fatalf("PUT after revoke: status = %d", rec.Code)
+	}
+}
+
+// A principal whose data is kept under another owner than its sub shares and
+// receives over DAV like any other.
+func TestShareFromAPrincipalWhoseOwnerIsNotItsSub(t *testing.T) {
+	sf := newShareFixtureFor(t, "migrated-alice")
+	sf.share(t, sharing.ReadWrite)
+
+	rec := sf.do(t, "PROPFIND", "/dav/calendars/alice/", propfindName, "Authorization", sf.alice, "Depth", "1")
+	if rec.Code != http.StatusMultiStatus || !strings.Contains(rec.Body.String(), "/dav/calendars/alice/personal/") {
+		t.Fatalf("alice's own home: status %d\n%s", rec.Code, rec.Body.String())
+	}
+	rec = sf.do(t, "PROPFIND", "/dav/calendars/bob/", propfindName, "Authorization", sf.bob, "Depth", "1")
+	body := rec.Body.String()
+	if rec.Code != http.StatusMultiStatus || !strings.Contains(body, sf.sharedPath()) || !strings.Contains(body, "Personal (alice)") {
+		t.Fatalf("bob's home: status %d\n%s", rec.Code, body)
+	}
+	// Nothing was created under the sub.
+	if cols, _ := sf.st.ListCollections(context.Background(), "sub-alice", store.KindCalendar); len(cols) != 0 {
+		t.Fatalf("collections under the sub: %v", cols)
 	}
 }
