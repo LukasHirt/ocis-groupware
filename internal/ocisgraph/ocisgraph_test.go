@@ -284,3 +284,47 @@ func b64(der []byte) string {
 	b.WriteString(s + "\n")
 	return b.String()
 }
+
+func TestLookupUserAndGroup(t *testing.T) {
+	var gotAuth, gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth, gotPath = r.Header.Get("Authorization"), r.URL.EscapedPath()
+		switch {
+		case strings.HasSuffix(gotPath, "/gone"):
+			http.NotFound(w, r)
+		case strings.HasSuffix(gotPath, "/forbidden"):
+			w.WriteHeader(http.StatusForbidden)
+		default:
+			_, _ = w.Write([]byte(`{"id":"x-1","displayName":"Marie Curie","onPremisesSamAccountName":""}`))
+		}
+	}))
+	defer srv.Close()
+	c := newClient(t, srv.URL)
+	ctx := context.Background()
+
+	e, err := c.User(ctx, "tok", "x-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e != (Entity{ID: "x-1", DisplayName: "Marie Curie"}) || gotAuth != "Bearer tok" || gotPath != "/graph/v1.0/users/x-1" {
+		t.Errorf("user = %+v, auth %q, path %q", e, gotAuth, gotPath)
+	}
+	if e, err = c.Group(ctx, "tok", "g 1"); err != nil || e.ID != "x-1" || gotPath != "/graph/v1.0/groups/g%201" {
+		t.Errorf("group = %+v, %v, path %q", e, err, gotPath)
+	}
+	if _, err := c.User(ctx, "tok", "gone"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("404 gave %v, want ErrNotFound", err)
+	}
+	if _, err := c.Group(ctx, "tok", "forbidden"); !errors.Is(err, ErrUnauthorized) {
+		t.Errorf("403 gave %v, want ErrUnauthorized", err)
+	}
+	for _, id := range []string{"", ".", "..", "a/b"} {
+		gotPath = ""
+		if _, err := c.User(ctx, "tok", id); !errors.Is(err, ErrNotFound) {
+			t.Errorf("id %q gave %v, want ErrNotFound", id, err)
+		}
+		if gotPath != "" {
+			t.Errorf("id %q was sent to the server as %q", id, gotPath)
+		}
+	}
+}

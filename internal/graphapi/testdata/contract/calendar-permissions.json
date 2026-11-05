@@ -1,0 +1,39 @@
+{
+  "value": [
+    {
+      "id": "dXNlcjp1LW1hcmll",
+      "emailAddress": {
+        "name": "Marie Curie"
+      },
+      "isInsideOrganization": true,
+      "isRemovable": true,
+      "role": "read",
+      "allowedRoles": [
+        "read",
+        "write"
+      ],
+      "grantee": {
+        "type": "user",
+        "id": "u-marie"
+      }
+    },
+    {
+      "id": "Z3JvdXA6Zy1waHlzaWNz",
+      "emailAddress": {
+        "name": "physics-lovers"
+      },
+      "isInsideOrganization": true,
+      "isRemovable": true,
+      "role": "write",
+      "allowedRoles": [
+        "read",
+        "write"
+      ],
+      "grantee": {
+        "type": "group",
+        "id": "g-physics"
+      }
+    }
+  ]
+}
+

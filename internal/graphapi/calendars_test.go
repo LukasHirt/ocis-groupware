@@ -18,6 +18,34 @@ import (
 	"github.com/owncloud/ocis-groupware/internal/principals"
 )
 
+// compareContract checks body against the fixture of the given name, or
+// rewrites the fixture when run with -update.
+func compareContract(t *testing.T, name string, body []byte) {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, body, "", "  "); err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+	buf.WriteByte('\n')
+	path := filepath.Join("testdata", "contract", name+".json")
+	if *update {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(want, buf.Bytes()) {
+		t.Errorf("%s differs from %s; run with -update if the change is intended.\ngot:\n%s\nwant:\n%s", name, path, buf.Bytes(), want)
+	}
+}
+
 var update = flag.Bool("update", false, "rewrite the contract fixtures")
 
 type calendarBody struct {
@@ -346,28 +374,7 @@ func TestContractFixtures(t *testing.T) {
 		if rec.Code != status {
 			t.Fatalf("%s: %d %s", name, rec.Code, rec.Body.String())
 		}
-		var buf bytes.Buffer
-		if err := json.Indent(&buf, rec.Body.Bytes(), "", "  "); err != nil {
-			t.Fatalf("%s: %v", name, err)
-		}
-		buf.WriteByte('\n')
-		path := filepath.Join("testdata", "contract", name+".json")
-		if *update {
-			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
-				t.Fatal(err)
-			}
-			return
-		}
-		want, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Equal(want, buf.Bytes()) {
-			t.Errorf("%s differs from %s; run with -update if the change is intended.\ngot:\n%s\nwant:\n%s", name, path, buf.Bytes(), want)
-		}
+		compareContract(t, name, rec.Body.Bytes())
 	}
 	check("calendars", http.MethodGet, "/graph/v1.0/me/calendars", "", 200)
 	check("calendar", http.MethodGet, "/graph/v1.0/me/calendar", "", 200)
