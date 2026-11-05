@@ -1,0 +1,18 @@
+{
+  "id": "dXNlcjp1LW1hcmll",
+  "emailAddress": {
+    "name": "Marie Curie"
+  },
+  "isInsideOrganization": true,
+  "isRemovable": true,
+  "role": "read",
+  "allowedRoles": [
+    "read",
+    "write"
+  ],
+  "grantee": {
+    "type": "user",
+    "id": "u-marie"
+  }
+}
+

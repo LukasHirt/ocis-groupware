@@ -112,6 +112,9 @@ func New(cfg Config, opts ...Option) (*Handler, error) {
 	a.contactFolders = cfg.ContactFolders
 	if a.contactFolders == nil {
 		a.contactFolders = ownContactFolders{st: cfg.Store}
+		if cfg.Shares != nil {
+			a.contactFolders = sharedContactFolders{sharedCollections{st: cfg.Store, shares: cfg.Shares, reg: cfg.Registry}}
+		}
 	}
 	a.routes = []route{
 		{http.MethodGet, strings.Split("me/calendar", "/"), a.getDefaultCalendar},
@@ -147,6 +150,7 @@ func New(cfg Config, opts ...Option) (*Handler, error) {
 	}
 	if cfg.Shares != nil {
 		a.routes = append(a.routes, a.calendarPermissionRoutes()...)
+		a.routes = append(a.routes, a.contactFolderPermissionRoutes()...)
 	}
 	return a, nil
 }
