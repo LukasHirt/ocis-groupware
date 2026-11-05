@@ -1,0 +1,8 @@
+BEGIN:VCARD
+VERSION:4.0
+UID:group-1
+KIND:group
+FN:Physicists
+MEMBER:urn:uuid:apple-1
+MEMBER:urn:uuid:tb-1
+END:VCARD

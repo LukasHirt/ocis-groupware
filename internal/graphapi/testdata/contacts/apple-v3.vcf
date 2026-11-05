@@ -1,0 +1,38 @@
+BEGIN:VCARD
+VERSION:3.0
+PRODID:-//Apple Inc.//iOS 17.5//EN
+N:Curie;Marie;Salomea;Dr.;
+FN:Dr. Marie Salomea Curie
+NICKNAME:Manya
+ORG:Sorbonne;Physics;
+TITLE:Professor
+item1.EMAIL;type=INTERNET;type=pref:marie@example.org
+item1.X-ABLabel:_$!<Work>!$_
+item2.EMAIL;type=INTERNET:m.curie@home.example
+item2.X-ABLabel:Private
+TEL;type=CELL;type=VOICE;type=pref:+33 1 55 55 01 01
+TEL;type=HOME;type=VOICE:+33 1 55 55 02 02
+item3.TEL:+33 1 55 55 03 03
+item3.X-ABLabel:Lab
+TEL;type=FAX:+33 1 55 55 04 04
+item4.ADR;type=WORK;type=pref:;;12 Rue Pierre et Marie Curie;Paris;;75005;France
+item4.X-ABLabel:_$!<Work>!$_
+ADR;type=HOME:;;1 Rue du Four;Sceaux;IDF;92330;France
+item5.URL;type=pref:https://curie.example
+item5.X-ABLabel:_$!<HomePage>!$_
+BDAY;X-APPLE-OMIT-YEAR=1604:1604-11-07
+NOTE:Two Nobel prizes\nRadium\, polonium
+item6.X-ABRELATEDNAMES;type=pref:Pierre Curie
+item6.X-ABLabel:_$!<Spouse>!$_
+item7.X-ABRELATEDNAMES:Irene
+item7.X-ABLabel:_$!<Child>!$_
+item8.X-ABRELATEDNAMES:Bronia Dluska
+item8.X-ABLabel:_$!<Assistant>!$_
+X-SOCIALPROFILE;type=twitter;x-user=mariecurie:https://twitter.com/mariecurie
+IMPP;X-SERVICE-TYPE=Skype;type=HOME;type=pref:skype:marie.curie
+X-PHONETIC-FIRST-NAME:Mari
+X-PHONETIC-LAST-NAME:Kyuri
+CATEGORIES:Physicists,Nobel\, laureates
+UID:apple-1
+REV:2026-01-02T03:04:05Z
+END:VCARD

@@ -1,0 +1,24 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:Albert Einstein
+N:Einstein;Albert;;;
+EMAIL;TYPE=OTHER:albert@example.org
+EMAIL:a.einstein@patent.example
+TEL;TYPE=WORK,VOICE:+41 31 000 00 01
+TEL;TYPE=HOME:+41 31 000 00 02
+TEL;TYPE=CELL:+41 79 000 00 03
+TEL;TYPE=CELL:+41 79 000 00 04
+TEL;TYPE=PAGER:+41 31 000 00 05
+ADR;TYPE=WORK:;;Kramgasse 49;Bern;BE;3011;Switzerland
+ADR:;;Mercer Street 112;Princeton;NJ;08540;USA
+ORG:Patent Office;Examination
+TITLE:Technical Expert\, Class III
+ROLE:Physicist
+URL:https://einstein.example
+URL:https://relativity.example
+BDAY:1879-03-14
+NOTE:Line one\nLine two; with semicolon
+CATEGORIES:Friends
+X-CUSTOM-THING:kept
+UID:tb-1
+END:VCARD
