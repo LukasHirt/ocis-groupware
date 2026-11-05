@@ -405,6 +405,50 @@ func (s *Shares) RemoveOwner(ctx context.Context, owner string) (int, error) {
 	return n, nil
 }
 
+// Prune drops the shares of collections that no longer exist in st, or that
+// exist under the same name with another id, and returns how many it
+// dropped. A collection can disappear without its shares knowing, for
+// example when the service stops between deleting the collection and the
+// shares. It stops at the first store error other than "not found" and
+// keeps every share it has not checked.
+func (s *Shares) Prune(ctx context.Context, st store.Store) (int, error) {
+	type entry struct {
+		ref store.CollectionRef
+		id  string
+	}
+	s.mu.RLock()
+	var all []entry
+	for owner, shares := range s.byOwner {
+		for k, sh := range shares.Collections {
+			if kind, name, ok := splitRef(k); ok {
+				all = append(all, entry{store.CollectionRef{Owner: owner, Kind: kind, Name: name}, sh.ID})
+			}
+		}
+	}
+	s.mu.RUnlock()
+
+	var stale []entry
+	for _, e := range all {
+		c, err := st.GetCollection(ctx, e.ref)
+		switch {
+		case err == nil && c.ID == e.id:
+		case err == nil || errors.Is(err, store.ErrNotFound):
+			stale = append(stale, e)
+		default:
+			return 0, fmt.Errorf("sharing: check %s %q of %q: %w", e.ref.Kind, e.ref.Name, e.ref.Owner, err)
+		}
+	}
+	n := 0
+	for _, e := range stale {
+		if err := s.RemoveCollection(ctx, e.ref); err != nil {
+			return n, err
+		}
+		s.logger.Info("dropped the shares of a collection that is gone", "owner", e.ref.Owner, "kind", e.ref.Kind, "name", e.ref.Name)
+		n++
+	}
+	return n, nil
+}
+
 func (st *ownerShares) entry(ref store.CollectionRef, collectionID string) *shared {
 	if st.Collections == nil {
 		st.Collections = map[string]*shared{}

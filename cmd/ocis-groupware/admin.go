@@ -212,15 +212,17 @@ func (cmd adminCommand) purge(c *adminClient, stdout io.Writer) error {
 		Calendars    int `json:"calendars"`
 		AddressBooks int `json:"addressbooks"`
 		AppPasswords int `json:"app_passwords"`
+		Shares       int `json:"shares"`
 	}
 	if err := json.Unmarshal(raw, &report); err != nil {
 		return fmt.Errorf("reading the service's answer: %w", err)
 	}
-	_, err = fmt.Fprintf(stdout, "would purge %s: %s, %s, %s\nadd --yes to delete this data; it cannot be undone\n",
+	_, err = fmt.Fprintf(stdout, "would purge %s: %s, %s, %s, %s\nadd --yes to delete this data; it cannot be undone\n",
 		label(p),
 		plural(report.Calendars, "calendar", "calendars"),
 		plural(report.AddressBooks, "address book", "address books"),
-		plural(report.AppPasswords, "app password", "app passwords"))
+		plural(report.AppPasswords, "app password", "app passwords"),
+		plural(report.Shares, "share", "shares"))
 	if err != nil {
 		return err
 	}

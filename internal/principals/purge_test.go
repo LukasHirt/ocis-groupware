@@ -480,3 +480,80 @@ func TestPurgeUnknownSub(t *testing.T) {
 		t.Fatalf("owner directory created for an unknown sub: %v", err)
 	}
 }
+
+// fakeShares is a ShareCleaner that records what it was asked to remove.
+type fakeShares struct {
+	grants  map[string]int
+	removed []string
+	err     error
+}
+
+func (f *fakeShares) Count(owner string) int { return f.grants[owner] }
+
+func (f *fakeShares) RemoveOwner(_ context.Context, owner string) (int, error) {
+	if f.err != nil {
+		return 0, f.err
+	}
+	f.removed = append(f.removed, owner)
+	n := f.grants[owner]
+	delete(f.grants, owner)
+	return n, nil
+}
+
+func TestPurgeCountsAndRemovesShares(t *testing.T) {
+	f := newFileFixture(t)
+	shares := &fakeShares{grants: map[string]int{"sub-1": 3, "sub-2": 5}}
+	f.r.SetShares(shares)
+	if _, err := f.r.SetDisabled(context.Background(), "sub-1", true); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := f.r.Purge(context.Background(), "sub-1", true)
+	if err != nil || report.Shares != 3 {
+		t.Fatalf("dry run = %+v, %v; want 3 shares", report, err)
+	}
+	if len(shares.removed) != 0 {
+		t.Fatalf("dry run removed shares of %v", shares.removed)
+	}
+
+	report, err = f.r.Purge(context.Background(), "sub-1", false)
+	if err != nil || report.Shares != 3 {
+		t.Fatalf("purge = %+v, %v; want 3 shares", report, err)
+	}
+	if !slices.Equal(shares.removed, []string{"sub-1"}) || shares.grants["sub-2"] != 5 {
+		t.Fatalf("removed %v, grants %v; want only sub-1's shares gone", shares.removed, shares.grants)
+	}
+	assertNoOwnerDir(t, f, "sub-1")
+}
+
+func TestPurgeFailsWhenSharesCannotBeRemoved(t *testing.T) {
+	f := newFileFixture(t)
+	shares := &fakeShares{grants: map[string]int{"sub-1": 1}, err: errors.New("disk full")}
+	f.r.SetShares(shares)
+	if _, err := f.r.SetDisabled(context.Background(), "sub-1", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.r.Purge(context.Background(), "sub-1", false); err == nil {
+		t.Fatal("purge succeeded although the shares stayed")
+	}
+	// The principal is still there, disabled, so the purge can be run again.
+	if p, err := f.r.Get("sub-1"); err != nil || !p.Disabled {
+		t.Fatalf("principal after a failed purge = %+v, %v", p, err)
+	}
+	shares.err = nil
+	if _, err := f.r.Purge(context.Background(), "sub-1", false); err != nil {
+		t.Fatalf("second purge: %v", err)
+	}
+	assertNoOwnerDir(t, f, "sub-1")
+}
+
+func TestPurgeWithoutShareCleanerReportsNoShares(t *testing.T) {
+	f := newFileFixture(t)
+	if _, err := f.r.SetDisabled(context.Background(), "sub-1", true); err != nil {
+		t.Fatal(err)
+	}
+	report, err := f.r.Purge(context.Background(), "sub-1", false)
+	if err != nil || report.Shares != 0 {
+		t.Fatalf("purge = %+v, %v", report, err)
+	}
+}

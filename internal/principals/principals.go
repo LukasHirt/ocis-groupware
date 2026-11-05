@@ -111,6 +111,9 @@ type Registry struct {
 	principals map[string]record // by sub
 	byUsername map[string]string // username to sub
 
+	// shares holds the shares of the principals' collections, see SetShares.
+	shares ShareCleaner
+
 	// App passwords, see apppasswords.go.
 	bcryptCost int
 	compare    func(hash, password []byte) error

@@ -15,9 +15,26 @@ import (
 var ErrNotDisabled = errors.New("principals: principal is not disabled")
 
 // PurgeReport counts what a purge removed, or would remove in a dry run.
+// Shares counts the grants on the principal's collections: one for each user
+// or group a collection was shared with.
 type PurgeReport struct {
-	Calendars, AddressBooks, AppPasswords int
+	Calendars, AddressBooks, AppPasswords, Shares int
 }
+
+// ShareCleaner holds the shares of the collections a principal owns. A
+// purge asks it how many there are and has it drop them.
+type ShareCleaner interface {
+	// Count returns how many grants the owner's collections have.
+	Count(owner string) int
+	// RemoveOwner drops all shares of the owner and returns how many grants
+	// that was.
+	RemoveOwner(ctx context.Context, owner string) (int, error)
+}
+
+// SetShares tells the registry where a principal's shares are, so that
+// Purge removes them too. Call it before the registry is used by more than
+// one goroutine; without it purge knows of no shares.
+func (r *Registry) SetShares(s ShareCleaner) { r.shares = s }
 
 // Purge deletes a disabled principal with its collections, app passwords and
 // owner directory. With dryRun it only counts them. It returns ErrNotDisabled
@@ -70,6 +87,9 @@ func (r *Registry) Purge(ctx context.Context, sub string, dryRun bool) (PurgeRep
 		return PurgeReport{}, fmt.Errorf("principals: purge: %w", err)
 	}
 	report.AppPasswords = len(apps)
+	if r.shares != nil {
+		report.Shares = r.shares.Count(sub)
+	}
 	if dryRun {
 		return report, nil
 	}
@@ -78,6 +98,14 @@ func (r *Registry) Purge(ctx context.Context, sub string, dryRun bool) (PurgeRep
 		err := r.st.DeleteCollection(ctx, col.Ref)
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return PurgeReport{}, fmt.Errorf("principals: purge: delete %s %q: %w", col.Ref.Kind, col.Ref.Name, err)
+		}
+	}
+
+	// The shares go with the collections, before the principal does: a purge
+	// that fails here can be run again.
+	if r.shares != nil {
+		if _, err := r.shares.RemoveOwner(ctx, sub); err != nil {
+			return PurgeReport{}, fmt.Errorf("principals: purge: remove shares: %w", err)
 		}
 	}
 

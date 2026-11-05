@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/LukasHirt/groupkit/store"
+	"github.com/LukasHirt/groupkit/store/memory"
 )
 
 type fixture struct {
@@ -394,4 +395,93 @@ func TestConcurrentGrants(t *testing.T) {
 	if got := f.open(t).Members(cal); len(got) != 20 {
 		t.Fatalf("members after reload = %d", len(got))
 	}
+}
+
+func TestOwnersWithoutAPrincipalAreNotLoaded(t *testing.T) {
+	f := newFixture(t, "alice", "ghost")
+	s := f.open(t)
+	ctx := context.Background()
+	_ = s.Grant(ctx, cal, "c1", user("u-bob", Read))
+	ghost := store.CollectionRef{Owner: "ghost", Kind: store.KindCalendar, Name: "Old"}
+	_ = s.Grant(ctx, ghost, "c2", user("u-bob", Read))
+
+	// The registry no longer lists ghost, say after an interrupted purge.
+	again, err := Open(Config{OwnerDir: f.ownerDir, Owners: func() []string { return []string{"alice"} }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := again.Received("u-bob", nil)
+	if len(got) != 1 || got[0].Owner != "alice" {
+		t.Fatalf("received = %+v, want only alice's", got)
+	}
+}
+
+func TestPruneDropsSharesOfCollectionsThatAreGone(t *testing.T) {
+	f := newFixture(t, "alice")
+	inner := memory.New()
+	ctx := context.Background()
+	keep, err := inner.CreateCollection(ctx, cal, store.Props{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone, err := inner.CreateCollection(ctx, book, store.Props{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := store.CollectionRef{Owner: "alice", Kind: store.KindCalendar, Name: "Replaced"}
+	old, err := inner.CreateCollection(ctx, other, store.Props{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := f.open(t)
+	_ = s.Grant(ctx, keep.Ref, keep.ID, user("u-bob", Read))
+	_ = s.Grant(ctx, gone.Ref, gone.ID, user("u-bob", Read))
+	_ = s.Grant(ctx, old.Ref, old.ID, group("g-x", Read))
+	_ = inner.DeleteCollection(ctx, gone.Ref)
+	_ = inner.DeleteCollection(ctx, old.Ref)
+	if _, err := inner.CreateCollection(ctx, other, store.Props{}); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := s.Prune(ctx, inner)
+	if err != nil || n != 2 {
+		t.Fatalf("Prune = %d, %v; want 2", n, err)
+	}
+	if got := s.Received("u-bob", []string{"g-x"}); len(got) != 1 || got[0].CollectionID != keep.ID {
+		t.Fatalf("received after prune = %+v", got)
+	}
+	// The pruned state is what a restart reads.
+	if got := f.open(t).Received("u-bob", []string{"g-x"}); len(got) != 1 {
+		t.Fatalf("received after reload = %+v", got)
+	}
+	if n, err := s.Prune(ctx, inner); err != nil || n != 0 {
+		t.Fatalf("second Prune = %d, %v", n, err)
+	}
+}
+
+func TestPruneKeepsSharesWhenTheStoreFails(t *testing.T) {
+	f := newFixture(t, "alice")
+	inner := memory.New()
+	ctx := context.Background()
+	c, _ := inner.CreateCollection(ctx, cal, store.Props{})
+	s := f.open(t)
+	_ = s.Grant(ctx, c.Ref, c.ID, user("u-bob", Read))
+
+	boom := errors.New("store unavailable")
+	n, err := s.Prune(ctx, failingGet{inner, boom})
+	if !errors.Is(err, boom) || n != 0 {
+		t.Fatalf("Prune = %d, %v", n, err)
+	}
+	if got := s.Received("u-bob", nil); len(got) != 1 {
+		t.Fatalf("a store fault dropped the share: %+v", got)
+	}
+}
+
+type failingGet struct {
+	store.Store
+	err error
+}
+
+func (f failingGet) GetCollection(context.Context, store.CollectionRef) (store.Collection, error) {
+	return store.Collection{}, f.err
 }

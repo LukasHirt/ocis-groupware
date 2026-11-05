@@ -161,13 +161,14 @@ func (h *handler) purge(w http.ResponseWriter, r *http.Request) {
 	}
 	if !req.DryRun {
 		h.logger.Info("principal purged by admin", "sub", req.Sub, "username", username,
-			"calendars", report.Calendars, "addressbooks", report.AddressBooks, "app_passwords", report.AppPasswords)
+			"calendars", report.Calendars, "addressbooks", report.AddressBooks, "app_passwords", report.AppPasswords, "shares", report.Shares)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"sub":           req.Sub,
 		"calendars":     report.Calendars,
 		"addressbooks":  report.AddressBooks,
 		"app_passwords": report.AppPasswords,
+		"shares":        report.Shares,
 	})
 }
 
