@@ -214,7 +214,7 @@ func newDAVFixture(t *testing.T) *davFixture {
 		t.Fatal(err)
 	}
 	srv := New(":0", testLogger(), auth.Middleware(v, testLogger()), WithDAV(dav, wk),
-		WithAppPasswords(api.AppPasswords(reg, testLogger())))
+		WithAppPasswords(api.AppPasswords(reg, nil, testLogger())))
 	return &davFixture{srv: srv, reg: reg, st: st, verifier: v}
 }
 

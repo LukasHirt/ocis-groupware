@@ -35,6 +35,9 @@ type Config struct {
 	Registry *principals.Registry
 	// Verifier checks bearer tokens.
 	Verifier auth.Verifier
+	// Identities refreshes the oCIS identity snapshot at bearer sign-ins. Nil
+	// signs in without a lookup.
+	Identities *provision.Identities
 	// Logger receives refusals and faults. Nil discards them.
 	Logger *slog.Logger
 }
@@ -67,7 +70,11 @@ func New(cfg Config) (dav, wellKnown http.Handler, err error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	a := &authenticator{reg: cfg.Registry, verifier: cfg.Verifier, logger: logger}
+	ids := cfg.Identities
+	if ids == nil {
+		ids = provision.NewIdentities(cfg.Registry, nil, logger)
+	}
+	a := &authenticator{reg: cfg.Registry, ids: ids, verifier: cfg.Verifier, logger: logger}
 	return a.wrap(srv.Handler()), srv.WellKnown(), nil
 }
 
@@ -110,6 +117,7 @@ func authorize(r *http.Request, urlUser string) (string, error) {
 // DAV server.
 type authenticator struct {
 	reg      *principals.Registry
+	ids      *provision.Identities
 	verifier auth.Verifier
 	logger   *slog.Logger
 }
@@ -186,7 +194,7 @@ func (a *authenticator) bearer(ctx context.Context, token string) (identity, int
 		return identity{}, http.StatusUnauthorized
 	}
 
-	p, status, _ := provision.Principal(ctx, a.reg, claims, a.logger)
+	p, status, _ := a.ids.SignIn(ctx, claims, token, a.logger)
 	if status != 0 {
 		return identity{}, status
 	}

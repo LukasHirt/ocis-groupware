@@ -43,6 +43,15 @@ type Verifier interface {
 
 type claimsKey struct{}
 
+type tokenKey struct{}
+
+// TokenFromContext returns the raw bearer token that Middleware verified. It
+// is for calls made on the caller's behalf; it must never be logged.
+func TokenFromContext(ctx context.Context) (string, bool) {
+	t, ok := ctx.Value(tokenKey{}).(string)
+	return t, ok
+}
+
 // ClaimsFromContext returns the claims that Middleware attached to ctx.
 func ClaimsFromContext(ctx context.Context) (Claims, bool) {
 	c, ok := ctx.Value(claimsKey{}).(Claims)
@@ -71,6 +80,7 @@ func Middleware(v Verifier, logger *slog.Logger) func(http.Handler) http.Handler
 			switch {
 			case err == nil:
 				ctx := context.WithValue(r.Context(), claimsKey{}, claims)
+				ctx = context.WithValue(ctx, tokenKey{}, raw)
 				next.ServeHTTP(w, r.WithContext(ctx))
 			case errors.Is(err, ErrUnavailable):
 				logger.Error("token verification unavailable", "error", err)

@@ -21,7 +21,9 @@ import (
 	"github.com/owncloud/ocis-groupware/internal/config"
 	"github.com/owncloud/ocis-groupware/internal/davmount"
 	"github.com/owncloud/ocis-groupware/internal/logging"
+	"github.com/owncloud/ocis-groupware/internal/ocisgraph"
 	"github.com/owncloud/ocis-groupware/internal/principals"
+	"github.com/owncloud/ocis-groupware/internal/provision"
 	"github.com/owncloud/ocis-groupware/internal/server"
 	"github.com/owncloud/ocis-groupware/web"
 )
@@ -104,11 +106,18 @@ func run(args []string, stderr io.Writer) error {
 		return err
 	}
 
+	graph, err := ocisgraph.New(ocisgraph.Config{BaseURL: cfg.OCISURL, CAFile: cfg.OIDCCAFile})
+	if err != nil {
+		return err
+	}
+	identities := provision.NewIdentities(registry, graph, logger)
+
 	dav, wellKnown, err := davmount.New(davmount.Config{
-		Store:    store,
-		Registry: registry,
-		Verifier: verifier,
-		Logger:   logger,
+		Store:      store,
+		Registry:   registry,
+		Verifier:   verifier,
+		Identities: identities,
+		Logger:     logger,
 	})
 	if err != nil {
 		return err
@@ -117,7 +126,7 @@ func run(args []string, stderr io.Writer) error {
 	srv := server.New(cfg.HTTPAddr, logger, auth.Middleware(verifier, logger),
 		server.WithReadiness(dataDirWritable(cfg.DataDir)),
 		server.WithDAV(dav, wellKnown),
-		server.WithAppPasswords(api.AppPasswords(registry, logger)),
+		server.WithAppPasswords(api.AppPasswords(registry, identities, logger)),
 		server.WithWeb(web.Handler()))
 
 	// On shutdown the public server drains first, then the admin server,
