@@ -69,7 +69,12 @@
       </section>
     </div>
 
-    <new-app-password-dialog v-if="creating" @cancel="creating = false" @done="created" />
+    <new-app-password-dialog
+      v-if="creating"
+      :max-lifetime-days="maxLifetimeDays"
+      @cancel="creating = false"
+      @done="created"
+    />
     <confirm-dialog
       v-if="revoking"
       :title="$gettext('Revoke app password')"
@@ -103,6 +108,8 @@ const { run } = useApi()
 const loading = ref(true)
 const account = ref<Account>()
 const passwords = ref<AppPassword[]>([])
+// The longest lifetime the server accepts, until the list says otherwise.
+const maxLifetimeDays = ref(365)
 const creating = ref(false)
 const revoking = ref<AppPassword | null>(null)
 
@@ -112,7 +119,8 @@ const isExpired = (p: AppPassword) => new Date(p.expires_at).getTime() <= Date.n
 async function loadPasswords() {
   const list = await run($gettext('Could not load the app passwords'), (c) => c.listAppPasswords())
   if (list) {
-    passwords.value = list
+    passwords.value = list.appPasswords
+    maxLifetimeDays.value = list.maxLifetimeDays
   }
 }
 

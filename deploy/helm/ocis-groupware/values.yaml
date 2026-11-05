@@ -39,6 +39,10 @@ config:
   # GROUPWARE_LEGACY_TOKEN_TTL, a Go duration. Empty keeps the service default
   # (4320h).
   legacyTokenTtl: ""
+  # GROUPWARE_APP_PASSWORD_MAX_LIFETIME, a Go duration of at least 24h. The
+  # lifetime of a new app password and the longest it can ask for. Empty
+  # keeps the service default (4320h).
+  appPasswordMaxLifetime: ""
   # GROUPWARE_IDENTITY_MAX_AGE, a Go duration. How long an app password works
   # after oCIS last confirmed its user. Empty keeps the service default (720h).
   # "0" turns the check off.

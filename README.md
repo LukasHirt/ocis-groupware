@@ -32,6 +32,7 @@ over file, file wins over defaults.
 | `GROUPWARE_COMPAT_PATHS` | `compat_paths` | Optional boolean, default `false`. Also serves the classic DAV layout below `/remote.php/dav`, for devices set up against a classic server. The ingress has to route those paths to the service (see `docs/routing.md`) |
 | `GROUPWARE_LEGACY_TOKEN_TTL` | `legacy_token_ttl` | Optional Go duration, default `4320h` (180 days). How long an imported token stays valid without being used |
 | `GROUPWARE_IDENTITY_MAX_AGE` | `identity_max_age` | Optional Go duration, default `720h` (30 days). How long an app password works after oCIS last confirmed its user. `0` turns the check off and logs a warning at startup. Negative values are refused (see "Signing in with an app password after offboarding") |
+| `GROUPWARE_APP_PASSWORD_MAX_LIFETIME` | `app_password_max_lifetime` | Optional Go duration, default `4320h` (180 days), at least `24h`. The lifetime of a new app password when the request names none, and the longest it can ask for. Existing passwords keep their expiry (see "App passwords") |
 | `GROUPWARE_AUTH_MAX_FAILURES` | `auth_max_failures` | Optional integer, default `10`. How many failed app password sign-ins of one user from one address are allowed within the window (see "Limiting failed sign-ins") |
 | `GROUPWARE_AUTH_FAILURE_WINDOW` | `auth_failure_window` | Optional Go duration, default `15m`. How long failed sign-ins count, and so how long a block lasts |
 | `GROUPWARE_TRUSTED_PROXIES` | `trusted_proxies` | Optional. Comma-separated addresses and networks (`10.0.0.0/8,192.168.1.5`) of the reverse proxies in front of the service. In YAML, a list. Only they are believed when they send `X-Forwarded-For`. Empty by default |
@@ -318,7 +319,7 @@ username and the calendar and address book home addresses from `GET /groupware/v
 each with a copy button, and short setup hints for Thunderbird, Apple's apps and DAVx5.
 Below them it lists the user's app passwords with their creation, expiry and last use,
 and marks the ones that have expired. A new app password takes a name and a lifetime of
-365, 90, 30 or 7 days. The dialog shows the password once, with a button to copy it, and
+90, 30 or 7 days or the longest the server allows, which is also the default. The dialog shows the password once, with a button to copy it, and
 cannot be dismissed by accident while it does; once closed, the password cannot be read
 again. Revoking one asks first and then refuses the devices that use it.
 
@@ -356,15 +357,25 @@ curl -X POST https://ocis.localhost/groupware/v1/app-passwords \
 ```
 
 Add `"expires_in_days": 30` to the body for a password that expires sooner. The value is a
-whole number from 1 to 365.
+whole number from 1 to the maximum lifetime, 180 days unless `GROUPWARE_APP_PASSWORD_MAX_LIFETIME`
+says otherwise. A request for more gets `400` with the limit in the message.
 
 The answer has status `201` and carries the `id`, the `name`, `created_at`, `expires_at`
 and the `password`. **The password is shown only once**: it is stored as a hash, and no
-request returns it again. An app password is valid for 365 days unless the request asks for less. A user can have at most
-50, and a name has at most 100 bytes.
+request returns it again. An app password is valid for the maximum lifetime unless the request asks for less. A user
+can have at most 50, and a name has at most 100 bytes. Creating and revoking an app password
+is logged at Info with the owner, the id, the OAuth client of the token and the client
+address (the one the rate limiter counts, so set `GROUPWARE_TRUSTED_PROXIES` behind a
+proxy), and never with the password. See [docs/security.md](docs/security.md).
+
+Upgrading: new app passwords, and imported tokens after their first use, now last 180
+days by default instead of 365, so devices need a new password twice as often. App
+passwords that exist keep the expiry they were created with. To keep the old length, set
+`GROUPWARE_APP_PASSWORD_MAX_LIFETIME=8760h`.
 
 ```sh
-# List your app passwords (without their secrets)
+# List your app passwords (without their secrets). The answer also carries
+# max_lifetime_days, the longest lifetime a new one can have.
 curl -H "Authorization: Bearer $TOKEN" https://ocis.localhost/groupware/v1/app-passwords
 
 # Revoke one; clients that use it are refused from then on
@@ -389,7 +400,7 @@ sign in the same way, over HTTP Basic with the classic username and the old toke
 classic server keeps a token as `sha512(token . secret)` with its instance secret, so the
 service needs that secret in `GROUPWARE_LEGACY_TOKEN_SECRET` to recognise the token. At the
 first successful sign-in the service stores a bcrypt hash of the token and forgets the
-digest; from then on the token is an ordinary app password and is valid for 365 days. A
+digest; from then on the token is an ordinary app password and is valid for the maximum lifetime. A
 token that is not used expires 180 days after its last use (or its import), or after
 `GROUPWARE_LEGACY_TOKEN_TTL`. Checks of imported tokens go through the same limiter as app
 passwords (see below).

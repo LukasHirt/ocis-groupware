@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -167,6 +168,7 @@ func (v *OIDCVerifier) Verify(ctx context.Context, rawToken string) (Claims, err
 		Subject:           token.Subject,
 		PreferredUsername: extra.PreferredUsername,
 		DisplayName:       extra.Name,
+		Client:            v.clientOf(token.Audience, extra.AuthorizedParty),
 	}
 	if claims.PreferredUsername == "" {
 		claims.PreferredUsername = extra.Login.Username
@@ -286,4 +288,20 @@ func (v *OIDCVerifier) clientAllowed(audience []string, azp string) bool {
 		}
 	}
 	return false
+}
+
+// clientOf names the client a token was issued to, for the audit log.
+func (v *OIDCVerifier) clientOf(audience []string, azp string) string {
+	if azp != "" {
+		return azp
+	}
+	for _, aud := range audience {
+		if slices.Contains(v.cfg.Clients, aud) {
+			return aud
+		}
+	}
+	if len(audience) > 0 {
+		return audience[0]
+	}
+	return ""
 }

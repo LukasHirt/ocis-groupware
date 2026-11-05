@@ -129,7 +129,8 @@ func run(args []string, stderr io.Writer) error {
 	registry, err := principals.NewRegistry(cfg.DataDir, store, store.OwnerDir, logger,
 		principals.WithLegacyTokens(cfg.LegacyTokenSecret, cfg.LegacyTokenTTL),
 		principals.WithLegacyGate(limiter.Gate),
-		principals.WithIdentityMaxAge(cfg.IdentityMaxAge))
+		principals.WithIdentityMaxAge(cfg.IdentityMaxAge),
+		principals.WithAppPasswordLifetime(cfg.AppPasswordMaxLifetime))
 	if err != nil {
 		return err
 	}
@@ -178,7 +179,7 @@ func run(args []string, stderr io.Writer) error {
 	srvOpts := []server.Option{
 		server.WithReadiness(dataDirWritable(cfg.DataDir)),
 		server.WithDAV(dav, wellKnown),
-		server.WithAppPasswords(api.AppPasswords(registry, identities, logger)),
+		server.WithAppPasswords(api.AppPasswords(registry, identities, logger, api.WithClientAddr(limiter.ClientAddr))),
 		server.WithGraph(facade),
 		server.WithGroupware(facade.Groupware()),
 		server.WithWeb(web.Handler()),

@@ -31,8 +31,8 @@ describe('app passwords', () => {
   }
 
   it('lists them from the wrapper object', async () => {
-    const { client, calls } = fake({ status: 200, data: { app_passwords: [item] } })
-    expect(await client.listAppPasswords()).toEqual([item])
+    const { client, calls } = fake({ status: 200, data: { app_passwords: [item], max_lifetime_days: 180 } })
+    expect(await client.listAppPasswords()).toEqual({ appPasswords: [item], maxLifetimeDays: 180 })
     expect(calls[0]).toMatchObject({ method: 'GET', url: '/groupware/v1/app-passwords' })
   })
 

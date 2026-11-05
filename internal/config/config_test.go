@@ -123,15 +123,15 @@ func TestValidate(t *testing.T) {
 		cfg     Config
 		wantErr bool
 	}{
-		{"valid", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data"}, false},
-		{"empty addr", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: "", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data"}, true},
-		{"bad level", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "bogus", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data"}, true},
-		{"missing issuer", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", DataDir: "/data"}, true},
-		{"negative legacy lifetime", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data", LegacyTokenTTL: -time.Hour}, true},
-		{"no failure limit", Config{AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data"}, true},
-		{"no failure window", Config{AuthMaxFailures: 10, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data"}, true},
-		{"bad proxy", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, TrustedProxies: []string{"nope"}, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data"}, true},
-		{"good proxies", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, TrustedProxies: []string{"10.0.0.0/8", "::1"}, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data"}, false},
+		{"valid", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data", AppPasswordMaxLifetime: 24 * time.Hour}, false},
+		{"empty addr", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: "", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data", AppPasswordMaxLifetime: 24 * time.Hour}, true},
+		{"bad level", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "bogus", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data", AppPasswordMaxLifetime: 24 * time.Hour}, true},
+		{"missing issuer", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", DataDir: "/data", AppPasswordMaxLifetime: 24 * time.Hour}, true},
+		{"negative legacy lifetime", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data", AppPasswordMaxLifetime: 24 * time.Hour, LegacyTokenTTL: -time.Hour}, true},
+		{"no failure limit", Config{AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data", AppPasswordMaxLifetime: 24 * time.Hour}, true},
+		{"no failure window", Config{AuthMaxFailures: 10, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data", AppPasswordMaxLifetime: 24 * time.Hour}, true},
+		{"bad proxy", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, TrustedProxies: []string{"nope"}, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data", AppPasswordMaxLifetime: 24 * time.Hour}, true},
+		{"good proxies", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, TrustedProxies: []string{"10.0.0.0/8", "::1"}, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data", AppPasswordMaxLifetime: 24 * time.Hour}, false},
 		{"missing data dir", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}}, true},
 	}
 
@@ -431,12 +431,49 @@ func TestIdentityMaxAge(t *testing.T) {
 
 func TestIdentityMaxAgeValidation(t *testing.T) {
 	valid := func(d time.Duration) Config {
-		return Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data", IdentityMaxAge: d}
+		return Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data", IdentityMaxAge: d, AppPasswordMaxLifetime: 24 * time.Hour}
 	}
 	if err := valid(-time.Hour).Validate(); err == nil {
 		t.Error("a negative identity_max_age was accepted")
 	}
 	if err := valid(0).Validate(); err != nil {
 		t.Errorf("0 turns the lease off and must be accepted: %v", err)
+	}
+}
+
+func TestAppPasswordMaxLifetime(t *testing.T) {
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AppPasswordMaxLifetime != 4320*time.Hour {
+		t.Fatalf("default = %v, want 4320h", cfg.AppPasswordMaxLifetime)
+	}
+
+	path := filepath.Join(t.TempDir(), "groupware.yaml")
+	if err := os.WriteFile(path, []byte("app_password_max_lifetime: 720h\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, err = Load(path); err != nil || cfg.AppPasswordMaxLifetime != 720*time.Hour {
+		t.Fatalf("file: %v, %v", cfg.AppPasswordMaxLifetime, err)
+	}
+	t.Setenv("GROUPWARE_APP_PASSWORD_MAX_LIFETIME", "48h")
+	if cfg, err = Load(path); err != nil || cfg.AppPasswordMaxLifetime != 48*time.Hour {
+		t.Fatalf("env: %v, %v", cfg.AppPasswordMaxLifetime, err)
+	}
+	t.Setenv("GROUPWARE_APP_PASSWORD_MAX_LIFETIME", "long")
+	if _, err = Load(path); err == nil {
+		t.Fatal("an invalid duration was accepted")
+	}
+}
+
+func TestAppPasswordMaxLifetimeValidation(t *testing.T) {
+	with := func(d time.Duration) Config {
+		return Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", OIDCAudience: StringList{"web"}, DataDir: "/data", AppPasswordMaxLifetime: d}
+	}
+	for d, ok := range map[time.Duration]bool{0: false, -time.Hour: false, 23 * time.Hour: false, 24 * time.Hour: true, 4320 * time.Hour: true} {
+		if err := with(d).Validate(); (err == nil) != ok {
+			t.Errorf("app_password_max_lifetime %v: Validate = %v, want ok = %v", d, err, ok)
+		}
 	}
 }

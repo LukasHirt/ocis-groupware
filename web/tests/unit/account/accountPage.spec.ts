@@ -51,7 +51,10 @@ beforeEach(() => {
   document.body.innerHTML = ''
   vi.useRealTimers()
   api.getAccount.mockResolvedValue(structuredClone(account))
-  api.listAppPasswords.mockResolvedValue([structuredClone(phone), structuredClone(laptop)])
+  api.listAppPasswords.mockResolvedValue({
+    appPasswords: [structuredClone(phone), structuredClone(laptop)],
+    maxLifetimeDays: 365
+  })
   api.createAppPassword.mockReset()
   api.revokeAppPassword.mockReset().mockResolvedValue(undefined)
   writeText = vi.fn().mockResolvedValue(undefined)
@@ -130,7 +133,7 @@ describe('app password list', () => {
   })
 
   it('says so when there are none', async () => {
-    api.listAppPasswords.mockResolvedValue([])
+    api.listAppPasswords.mockResolvedValue({ appPasswords: [], maxLifetimeDays: 365 })
     const wrapper = await page()
     expect(wrapper.find('[data-testid="app-password-none"]').exists()).toBe(true)
   })
@@ -182,6 +185,29 @@ describe('creating an app password', () => {
     expect(api.createAppPassword).toHaveBeenCalledWith({ name: 'Guest phone', expires_in_days: 30 })
   })
 
+  it('offers the server maximum as the default and nothing longer', async () => {
+    api.listAppPasswords.mockResolvedValue({ appPasswords: [], maxLifetimeDays: 180 })
+    api.createAppPassword.mockResolvedValue({ ...phone, password: 'x' })
+    const wrapper = await open()
+    const select = wrapper.get('[data-testid="app-password-expiry"]')
+    const options = select.findAll('option').map((o) => o.text())
+    expect(options).toEqual(['180 days (default)', '90 days', '30 days', '7 days'])
+    expect((select.element as HTMLSelectElement).value).toBe('180')
+
+    // The default is not sent, so the server applies its own maximum.
+    await wrapper.get('[data-testid="app-password-name"]').setValue('Laptop')
+    await wrapper.get('[data-testid="dialog-confirm"]').trigger('click')
+    await flushPromises()
+    expect(api.createAppPassword).toHaveBeenCalledWith({ name: 'Laptop' })
+  })
+
+  it('drops the choices above a short maximum', async () => {
+    api.listAppPasswords.mockResolvedValue({ appPasswords: [], maxLifetimeDays: 30 })
+    const wrapper = await open()
+    const options = wrapper.findAll('[data-testid="app-password-expiry"] option').map((o) => o.text())
+    expect(options).toEqual(['30 days (default)', '7 days'])
+  })
+
   it('keeps the password when the dialog is dismissed with Escape', async () => {
     api.createAppPassword.mockResolvedValue({ ...phone, password: 'secret-once' })
     const wrapper = await open()
@@ -217,7 +243,7 @@ describe('revoking an app password', () => {
     expect(api.revokeAppPassword).not.toHaveBeenCalled()
     expect(wrapper.get('[role="dialog"]').text()).toContain('Laptop')
 
-    api.listAppPasswords.mockResolvedValue([structuredClone(phone)])
+    api.listAppPasswords.mockResolvedValue({ appPasswords: [structuredClone(phone)], maxLifetimeDays: 365 })
     await wrapper.get('[data-testid="dialog-confirm"]').trigger('click')
     await flushPromises()
     expect(api.revokeAppPassword).toHaveBeenCalledWith('a2')
