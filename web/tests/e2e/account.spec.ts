@@ -40,13 +40,15 @@ test('an app password is created, works for a DAV client and is revoked', async 
   // Create one with a shorter lifetime. The password is shown once.
   const name = `Browser test ${Date.now()}`
   await page.getByTestId('app-password-add').click()
-  await page.getByTestId('app-password-name').fill(name)
-  await page.getByTestId('app-password-expiry').selectOption('30')
+  await page.locator('input[data-testid="app-password-name"]').fill(name)
+  await page.locator('.v-select[data-testid="app-password-expiry"]').click()
+  await page.getByRole('option', { name: '30 days' }).click()
+  await expect(page.locator('.v-select[data-testid="app-password-expiry"]')).toContainText('30 days')
   await page.getByTestId('dialog-confirm').click()
-  const secret = (await page.getByTestId('app-password-secret').innerText()).trim()
+  const secret = (await page.locator('input[data-testid="app-password-secret"]').inputValue()).trim()
   expect(secret).toMatch(/^[a-z2-7]{32}$/)
   await page.getByTestId('app-password-done').click()
-  await expect(page.getByTestId('app-password-secret')).toHaveCount(0)
+  await expect(page.locator('[data-testid="app-password-secret"]')).toHaveCount(0)
 
   const item = page.getByTestId('app-password-item').filter({ hasText: name })
   await expect(item).toHaveCount(1)
