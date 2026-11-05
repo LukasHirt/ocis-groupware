@@ -1,5 +1,5 @@
 <template>
-  <modal-dialog :title="$gettext('Import into %{name}', { name })" @close="emit('close')">
+  <gw-modal :title="$gettext('Import into %{name}', { name })" @close="emit('close')">
     <p class="oc-mt-rm" data-testid="import-summary">
       {{
         $gettext('%{total} found: %{created} added, %{updated} replaced, %{failed} failed.', {
@@ -21,23 +21,18 @@
         </li>
       </ul>
     </template>
-    <div class="groupware-modal-actions">
-      <button
-        type="button"
-        class="oc-button oc-button-m oc-button-primary oc-button-primary-filled"
-        data-testid="dialog-confirm"
-        @click="emit('close')"
-      >
+    <template #actions>
+      <oc-button variation="primary" appearance="filled" data-testid="dialog-confirm" @click="emit('close')">
         {{ $gettext('Close') }}
-      </button>
-    </div>
-  </modal-dialog>
+      </oc-button>
+    </template>
+  </gw-modal>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useGettext } from 'vue3-gettext'
-import ModalDialog from '../components/ModalDialog.vue'
+import GwModal from '../components/GwModal.vue'
 import type { ImportReport } from '../api/types'
 
 defineOptions({ name: 'ImportReportDialog' })

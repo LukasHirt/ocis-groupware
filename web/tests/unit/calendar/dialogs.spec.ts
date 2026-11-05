@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import ModalDialog from '../../../src/components/ModalDialog.vue'
+import GwModal from '../../../src/components/GwModal.vue'
+import ConfirmDialog from '../../../src/components/ConfirmDialog.vue'
 import CalendarDialog from '../../../src/calendar/CalendarDialog.vue'
 
 vi.mock('vue3-gettext', () => ({
@@ -10,9 +11,9 @@ vi.mock('vue3-gettext', () => ({
   })
 }))
 
-describe('ModalDialog', () => {
+describe('GwModal', () => {
   it('has a title, a body and an accessible role', () => {
-    const wrapper = mount(ModalDialog, {
+    const wrapper = mount(GwModal, {
       props: { title: 'Delete calendar' },
       slots: { default: '<p>Sure?</p>' }
     })
@@ -23,17 +24,64 @@ describe('ModalDialog', () => {
     expect(dialog.text()).toContain('Sure?')
   })
 
-  it('closes on Escape and on a click outside', async () => {
-    const wrapper = mount(ModalDialog, { props: { title: 'T' } })
-    await wrapper.get('[role="dialog"]').trigger('keydown', { key: 'Escape' })
-    await wrapper.get('[data-testid="modal-backdrop"]').trigger('mousedown')
-    expect(wrapper.emitted('close')).toHaveLength(2)
+  it('shows the start and actions slots in its action row', () => {
+    const wrapper = mount(GwModal, {
+      props: { title: 'T' },
+      slots: { start: '<button data-testid="start">Delete</button>', actions: '<button data-testid="act">Save</button>' }
+    })
+    const row = wrapper.get('.gw-modal-actions')
+    expect(row.find('[data-testid="start"]').exists()).toBe(true)
+    expect(row.find('[data-testid="act"]').exists()).toBe(true)
   })
 
-  it('does not close when the click starts inside', async () => {
-    const wrapper = mount(ModalDialog, { props: { title: 'T' } })
-    await wrapper.get('[role="dialog"]').trigger('mousedown')
+  it('emits close on Escape', async () => {
+    const wrapper = mount(GwModal, { props: { title: 'T' } })
+    await wrapper.get('[role="dialog"]').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
+  it('ignores Escape when it is persistent', async () => {
+    const wrapper = mount(GwModal, { props: { title: 'T', persistent: true } })
+    await wrapper.get('[role="dialog"]').trigger('keydown', { key: 'Escape' })
     expect(wrapper.emitted('close')).toBeUndefined()
+  })
+
+  it('submits through a form that holds the actions, when asked to', async () => {
+    const wrapper = mount(GwModal, {
+      props: { title: 'T', form: true },
+      slots: { actions: '<button type="submit" data-testid="go">Go</button>' },
+      attachTo: document.body
+    })
+    await wrapper.get('[data-testid="go"]').trigger('click')
+    expect(wrapper.emitted('submit')).toHaveLength(1)
+    expect(wrapper.get('form').find('[data-testid="go"]').exists()).toBe(true)
+  })
+
+  it('has no form unless it is asked to', () => {
+    const wrapper = mount(GwModal, { props: { title: 'T' } })
+    expect(wrapper.find('form').exists()).toBe(false)
+  })
+
+})
+
+describe('ConfirmDialog', () => {
+  it('asks, cancels and confirms through its two buttons', async () => {
+    const wrapper = mount(ConfirmDialog, {
+      props: { title: 'Delete', message: 'Sure?', confirmLabel: 'Delete' }
+    })
+    expect(wrapper.text()).toContain('Sure?')
+    await wrapper.get('[data-testid="dialog-cancel"]').trigger('click')
+    await wrapper.get('[data-testid="dialog-confirm"]').trigger('click')
+    expect(wrapper.emitted('cancel')).toHaveLength(1)
+    expect(wrapper.emitted('confirm')).toHaveLength(1)
+  })
+
+  it('cancels on Escape', async () => {
+    const wrapper = mount(ConfirmDialog, {
+      props: { title: 'Delete', message: 'Sure?', confirmLabel: 'Delete' }
+    })
+    await wrapper.get('[role="dialog"]').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('cancel')).toHaveLength(1)
   })
 })
 

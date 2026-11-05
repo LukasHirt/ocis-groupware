@@ -1,5 +1,5 @@
 <template>
-  <page-layout :title="$gettext('Devices')" :loading="loading">
+  <app-shell :title="$gettext('Devices')" :loading="loading">
     <div class="groupware-account oc-mt-m">
       <dav-setup v-if="account" :account="account" />
 
@@ -84,10 +84,11 @@
         })
       "
       :confirm-label="$gettext('Revoke')"
+      icon="error-warning"
       @confirm="revoke"
       @cancel="revoking = null"
     />
-  </page-layout>
+  </app-shell>
 </template>
 
 <script setup lang="ts">
@@ -95,7 +96,7 @@ import { onMounted, ref } from 'vue'
 import { useGettext } from 'vue3-gettext'
 import type { Account, AppPassword } from '../api/types'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
-import PageLayout from '../components/PageLayout.vue'
+import AppShell from '../components/AppShell.vue'
 import { useApi } from '../composables/useApi'
 import DavSetup from '../account/DavSetup.vue'
 import NewAppPasswordDialog from '../account/NewAppPasswordDialog.vue'

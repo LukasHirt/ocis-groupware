@@ -1,6 +1,13 @@
 <template>
-  <modal-dialog :title="title" wide @close="emit('close')">
-    <form novalidate class="groupware-event-form" @submit.prevent="submit">
+  <gw-modal
+    :title="title"
+    wide
+    form
+    :initial-focus="readOnly ? undefined : '[data-testid=event-subject]'"
+    @close="emit('close')"
+    @submit="submit"
+  >
+    <div class="groupware-event-form">
       <p v-if="notice" class="oc-text-muted oc-mt-rm" data-testid="event-notice">{{ notice }}</p>
 
       <fieldset :disabled="readOnly" class="groupware-fieldset">
@@ -358,41 +365,39 @@
         />
       </fieldset>
 
-      <div class="groupware-modal-actions">
-        <button
-          v-if="existing && !readOnly"
-          type="button"
-          class="oc-button oc-button-m oc-button-danger groupware-push"
-          data-testid="event-delete"
-          @click="emit('remove')"
-        >
-          {{ $gettext('Delete') }}
-        </button>
-        <button
-          type="button"
-          class="oc-button oc-button-m oc-button-passive"
-          data-testid="dialog-cancel"
-          @click="emit('close')"
-        >
-          {{ readOnly ? $gettext('Close') : $gettext('Cancel') }}
-        </button>
-        <button
-          v-if="!readOnly"
-          type="submit"
-          class="oc-button oc-button-m oc-button-primary oc-button-primary-filled"
-          data-testid="dialog-confirm"
-        >
-          {{ $gettext('Save') }}
-        </button>
-      </div>
-    </form>
-  </modal-dialog>
+    </div>
+    <template #start>
+      <oc-button
+        v-if="existing && !readOnly"
+        variation="danger"
+        appearance="outline"
+        data-testid="event-delete"
+        @click="emit('remove')"
+      >
+        {{ $gettext('Delete') }}
+      </oc-button>
+    </template>
+    <template #actions>
+      <oc-button variation="passive" appearance="outline" data-testid="dialog-cancel" @click="emit('close')">
+        {{ readOnly ? $gettext('Close') : $gettext('Cancel') }}
+      </oc-button>
+      <oc-button
+        v-if="!readOnly"
+        variation="primary"
+        appearance="filled"
+        submit="submit"
+        data-testid="dialog-confirm"
+      >
+        {{ $gettext('Save') }}
+      </oc-button>
+    </template>
+  </gw-modal>
 </template>
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useGettext } from 'vue3-gettext'
-import ModalDialog from '../components/ModalDialog.vue'
+import GwModal from '../components/GwModal.vue'
 import type { EventInput, GraphCalendar } from '../api/types'
 import {
   attendeeError,
@@ -563,9 +568,6 @@ function submit() {
 }
 .groupware-grow {
   flex: 1 1 auto;
-}
-.groupware-push {
-  margin-right: auto;
 }
 .groupware-event-form .oc-display-block {
   display: block;

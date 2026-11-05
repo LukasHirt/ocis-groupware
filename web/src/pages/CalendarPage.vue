@@ -1,10 +1,9 @@
 <template>
-  <page-layout
-    :title="$gettext('Calendar')"
-    :loading="loading"
-    :empty="calendars.length === 0"
-    :empty-text="$gettext('You have no calendars yet.')"
-  >
+  <app-shell :title="$gettext('Calendar')" :loading="loading">
+    <p v-if="calendars.length === 0" class="oc-text-muted oc-mt-m" data-testid="empty">
+      {{ $gettext('You have no calendars yet.') }}
+    </p>
+    <template v-else>
     <div class="oc-flex groupware-calendar-page oc-mt-m">
       <aside class="oc-mr-m groupware-calendar-side">
         <calendar-list
@@ -128,13 +127,14 @@
       @cancel="dialog = undefined"
       @confirm="remove"
     />
-  </page-layout>
+    </template>
+  </app-shell>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useGettext } from 'vue3-gettext'
-import PageLayout from '../components/PageLayout.vue'
+import AppShell from '../components/AppShell.vue'
 import CalendarGrid from '../calendar/CalendarGrid.vue'
 import CalendarDialog from '../calendar/CalendarDialog.vue'
 import CalendarList from '../calendar/CalendarList.vue'

@@ -20,7 +20,7 @@ async function openPage(
   await signIn(page)
   await openApp(page, entry === 'Contacts' ? 'Contacts' : 'Calendar')
   if (entry === 'Devices') await openNav(page, 'Devices')
-  await expect(page.locator('main.groupware-page')).toBeVisible()
+  await expect(page.locator('.gw-body')).toBeVisible()
   await page.setViewportSize(size)
 }
 
@@ -67,26 +67,26 @@ for (const size of windows) {
     test('the calendar page scrolls', async ({ page }) => {
       await openPage(page, 'Calendar', size)
       await expect(page.locator('h1')).toHaveText('Calendar')
-      await expectScrollsToEnd(page, 'main.groupware-page', size.height)
+      await expectScrollsToEnd(page, '.gw-body', size.height)
     })
 
     test('the contacts page scrolls', async ({ page }) => {
       await openPage(page, 'Contacts', size)
       await expect(page.locator('h1')).toHaveText('Contacts')
-      await expectScrollsToEnd(page, 'main.groupware-page', size.height)
+      await expectScrollsToEnd(page, '.gw-body', size.height)
     })
 
     test('the devices page scrolls', async ({ page }) => {
       await openPage(page, 'Devices', size)
       await expect(page.locator('h1')).toHaveText('Devices')
-      await expectScrollsToEnd(page, 'main.groupware-page', size.height)
+      await expectScrollsToEnd(page, '.gw-body', size.height)
     })
 
     test('a long dialog scrolls', async ({ page }) => {
       await openPage(page, 'Calendar', size)
       await page.getByTestId('event-add').click()
       await expect(page.getByRole('dialog')).toBeVisible()
-      await expectScrollsToEnd(page, '.groupware-modal', size.height)
+      await expectScrollsToEnd(page, '.gw-modal', size.height)
     })
   })
 }

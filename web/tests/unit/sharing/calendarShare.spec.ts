@@ -5,6 +5,9 @@ import calendars from '../../../../internal/graphapi/testdata/contract/calendars
 import permissions from '../../../../internal/graphapi/testdata/contract/calendar-permissions.json'
 import CalendarPage from '../../../src/pages/CalendarPage.vue'
 
+// The design system and the host's services are not here; see mocks/webPkg.
+vi.mock('@ownclouders/web-pkg', async () => (await import('../mocks/webPkg')).webPkgMock())
+
 vi.mock('vue3-gettext', () => ({
   useGettext: () => ({ $gettext: (s: string) => s })
 }))

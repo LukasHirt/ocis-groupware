@@ -40,6 +40,9 @@ vi.mock('../../src/composables/useApi', () => {
 import ContactsPage from '../../src/pages/ContactsPage.vue'
 import ContactPhoto from '../../src/contacts/ContactPhoto.vue'
 
+// The design system and the host's services are not here; see mocks/webPkg.
+vi.mock('@ownclouders/web-pkg', async () => (await import('./mocks/webPkg')).webPkgMock())
+
 // The host's gettext fills %{name} placeholders; so does this stand-in.
 const gettext = (s: string, params: Record<string, string> = {}) =>
   s.replace(/%\{(\w+)\}/g, (_, k: string) => params[k] ?? '')

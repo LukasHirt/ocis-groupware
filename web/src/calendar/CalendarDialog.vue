@@ -1,6 +1,11 @@
 <template>
-  <modal-dialog :title="title" @close="emit('close')">
-    <form novalidate @submit.prevent="submit">
+  <gw-modal
+    :title="title"
+    form
+    initial-focus="[data-testid=calendar-name]"
+    @close="emit('close')"
+    @submit="submit"
+  >
       <label class="oc-text-bold" for="groupware-calendar-name">{{ $gettext('Name') }}</label>
       <input
         id="groupware-calendar-name"
@@ -50,31 +55,21 @@
         </label>
       </div>
 
-      <div class="groupware-modal-actions">
-        <button
-          type="button"
-          class="oc-button oc-button-m oc-button-passive"
-          data-testid="dialog-cancel"
-          @click="emit('close')"
-        >
-          {{ $gettext('Cancel') }}
-        </button>
-        <button
-          type="submit"
-          class="oc-button oc-button-m oc-button-primary oc-button-primary-filled"
-          data-testid="dialog-confirm"
-        >
-          {{ $gettext('Save') }}
-        </button>
-      </div>
-    </form>
-  </modal-dialog>
+      <template #actions>
+      <oc-button variation="passive" appearance="outline" data-testid="dialog-cancel" @click="emit('close')">
+        {{ $gettext('Cancel') }}
+      </oc-button>
+      <oc-button variation="primary" appearance="filled" submit="submit" data-testid="dialog-confirm">
+        {{ $gettext('Save') }}
+      </oc-button>
+      </template>
+  </gw-modal>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useGettext } from 'vue3-gettext'
-import ModalDialog from '../components/ModalDialog.vue'
+import GwModal from '../components/GwModal.vue'
 import type { GraphCalendar } from '../api/types'
 import { calendarColor, palette } from './colors'
 

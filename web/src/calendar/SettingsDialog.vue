@@ -1,6 +1,11 @@
 <template>
-  <modal-dialog :title="$gettext('Calendar settings')" @close="emit('close')">
-    <form novalidate @submit.prevent="submit">
+  <gw-modal
+    :title="$gettext('Calendar settings')"
+    form
+    initial-focus="[data-testid=settings-zone]"
+    @close="emit('close')"
+    @submit="submit"
+  >
       <label class="oc-text-bold" for="groupware-settings-zone">{{ $gettext('Time zone') }}</label>
       <select
         id="groupware-settings-zone"
@@ -38,31 +43,21 @@
         {{ $gettext('These settings are kept in this browser.') }}
       </p>
 
-      <div class="groupware-modal-actions">
-        <button
-          type="button"
-          class="oc-button oc-button-m oc-button-passive"
-          data-testid="dialog-cancel"
-          @click="emit('close')"
-        >
-          {{ $gettext('Cancel') }}
-        </button>
-        <button
-          type="submit"
-          class="oc-button oc-button-m oc-button-primary oc-button-primary-filled"
-          data-testid="dialog-confirm"
-        >
-          {{ $gettext('Save') }}
-        </button>
-      </div>
-    </form>
-  </modal-dialog>
+      <template #actions>
+      <oc-button variation="passive" appearance="outline" data-testid="dialog-cancel" @click="emit('close')">
+        {{ $gettext('Cancel') }}
+      </oc-button>
+      <oc-button variation="primary" appearance="filled" submit="submit" data-testid="dialog-confirm">
+        {{ $gettext('Save') }}
+      </oc-button>
+      </template>
+  </gw-modal>
 </template>
 
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
 import { useGettext } from 'vue3-gettext'
-import ModalDialog from '../components/ModalDialog.vue'
+import GwModal from '../components/GwModal.vue'
 import type { CalendarSettings } from './settings'
 import { zoneNames } from './zones'
 
