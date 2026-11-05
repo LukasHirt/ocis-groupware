@@ -96,9 +96,9 @@ func (h *appPasswords) serve(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	p, status := provision.Principal(r.Context(), h.reg, claims, h.logger)
+	p, status, msg := provision.Principal(r.Context(), h.reg, claims, h.logger)
 	if status != 0 {
-		writeError(w, status, statusMessage(status))
+		writeError(w, status, msg)
 		return
 	}
 
@@ -208,13 +208,6 @@ func clip(s string) string {
 		return s
 	}
 	return s[:maxLoggedID] + "...(truncated)"
-}
-
-func statusMessage(status int) string {
-	if status == http.StatusForbidden {
-		return "forbidden"
-	}
-	return "internal error"
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

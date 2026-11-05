@@ -161,6 +161,8 @@ func (a *authenticator) basic(ctx context.Context, username, password string) (i
 		a.logger.Debug("app password rejected")
 	case errors.Is(err, principals.ErrExpired):
 		a.logger.Info("app password expired", "username", username)
+	case errors.Is(err, principals.ErrDisabled):
+		a.logger.Info("sign-in of a disabled principal refused", "username", username)
 	case ctx.Err() != nil:
 		// The client went away.
 	default:
@@ -170,7 +172,8 @@ func (a *authenticator) basic(ctx context.Context, username, password string) (i
 }
 
 // bearer verifies an OIDC token and provisions its principal, which creates
-// it with its default collections on first use.
+// it with its default collections on first use. A refusal shows its status
+// only; the body is the same for every refusal with that status.
 func (a *authenticator) bearer(ctx context.Context, token string) (identity, int) {
 	claims, err := a.verifier.Verify(ctx, token)
 	switch {
@@ -183,7 +186,7 @@ func (a *authenticator) bearer(ctx context.Context, token string) (identity, int
 		return identity{}, http.StatusUnauthorized
 	}
 
-	p, status := provision.Principal(ctx, a.reg, claims, a.logger)
+	p, status, _ := provision.Principal(ctx, a.reg, claims, a.logger)
 	if status != 0 {
 		return identity{}, status
 	}

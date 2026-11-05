@@ -41,10 +41,18 @@ type Principal struct {
 	Username    string
 	DisplayName string
 	CreatedAt   time.Time
+	// Disabled means every sign-in of the principal is refused until an
+	// administrator enables it again. Its data and app passwords stay.
+	Disabled bool
 }
 
-// ErrNotFound means the registry has no principal for the subject.
-var ErrNotFound = errors.New("principals: not found")
+var (
+	// ErrNotFound means the registry has no principal for the subject.
+	ErrNotFound = errors.New("principals: not found")
+	// ErrDisabled means the principal exists and the credentials were right,
+	// but the principal is disabled.
+	ErrDisabled = errors.New("principals: principal is disabled")
+)
 
 // record is the content of principal.json.
 type record struct {
@@ -61,10 +69,17 @@ type record struct {
 	// ensured for the principal. A file without the field counts as false:
 	// that principal is ensured once more and the flag is then saved.
 	DefaultsCreated bool `json:"defaults_created"`
+	// Disabled refuses every sign-in of the principal, with app passwords and
+	// with bearer tokens alike, until an administrator enables it again. A
+	// file without the field counts as enabled.
+	Disabled bool `json:"disabled"`
 }
 
 func (rec record) principal() Principal {
-	return Principal{Sub: rec.Sub, Username: rec.Username, DisplayName: rec.DisplayName, CreatedAt: rec.CreatedAt}
+	return Principal{
+		Sub: rec.Sub, Username: rec.Username, DisplayName: rec.DisplayName,
+		CreatedAt: rec.CreatedAt, Disabled: rec.Disabled,
+	}
 }
 
 // tempPrefixes start the names of files that are being written.
@@ -275,6 +290,9 @@ func (r *Registry) readRecord(dir string) (record, error) {
 // default the user deleted later stays deleted. If ensuring them fails,
 // Provision returns the error; the principal file exists by then, so the next
 // call reports created as false.
+//
+// A disabled principal gets ErrDisabled before anything is written: a changed
+// name is not recorded either.
 func (r *Registry) Provision(ctx context.Context, sub, username, displayName string) (Principal, bool, error) {
 	if err := store.ValidateOwner(sub); err != nil {
 		return Principal{}, false, fmt.Errorf("principals: invalid sub: %w", err)
@@ -286,6 +304,9 @@ func (r *Registry) Provision(ctx context.Context, sub, username, displayName str
 	r.mu.RLock()
 	rec, ok := r.principals[sub]
 	r.mu.RUnlock()
+	if ok && rec.Disabled {
+		return Principal{}, false, ErrDisabled
+	}
 	if ok && rec.DefaultsCreated && rec.Username == username && rec.DisplayName == displayName {
 		return rec.principal(), false, nil
 	}
@@ -311,6 +332,11 @@ func (r *Registry) save(sub, username, displayName string) (record, bool, error)
 	defer r.mu.Unlock()
 
 	old, exists := r.principals[sub]
+	if exists && old.Disabled {
+		// Checked again under the lock: the principal may have been disabled
+		// since Provision looked.
+		return record{}, false, ErrDisabled
+	}
 	if exists && old.Username == username && old.DisplayName == displayName {
 		return old, false, nil
 	}
@@ -481,6 +507,55 @@ func (r *Registry) Get(sub string) (Principal, error) {
 		return Principal{}, ErrNotFound
 	}
 	return rec.principal(), nil
+}
+
+// SetDisabled disables or enables the principal and returns it. It returns
+// ErrNotFound for an unknown sub. The flag is the only thing it writes:
+// updated_at stays, so the action cannot move a username between
+// principals, and the app passwords are kept, so enabling restores every
+// device without pairing it again. Credentials of the principal that were
+// verified recently are forgotten, so the next request after a disable is
+// refused.
+func (r *Registry) SetDisabled(ctx context.Context, sub string, disabled bool) (Principal, error) {
+	if err := ctx.Err(); err != nil {
+		return Principal{}, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	rec, ok := r.principals[sub]
+	if !ok {
+		return Principal{}, ErrNotFound
+	}
+	if rec.Disabled != disabled {
+		rec.Disabled = disabled
+		if err := r.writeRecord(rec); err != nil {
+			return Principal{}, err
+		}
+		r.principals[sub] = rec
+	}
+	r.cache.invalidate(sub)
+	return rec.principal(), nil
+}
+
+// ListPrincipals returns every principal, disabled and nameless ones
+// included, sorted by username and then by sub. The nameless come first.
+func (r *Registry) ListPrincipals(ctx context.Context) []Principal {
+	if ctx.Err() != nil {
+		return nil
+	}
+	r.mu.RLock()
+	list := make([]Principal, 0, len(r.principals))
+	for _, rec := range r.principals {
+		list = append(list, rec.principal())
+	}
+	r.mu.RUnlock()
+	slices.SortFunc(list, func(a, b Principal) int {
+		if c := cmp.Compare(a.Username, b.Username); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Sub, b.Sub)
+	})
+	return list
 }
 
 // LookupUsername returns the sub of the principal that holds username.
