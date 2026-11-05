@@ -51,9 +51,15 @@
       @close="dialog = undefined"
       @save="createEvent"
     />
+    <scope-dialog
+      v-else-if="dialog?.kind === 'event-scope'"
+      @close="dialog = undefined"
+      @choose="chooseScope"
+    />
     <event-dialog
       v-else-if="dialog?.kind === 'event-edit'"
-      :title="dialog.readOnly ? $gettext('Event') : $gettext('Edit event')"
+      :title="editTitle(dialog)"
+      :hide-recurrence="dialog.scope === 'this'"
       :form="dialog.form"
       :calendars="writable"
       existing
@@ -65,8 +71,8 @@
     />
     <confirm-dialog
       v-else-if="dialog?.kind === 'event-delete'"
-      :title="$gettext('Delete event')"
-      :message="$gettext('Delete %{name}? This cannot be undone.', { name: dialog.event.subject || $gettext('this event') })"
+      :title="deleteTitle(dialog.scope)"
+      :message="deleteMessage(dialog.scope, dialog.event)"
       :confirm-label="$gettext('Delete')"
       @cancel="dialog = undefined"
       @confirm="deleteEvent"
@@ -93,6 +99,7 @@ import PageLayout from '../components/PageLayout.vue'
 import CalendarGrid from '../calendar/CalendarGrid.vue'
 import CalendarDialog from '../calendar/CalendarDialog.vue'
 import CalendarList from '../calendar/CalendarList.vue'
+import ScopeDialog from '../calendar/ScopeDialog.vue'
 import EventDialog from '../calendar/EventDialog.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { useApi } from '../composables/useApi'
@@ -112,13 +119,23 @@ const { hidden, isHidden, toggle } = useHiddenCalendars()
 const calendars = ref<GraphCalendar[]>([])
 const events = ref<GraphEvent[]>([])
 const loading = ref(true)
+type Scope = 'single' | 'this' | 'all'
 const dialog = ref<
   | { kind: 'create' }
   | { kind: 'edit'; calendar: GraphCalendar }
   | { kind: 'delete'; calendar: GraphCalendar }
   | { kind: 'event-create'; form: EventForm }
-  | { kind: 'event-edit'; event: GraphEvent; form: EventForm; readOnly: boolean; notice?: string }
-  | { kind: 'event-delete'; event: GraphEvent }
+  | { kind: 'event-scope'; occurrence: GraphEvent; series: GraphEvent }
+  | {
+      kind: 'event-edit'
+      event: GraphEvent
+      form: EventForm
+      readOnly: boolean
+      notice?: string
+      // Whether the event stands alone, is one occurrence of a series, or is the series.
+      scope: Scope
+    }
+  | { kind: 'event-delete'; event: GraphEvent; scope: Scope }
 >()
 
 const byId = computed(() => new Map(calendars.value.map((c) => [c.id, c])))
@@ -184,25 +201,71 @@ function onSelect(start: string, end: string, allDay: boolean) {
   newEvent({ start, end, allDay })
 }
 
-function openEvent(id: string) {
+function editDialog(event: GraphEvent, scope: Scope, readOnly = false, notice?: string) {
+  dialog.value = { kind: 'event-edit', event, form: formFromEvent(event), readOnly, notice, scope }
+}
+
+async function openEvent(id: string) {
   const event = events.value.find((e) => e.id === id)
   if (!event) {
     return
   }
   const calendar = byId.value.get(calendarIdOf(id))
-  const repeats = event.type !== 'singleInstance'
-  const readOnly = repeats || !calendar?.canEdit
-  dialog.value = {
-    kind: 'event-edit',
-    event,
-    form: formFromEvent(event),
-    readOnly,
-    notice: repeats
-      ? $gettext('This event repeats. Editing repeating events is not available yet.')
-      : !calendar?.canEdit
-        ? $gettext('This calendar is shared with you as read only.')
-        : undefined
+  if (!calendar?.canEdit) {
+    editDialog(event, 'single', true, $gettext('This calendar is shared with you as read only.'))
+    return
   }
+  if (event.type === 'singleInstance' || !event.seriesMasterId) {
+    editDialog(event, 'single')
+    return
+  }
+  // The pattern is on the series, so it is read before the user chooses.
+  const series = await run($gettext('Could not load the event'), (c) =>
+    c.getEvent(event.seriesMasterId!, localZone())
+  )
+  if (!series) {
+    return
+  }
+  if (series['groupware.recurrenceEditable'] === false) {
+    editDialog(
+      event,
+      'this',
+      true,
+      $gettext(
+        'This event repeats in a way the editor cannot show, so it cannot be changed here. Use a calendar app.'
+      )
+    )
+    return
+  }
+  dialog.value = { kind: 'event-scope', occurrence: event, series }
+}
+
+function chooseScope(scope: 'this' | 'all') {
+  if (dialog.value?.kind !== 'event-scope') {
+    return
+  }
+  editDialog(scope === 'this' ? dialog.value.occurrence : dialog.value.series, scope)
+}
+
+function editTitle(d: { readOnly: boolean; scope: Scope }) {
+  if (d.readOnly) {
+    return $gettext('Event')
+  }
+  return { single: $gettext('Edit event'), this: $gettext('Edit this event'), all: $gettext('Edit all events') }[d.scope]
+}
+
+function deleteTitle(scope: Scope) {
+  return scope === 'all' ? $gettext('Delete all events') : scope === 'this' ? $gettext('Delete this event') : $gettext('Delete event')
+}
+
+function deleteMessage(scope: Scope, event: GraphEvent) {
+  if (scope === 'all') {
+    return $gettext('Delete every event of this series? This cannot be undone.')
+  }
+  if (scope === 'this') {
+    return $gettext('Delete only this event? The rest of the series stays.')
+  }
+  return $gettext('Delete %{name}? This cannot be undone.', { name: event.subject || $gettext('this event') })
 }
 
 async function createEvent(save: { calendarId: string; input: EventInput }) {
@@ -231,7 +294,7 @@ async function changeEvent(save: { input: EventInput }) {
 
 function askDeleteEvent() {
   if (dialog.value?.kind === 'event-edit') {
-    dialog.value = { kind: 'event-delete', event: dialog.value.event }
+    dialog.value = { kind: 'event-delete', event: dialog.value.event, scope: dialog.value.scope }
   }
 }
 

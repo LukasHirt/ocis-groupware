@@ -10,6 +10,7 @@ import {
   type EventForm
 } from '../../../src/calendar/eventForm'
 import type { GraphEvent } from '../../../src/api/types'
+import eventSeries from '../../../../internal/graphapi/testdata/contract/event-series.json'
 import calendarview from '../../../../internal/graphapi/testdata/contract/calendarview.json'
 import eventZone from '../../../../internal/graphapi/testdata/contract/event-zone.json'
 
@@ -191,5 +192,59 @@ describe('attendeeError', () => {
 describe('parseCategories', () => {
   it('splits, trims and drops empty and repeated names', () => {
     expect(parseCategories(' Work, ,Home,work,Home ')).toEqual(['Work', 'Home'])
+  })
+})
+
+describe('recurrence in the form', () => {
+  const series = eventSeries as unknown as GraphEvent
+  const base = formFromEvent(planning)
+
+  it('does not repeat for a single event and a blank form', () => {
+    expect(base.recurrence.frequency).toBe('none')
+    expect(blankForm({ calendarId: 'c', zone: 'UTC', start: '2026-11-05T09:00:00Z', allDay: false }).recurrence.frequency).toBe('none')
+  })
+
+  it('reads the pattern of a series master', () => {
+    expect(formFromEvent(series).recurrence).toMatchObject({ frequency: 'weekly', daysOfWeek: ['friday'] })
+  })
+
+  it('writes the recurrence of a new event, in the zone of the event', () => {
+    const form: EventForm = {
+      ...base,
+      timeZone: 'Europe/Prague',
+      recurrence: { ...base.recurrence, frequency: 'daily', interval: 2 }
+    }
+    expect(inputFromForm(form).recurrence).toMatchObject({
+      pattern: { type: 'daily', interval: 2 },
+      range: { startDate: '2026-11-05', recurrenceTimeZone: 'Europe/Prague' }
+    })
+    expect(inputFromForm(base).recurrence).toBeUndefined()
+  })
+
+  it('sends a recurrence change, null to stop repeating, and nothing when it is unchanged', () => {
+    const master = formFromEvent(series)
+    expect(changeFromForms(master, { ...master })).toEqual({})
+    expect(
+      changeFromForms(master, { ...master, recurrence: { ...master.recurrence, frequency: 'none' } })
+    ).toEqual({ recurrence: null })
+    const changed = changeFromForms(master, {
+      ...master,
+      recurrence: { ...master.recurrence, daysOfWeek: ['monday', 'friday'] }
+    })
+    expect(changed.recurrence?.pattern.daysOfWeek).toEqual(['monday', 'friday'])
+    expect(Object.keys(changed)).toEqual(['recurrence'])
+    const added = changeFromForms(base, { ...base, recurrence: { ...base.recurrence, frequency: 'weekly' } })
+    expect(added.recurrence?.pattern.type).toBe('weekly')
+  })
+
+  it('moving the start of a series does not resend the pattern', () => {
+    const master = formFromEvent(series)
+    const change = changeFromForms(master, { ...master, startDate: '2026-11-07', endDate: '2026-11-07' })
+    expect(change.recurrence).toBeUndefined()
+    expect(change.start).toBeDefined()
+  })
+
+  it('reports a problem in the pattern', () => {
+    expect(formProblem({ ...base, recurrence: { ...base.recurrence, frequency: 'daily', interval: 0 } })).toBe('interval')
   })
 })

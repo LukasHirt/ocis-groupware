@@ -171,7 +171,16 @@ status, categories, attendees and notes. Opening an event shows the same dialog 
 its values; saving sends only the fields that changed, with the event's ETag in
 `If-Match`, and delete asks first. The page asks the server for times in the browser's
 time zone with `Prefer: outlook.timezone`, as Graph clients do, so an event is shown and
-edited in that zone whatever zone it was created in. Repeating events open read-only.
+edited in that zone whatever zone it was created in.
+
+The dialog also edits the pattern of a repeating event: daily, weekly (with days),
+monthly and yearly (on a day of the month or on a weekday such as the second Thursday),
+an interval, and an end after a number of times or on a date. The server writes a
+pattern as an iCalendar rule and expands it, so the page only draws the occurrences it
+gets. Opening an occurrence asks whether to change this event or all events. "This
+event" edits the occurrence (the server stores an override) and delete excludes that
+day. "All events" edits and deletes the series. A series whose rule the Graph pattern
+cannot express is reported as such by the server, and its events open read-only.
 
 The Contacts page (`web/src/contacts` and `web/src/pages/ContactsPage.vue`) shows the
 user's address books next to a list of contacts and the details of the chosen one. The

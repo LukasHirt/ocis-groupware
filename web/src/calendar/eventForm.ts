@@ -1,6 +1,14 @@
 import { DateTime } from 'luxon'
 import type { EventInput, GraphEvent } from '../api/types'
 import { calendarIdOf } from './mapping'
+import {
+  defaultRecurrence,
+  recurrenceFormFromEvent,
+  recurrenceFromForm,
+  recurrenceProblem,
+  type RecurrenceForm,
+  type RecurrenceProblem
+} from './recurrence'
 
 export interface FormAttendee {
   type: string
@@ -27,6 +35,7 @@ export interface EventForm {
   // Names separated by commas.
   categories: string
   attendees: FormAttendee[]
+  recurrence: RecurrenceForm
 }
 
 const dateFormat = 'yyyy-MM-dd'
@@ -64,7 +73,8 @@ export function formFromEvent(event: GraphEvent): EventForm {
       type: a.type || 'required',
       name: a.emailAddress.name,
       address: a.emailAddress.address
-    }))
+    })),
+    recurrence: recurrenceFormFromEvent(event.recurrence, start.toFormat(dateFormat))
   }
 }
 
@@ -99,7 +109,8 @@ export function blankForm(s: Selection): EventForm {
     timeZone: s.zone,
     showAs: 'busy',
     categories: '',
-    attendees: []
+    attendees: [],
+    recurrence: defaultRecurrence(start.toFormat(dateFormat))
   }
 }
 
@@ -142,7 +153,9 @@ const attendeeInputs = (list: FormAttendee[]) =>
 
 // inputFromForm is the whole event, for a create.
 export function inputFromForm(f: EventForm): EventInput {
+  const recurrence = recurrenceFromForm(f.recurrence, f.startDate, f.timeZone)
   return {
+    ...(recurrence ? { recurrence } : {}),
     subject: f.subject.trim(),
     body: { contentType: 'text', content: f.notes },
     location: { displayName: f.location.trim() },
@@ -192,11 +205,14 @@ export function changeFromForms(original: EventForm, edited: EventForm): EventIn
   if (moved) {
     Object.assign(change, times(edited))
   }
+  if (JSON.stringify(original.recurrence) !== JSON.stringify(edited.recurrence)) {
+    change.recurrence = recurrenceFromForm(edited.recurrence, edited.startDate, edited.timeZone)
+  }
   return change
 }
 
 // formProblem names the first field that cannot be saved, or nothing.
-export function formProblem(f: EventForm): 'start' | 'end' | undefined {
+export function formProblem(f: EventForm): 'start' | 'end' | RecurrenceProblem | undefined {
   if (f.startDate === '' || (!f.allDay && f.startTime === '')) {
     return 'start'
   }
@@ -205,7 +221,10 @@ export function formProblem(f: EventForm): 'start' | 'end' | undefined {
   }
   const start = f.allDay ? f.startDate : `${f.startDate}T${f.startTime}`
   const end = f.allDay ? f.endDate : `${f.endDate}T${f.endTime}`
-  return end < start ? 'end' : undefined
+  if (end < start) {
+    return 'end'
+  }
+  return recurrenceProblem(f.recurrence, f.startDate)
 }
 
 const addressPattern = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/

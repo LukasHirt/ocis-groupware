@@ -106,6 +106,138 @@
           <option v-for="zone in zones" :key="zone" :value="zone">{{ zone }}</option>
         </select>
 
+        <template v-if="!hideRecurrence">
+          <label class="oc-text-bold oc-mt-s oc-display-block" for="groupware-repeat-frequency">{{
+            $gettext('Repeat')
+          }}</label>
+          <select
+            id="groupware-repeat-frequency"
+            v-model="edited.recurrence.frequency"
+            class="oc-select oc-width-1-1"
+            data-testid="repeat-frequency"
+          >
+            <option value="none">{{ $gettext('Does not repeat') }}</option>
+            <option value="daily">{{ $gettext('Daily') }}</option>
+            <option value="weekly">{{ $gettext('Weekly') }}</option>
+            <option value="monthly">{{ $gettext('Monthly') }}</option>
+            <option value="yearly">{{ $gettext('Yearly') }}</option>
+          </select>
+
+          <div v-if="rec.frequency !== 'none'" class="groupware-repeat oc-mt-xs" data-testid="repeat-pattern">
+            <div class="groupware-row oc-flex-middle">
+              <label for="groupware-repeat-interval">{{ $gettext('Every') }}</label>
+              <input
+                id="groupware-repeat-interval"
+                v-model.number="rec.interval"
+                type="number"
+                min="1"
+                max="99"
+                class="oc-text-input groupware-narrow"
+                data-testid="repeat-interval"
+              />
+              <span>{{ unit }}</span>
+            </div>
+
+            <div v-if="rec.frequency === 'monthly' || rec.frequency === 'yearly'" class="groupware-row oc-mt-xs">
+              <label class="oc-invisible-sr" for="groupware-repeat-by">{{ $gettext('Repeat on') }}</label>
+              <select
+                id="groupware-repeat-by"
+                v-model="rec.monthlyBy"
+                class="oc-select"
+                data-testid="repeat-monthly-by"
+              >
+                <option value="day">{{ $gettext('On a day of the month') }}</option>
+                <option value="weekday">{{ $gettext('On a weekday') }}</option>
+              </select>
+              <template v-if="rec.frequency === 'yearly'">
+                <label class="oc-invisible-sr" for="groupware-repeat-month">{{ $gettext('Month') }}</label>
+                <select
+                  id="groupware-repeat-month"
+                  v-model.number="rec.month"
+                  class="oc-select"
+                  data-testid="repeat-month"
+                >
+                  <option v-for="(name, i) in monthNames" :key="name" :value="i + 1">{{ name }}</option>
+                </select>
+              </template>
+              <template v-if="rec.monthlyBy === 'day'">
+                <label for="groupware-repeat-dom">{{ $gettext('Day') }}</label>
+                <input
+                  id="groupware-repeat-dom"
+                  v-model.number="rec.dayOfMonth"
+                  type="number"
+                  min="1"
+                  max="31"
+                  class="oc-text-input groupware-narrow"
+                  data-testid="repeat-day-of-month"
+                />
+              </template>
+              <template v-else>
+                <label class="oc-invisible-sr" for="groupware-repeat-index">{{ $gettext('Which one') }}</label>
+                <select
+                  id="groupware-repeat-index"
+                  v-model="rec.index"
+                  class="oc-select"
+                  data-testid="repeat-index"
+                >
+                  <option v-for="o in indexOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+                </select>
+              </template>
+            </div>
+
+            <fieldset
+              v-if="rec.frequency === 'weekly' || (rec.frequency !== 'daily' && rec.monthlyBy === 'weekday')"
+              class="groupware-fieldset groupware-row oc-mt-xs"
+            >
+              <legend class="oc-invisible-sr">{{ $gettext('Days of the week') }}</legend>
+              <label v-for="d in dayOptions" :key="d.value" class="oc-flex oc-flex-middle groupware-day">
+                <input
+                  v-model="rec.daysOfWeek"
+                  type="checkbox"
+                  class="groupware-check oc-mr-xs"
+                  :value="d.value"
+                  :data-testid="`repeat-day-${d.value}`"
+                />
+                {{ d.label }}
+              </label>
+            </fieldset>
+
+            <div class="groupware-row oc-flex-middle oc-mt-xs">
+              <label for="groupware-repeat-end">{{ $gettext('Ends') }}</label>
+              <select id="groupware-repeat-end" v-model="rec.end" class="oc-select" data-testid="repeat-end">
+                <option value="never">{{ $gettext('Never') }}</option>
+                <option value="count">{{ $gettext('After a number of times') }}</option>
+                <option value="date">{{ $gettext('On a date') }}</option>
+              </select>
+              <template v-if="rec.end === 'count'">
+                <label class="oc-invisible-sr" for="groupware-repeat-count">{{ $gettext('Times') }}</label>
+                <input
+                  id="groupware-repeat-count"
+                  v-model.number="rec.count"
+                  type="number"
+                  min="1"
+                  max="999"
+                  class="oc-text-input groupware-narrow"
+                  data-testid="repeat-count"
+                />
+              </template>
+              <template v-if="rec.end === 'date'">
+                <label class="oc-invisible-sr" for="groupware-repeat-end-date">{{ $gettext('End date') }}</label>
+                <input
+                  id="groupware-repeat-end-date"
+                  v-model="rec.endDate"
+                  type="date"
+                  class="oc-text-input"
+                  data-testid="repeat-end-date"
+                />
+              </template>
+            </div>
+            <p v-if="repeatMessage" class="oc-text-input-danger oc-mt-xs" role="alert" data-testid="repeat-error">
+              {{ repeatMessage }}
+            </p>
+          </div>
+        </template>
+
         <label class="oc-text-bold oc-mt-s oc-display-block" for="groupware-event-location">{{
           $gettext('Place')
         }}</label>
@@ -266,6 +398,8 @@ const props = defineProps<{
   existing?: boolean
   readOnly?: boolean
   notice?: string
+  // One occurrence of a series is edited, so its pattern is not.
+  hideRecurrence?: boolean
 }>()
 const emit = defineEmits<{
   close: []
@@ -291,11 +425,61 @@ const statuses = computed(() => [
   { value: 'unknown', label: $gettext('Unknown') }
 ])
 
+const rec = computed(() => edited.recurrence)
+const unit = computed(() =>
+  ({
+    none: '',
+    daily: $gettext('day(s)'),
+    weekly: $gettext('week(s)'),
+    monthly: $gettext('month(s)'),
+    yearly: $gettext('year(s)')
+  })[rec.value.frequency]
+)
+const monthNames = computed(() => [
+  $gettext('January'),
+  $gettext('February'),
+  $gettext('March'),
+  $gettext('April'),
+  $gettext('May'),
+  $gettext('June'),
+  $gettext('July'),
+  $gettext('August'),
+  $gettext('September'),
+  $gettext('October'),
+  $gettext('November'),
+  $gettext('December')
+])
+const dayOptions = computed(() => [
+  { value: 'monday', label: $gettext('Mon') },
+  { value: 'tuesday', label: $gettext('Tue') },
+  { value: 'wednesday', label: $gettext('Wed') },
+  { value: 'thursday', label: $gettext('Thu') },
+  { value: 'friday', label: $gettext('Fri') },
+  { value: 'saturday', label: $gettext('Sat') },
+  { value: 'sunday', label: $gettext('Sun') }
+])
+const indexOptions = computed(() => [
+  { value: 'first', label: $gettext('First') },
+  { value: 'second', label: $gettext('Second') },
+  { value: 'third', label: $gettext('Third') },
+  { value: 'fourth', label: $gettext('Fourth') },
+  { value: 'last', label: $gettext('Last') }
+])
+const repeatMessages = computed<Record<string, string>>(() => ({
+  interval: $gettext('Enter a whole number between 1 and 99 for how often it repeats.'),
+  days: $gettext('Pick at least one day of the week.'),
+  dayOfMonth: $gettext('The day of the month must be between 1 and 31.'),
+  count: $gettext('The number of times must be between 1 and 999.'),
+  endDate: $gettext('The last date must not be before the start.')
+}))
+
 const attendeeText = ref('')
 const attendeeProblem = ref<'invalid' | 'duplicate' | undefined>()
 const submitted = ref(false)
 
-const problem = computed(() => (submitted.value ? formProblem(edited) : undefined))
+const anyProblem = computed(() => (submitted.value ? formProblem(edited) : undefined))
+const problem = computed(() => (anyProblem.value === 'start' || anyProblem.value === 'end' ? anyProblem.value : undefined))
+const repeatMessage = computed(() => (anyProblem.value && !problem.value ? repeatMessages.value[anyProblem.value] : ''))
 
 // addAttendee takes the address from the field. It answers whether the field
 // is empty or its content was added, so a half-typed address blocks the save.
@@ -350,6 +534,12 @@ function submit() {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+.groupware-narrow {
+  width: 5rem;
+}
+.groupware-day {
+  min-width: 3.5rem;
 }
 .groupware-grow {
   flex: 1 1 auto;
