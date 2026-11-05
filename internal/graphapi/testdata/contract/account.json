@@ -1,0 +1,10 @@
+{
+  "username": "einstein",
+  "displayName": "Albert Einstein",
+  "dav": {
+    "url": "https://ocis.example/dav/",
+    "calendarHomeUrl": "https://ocis.example/dav/calendars/einstein/",
+    "addressBookHomeUrl": "https://ocis.example/dav/addressbooks/einstein/"
+  }
+}
+

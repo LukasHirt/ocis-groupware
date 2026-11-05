@@ -496,6 +496,30 @@ properties of the first event, each time zone once and every event in the order 
 object names. A stored object that does not parse is left out of the export. Importing
 an export into an empty calendar or address book gives back the same UIDs.
 
+## Account information
+
+`GET /groupware/v1/me` tells the signed-in user their username and where their DAV
+data lives, so a client can show the addresses to enter in a CalDAV or CardDAV app. It
+takes the bearer token and answers:
+
+```json
+{
+  "username": "einstein",
+  "displayName": "Albert Einstein",
+  "dav": {
+    "url": "https://ocis.example/dav/",
+    "calendarHomeUrl": "https://ocis.example/dav/calendars/einstein/",
+    "addressBookHomeUrl": "https://ocis.example/dav/addressbooks/einstein/"
+  }
+}
+```
+
+The addresses use the scheme and host of the request, taking the scheme from
+`X-Forwarded-Proto` behind a proxy. `username` is the name a DAV client signs in with,
+together with an app password. When another user has taken the name over and this user has
+not signed in since, `username` is empty and so are the two home addresses. The same body is
+in `internal/graphapi/testdata/contract/account.json`.
+
 ## Administration
 
 The same binary administers a running service through the admin socket. It reads the
