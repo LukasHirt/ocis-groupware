@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openApp, openNav, pickOption, selectBox, signIn, textField } from './helpers'
+import { openApp, openNav, calendarAction, pickOption, selectBox, signIn, textField } from './helpers'
 
 // The page shows times in the browser's zone, so the zone is fixed for the
 // checks of times below.
@@ -19,7 +19,7 @@ test('the calendar page shows month, week and day views and hides a calendar', a
 
   // The month view is the first one.
   await expect(page.locator('.fc-dayGridMonth-view')).toBeVisible()
-  await expect(page.locator('.fc-toolbar-title')).not.toBeEmpty()
+  await expect(page.getByTestId('calendar-title')).not.toBeEmpty()
 
   await page.getByRole('button', { name: 'Week', exact: true }).click()
   await expect(page.locator('.fc-timeGridWeek-view')).toBeVisible()
@@ -31,7 +31,7 @@ test('the calendar page shows month, week and day views and hides a calendar', a
   // The default calendar is listed with its colour, and can be switched off.
   const item = page.getByTestId('calendar-item').first()
   await expect(item).toContainText('Personal')
-  const toggle = item.getByTestId('calendar-toggle')
+  const toggle = item.getByTestId('calendar-toggle').getByRole('checkbox')
   await expect(toggle).toBeChecked()
   await toggle.uncheck()
 
@@ -40,8 +40,9 @@ test('the calendar page shows month, week and day views and hides a calendar', a
   await openNav(page, 'Devices')
   await expect(page).toHaveURL(/\/organizer\/calendar\/devices$/)
   await openNav(page, 'Calendar')
-  await expect(page.getByTestId('calendar-item').first().getByTestId('calendar-toggle')).not.toBeChecked()
-  await page.getByTestId('calendar-item').first().getByTestId('calendar-toggle').check()
+  const again = page.getByTestId('calendar-item').first().getByTestId('calendar-toggle').getByRole('checkbox')
+  await expect(again).not.toBeChecked()
+  await again.check()
 
   expect(pageErrors).toEqual([])
 })
@@ -58,7 +59,7 @@ test('a calendar can be created, renamed, recoloured and deleted', async ({ page
   await expect(page.getByRole('dialog')).toBeHidden()
   await expect(mine).toHaveCount(1)
 
-  await mine.getByTestId('calendar-edit').click()
+  await calendarAction(page, mine, 'calendar-edit')
   await expect(textField(page, 'calendar-name')).toHaveValue('Field notes')
   await textField(page, 'calendar-name').fill('Lab notes')
   await page.getByTestId('calendar-color-#2f9e6e').click()
@@ -66,10 +67,10 @@ test('a calendar can be created, renamed, recoloured and deleted', async ({ page
   await expect(page.getByRole('dialog')).toBeHidden()
   const renamed = items.filter({ hasText: 'Lab notes' })
   await expect(renamed).toHaveCount(1)
-  await expect(renamed.locator('.groupware-swatch')).toHaveCSS('background-color', 'rgb(47, 158, 110)')
+  await expect(renamed.locator('.gw-swatch')).toHaveCSS('background-color', 'rgb(47, 158, 110)')
 
   // A name is required.
-  await renamed.getByTestId('calendar-edit').click()
+  await calendarAction(page, renamed, 'calendar-edit')
   await textField(page, 'calendar-name').fill('')
   await page.getByTestId('dialog-confirm').click()
   await expect(page.locator('#gw-calendar-name-message')).toBeVisible()
@@ -81,10 +82,10 @@ test('a calendar can be created, renamed, recoloured and deleted', async ({ page
   await openNav(page, 'Calendar')
   await expect(items.filter({ hasText: 'Lab notes' })).toHaveCount(1)
 
-  await renamed.getByTestId('calendar-delete').click()
+  await calendarAction(page, renamed, 'calendar-delete')
   await page.getByTestId('dialog-cancel').click()
   await expect(renamed).toHaveCount(1)
-  await renamed.getByTestId('calendar-delete').click()
+  await calendarAction(page, renamed, 'calendar-delete')
   await page.getByTestId('dialog-confirm').click()
   await expect(items.filter({ hasText: 'Lab notes' })).toHaveCount(0)
 })
@@ -287,7 +288,7 @@ test('a calendar can be imported from a file, with a report, and exported again'
   ].join('\r\n')
 
   const chooser = page.waitForEvent('filechooser')
-  await mine.getByTestId('calendar-import').click()
+  await calendarAction(page, mine, 'calendar-import')
   await (await chooser).setFiles({
     name: 'meeting.ics',
     mimeType: 'text/calendar',
@@ -300,14 +301,14 @@ test('a calendar can be imported from a file, with a report, and exported again'
   await expect(page.locator('.fc-event', { hasText: 'Imported meeting' })).toHaveCount(1)
 
   const download = page.waitForEvent('download')
-  await mine.getByTestId('calendar-export').click()
+  await calendarAction(page, mine, 'calendar-export')
   const file = await download
   expect(file.suggestedFilename()).toBe('Imported.ics')
   const path = await file.path()
   const text = (await import('node:fs')).readFileSync(path, 'utf8')
   expect(text).toContain('SUMMARY:Imported meeting')
 
-  await mine.getByTestId('calendar-delete').click()
+  await calendarAction(page, mine, 'calendar-delete')
   await page.getByTestId('dialog-confirm').click()
   await expect(mine).toHaveCount(0)
 })

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import CalendarPage from '../../../src/pages/CalendarPage.vue'
 import { choose } from '../helpers/select'
+import { mockMedia } from '../helpers/media'
 import calendars from '../../../../internal/graphapi/testdata/contract/calendars.json'
 import importReport from '../../../../internal/graphapi/testdata/contract/import-report.json'
 import eventSeries from '../../../../internal/graphapi/testdata/contract/event-series.json'
@@ -72,9 +73,12 @@ async function mountPage() {
 }
 
 describe('the calendar page', () => {
+  let restoreMedia = () => {}
   beforeEach(() => {
     // The fixture's events lie in November 2026, so the grid must open there.
     vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-05T12:00:00Z') })
+    // A wide window, so the list is a pane and not folded into a drop.
+    restoreMedia = mockMedia()
     localStorage.clear()
     calendarViewCalls.length = 0
     saved.calls.length = 0
@@ -83,13 +87,184 @@ describe('the calendar page', () => {
     document.body.innerHTML = ''
   })
 
-  afterEach(() => vi.useRealTimers())
+  afterEach(() => {
+    vi.useRealTimers()
+    restoreMedia()
+  })
+
+  describe('the toolbar', () => {
+    it('shows the range in the only h1 of the page, as a live region', async () => {
+      const wrapper = await mountPage()
+      const title = wrapper.get('[data-testid="calendar-title"]')
+      expect(title.element.tagName).toBe('H1')
+      expect(title.text()).toBe('November 2026')
+      expect(title.attributes('aria-live')).toBe('polite')
+      expect(wrapper.findAll('h1')).toHaveLength(1)
+    })
+
+    it('does not draw the toolbar of the grid', async () => {
+      const wrapper = await mountPage()
+      expect(wrapper.find('.fc-toolbar').exists()).toBe(false)
+    })
+
+    it('moves the grid with the arrows and names the step after the view', async () => {
+      const wrapper = await mountPage()
+      expect(wrapper.get('[data-testid="calendar-next"]').attributes('aria-label')).toBe('Next month')
+      await wrapper.get('[data-testid="calendar-next"]').trigger('click')
+      expect(wrapper.get('[data-testid="calendar-title"]').text()).toBe('December 2026')
+      await wrapper.get('[data-testid="calendar-prev"]').trigger('click')
+      await wrapper.get('[data-testid="calendar-prev"]').trigger('click')
+      expect(wrapper.get('[data-testid="calendar-title"]').text()).toBe('October 2026')
+      // Each move reads the events of the new range.
+      expect(calendarViewCalls.length).toBeGreaterThan(2)
+
+      await wrapper.get('[data-testid="calendar-next"]').trigger('click')
+      const week = wrapper.findAll('.oc-button-group button').find((b) => b.text() === 'Week')!
+      await week.trigger('click')
+      expect(wrapper.get('[data-testid="calendar-prev"]').attributes('aria-label')).toBe('Previous week')
+    })
+
+    it('goes back to today, and is disabled while today is in view', async () => {
+      const wrapper = await mountPage()
+      const today = () => wrapper.get('[data-testid="calendar-today"]')
+      expect(today().attributes('disabled')).toBeDefined()
+      await wrapper.get('[data-testid="calendar-next"]').trigger('click')
+      expect(today().attributes('disabled')).toBeUndefined()
+      await today().trigger('click')
+      expect(wrapper.get('[data-testid="calendar-title"]').text()).toBe('November 2026')
+      expect(today().attributes('disabled')).toBeDefined()
+    })
+
+    it('switches between month, week and day, and marks the one that is on', async () => {
+      const wrapper = await mountPage()
+      const buttons = () => wrapper.findAll('.oc-button-group button')
+      expect(buttons().map((b) => b.text())).toEqual(['Month', 'Week', 'Day'])
+      expect(buttons().map((b) => b.attributes('aria-pressed'))).toEqual(['true', 'false', 'false'])
+      await buttons()[2].trigger('click')
+      expect(wrapper.find('.fc-timeGridDay-view').exists()).toBe(true)
+      expect(buttons().map((b) => b.attributes('aria-pressed'))).toEqual(['false', 'false', 'true'])
+      await buttons()[1].trigger('click')
+      expect(wrapper.find('.fc-timeGridWeek-view').exists()).toBe(true)
+    })
+
+    it('opens the settings from a gear button', async () => {
+      const wrapper = await mountPage()
+      const gear = wrapper.get('[data-testid="settings-open"]')
+      expect(gear.attributes('aria-label')).toBe('Calendar settings')
+      await gear.trigger('click')
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+    })
+
+    it('answers the keys for today, next, previous and the views', async () => {
+      const wrapper = await mountPage()
+      const press = (key: string) => document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+      press('n')
+      await flushPromises()
+      expect(wrapper.get('[data-testid="calendar-title"]').text()).toBe('December 2026')
+      press('t')
+      press('p')
+      await flushPromises()
+      expect(wrapper.get('[data-testid="calendar-title"]').text()).toBe('October 2026')
+      press('d')
+      await flushPromises()
+      expect(wrapper.find('.fc-timeGridDay-view').exists()).toBe(true)
+    })
+
+    it('leaves the keys alone while a field has the focus', async () => {
+      const wrapper = await mountPage()
+      const field = document.createElement('input')
+      document.body.appendChild(field)
+      field.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', bubbles: true }))
+      await flushPromises()
+      expect(wrapper.get('[data-testid="calendar-title"]').text()).toBe('November 2026')
+    })
+  })
+
+  describe('on a phone', () => {
+    beforeEach(() => {
+      restoreMedia()
+      restoreMedia = mockMedia((q) => q.includes('639') || q.includes('959') || q.includes('1199') || q.includes('1599'))
+    })
+
+    it('opens on the day, with the view buttons folded into a menu', async () => {
+      const wrapper = await mountPage()
+      expect(wrapper.find('.fc-timeGridDay-view').exists()).toBe(true)
+      expect(wrapper.find('.oc-button-group').exists()).toBe(false)
+      expect(wrapper.get('#gw-view-toggle').text()).toBe('Day')
+      const items = wrapper.findAll('[aria-pressed]').map((b) => `${b.text()}:${b.attributes('aria-pressed')}`)
+      expect(items).toEqual(['Month:false', 'Week:false', 'Day:true'])
+    })
+
+    it('moves the stepping buttons to the second row, beside New event', async () => {
+      const wrapper = await mountPage()
+      expect(wrapper.get('.gw-app-actions').find('[data-testid="calendar-next"]').exists()).toBe(true)
+      expect(wrapper.get('.gw-app-actions').find('[data-testid="event-add"]').exists()).toBe(true)
+      expect(wrapper.findAll('[data-testid="calendar-next"]')).toHaveLength(1)
+    })
+  })
+
+  describe('the actions row', () => {
+    it('has New event as the main action, and opens the editor', async () => {
+      const wrapper = await mountPage()
+      const add = wrapper.get('[data-testid="event-add"]')
+      expect(add.attributes('disabled')).toBeUndefined()
+      await add.trigger('click')
+      expect(wrapper.find('[data-testid="event-subject"]').exists()).toBe(true)
+    })
+
+    it('disables New event and Import when no calendar can be written to', async () => {
+      hoisted.state.calendars = hoisted.state.calendars.map((c) => ({ ...c, canEdit: false }))
+      const wrapper = await mountPage()
+      expect(wrapper.get('[data-testid="event-add"]').attributes('disabled')).toBeDefined()
+      expect(wrapper.get('[data-testid="import-open"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('imports into a calendar chosen from the Import menu', async () => {
+      const wrapper = await mountPage()
+      const entries = wrapper.findAll('[data-testid="import-into"]')
+      // The calendars that can be written to, the default one first.
+      expect(entries.map((e) => e.text())).toEqual([
+        'Import into Personal',
+        'Import into Work'
+      ])
+      await entries[1].trigger('click')
+      const file = new File(['BEGIN:VCALENDAR'], 'x.ics', { type: 'text/calendar' })
+      const input = wrapper.get<HTMLInputElement>('[data-testid="calendar-import-file"]')
+      Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+      await input.trigger('change')
+      await flushPromises()
+      expect(hoisted.api.importCalendar).toHaveBeenCalledWith(calendars.value[1].id, file)
+    })
+  })
+
+  describe('the states', () => {
+    it('invites to add a calendar when there is none, and has no toolbar', async () => {
+      hoisted.state.calendars = []
+      const wrapper = await mountPage()
+      expect(wrapper.get('[data-testid="empty"]').text()).toBe('You have no calendars yet')
+      expect(wrapper.find('[data-testid="calendar-grid"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="event-add"]').exists()).toBe(false)
+      await wrapper.get('[data-testid="empty-add"]').trigger('click')
+      expect(wrapper.find('[role="dialog"]').text()).toContain('Add calendar')
+    })
+
+    it('says so when every calendar is hidden', async () => {
+      localStorage.setItem('groupware.hiddenCalendars', JSON.stringify(calendars.value.map((c) => c.id)))
+      const wrapper = await mountPage()
+      expect(wrapper.get('[data-testid="all-hidden"]').text()).toContain('All calendars are hidden')
+    })
+
+    it('has no such note while a calendar is shown', async () => {
+      const wrapper = await mountPage()
+      expect(wrapper.find('[data-testid="all-hidden"]').exists()).toBe(false)
+    })
+  })
 
   it('lists the calendars with a switch each, all on', async () => {
     const wrapper = await mountPage()
     const items = wrapper.findAll('[data-testid="calendar-item"]')
     expect(items.map((i) => i.find('.name').text())).toEqual(['Personal', 'Work', 'Team'])
-    for (const toggle of wrapper.findAll<HTMLInputElement>('[data-testid="calendar-toggle"]')) {
+    for (const toggle of wrapper.findAll<HTMLInputElement>('[data-testid="calendar-toggle"] input')) {
       expect(toggle.element.checked).toBe(true)
     }
   })
@@ -113,7 +288,7 @@ describe('the calendar page', () => {
   it('hides the events of a calendar that is switched off, and remembers it', async () => {
     const wrapper = await mountPage()
     const personal = calendars.value[0]
-    const first = wrapper.find<HTMLInputElement>('[data-testid="calendar-toggle"]')
+    const first = wrapper.find<HTMLInputElement>('[data-testid="calendar-toggle"] input')
     await first.setValue(false)
     expect(wrapper.findAll('.fc-event')).toHaveLength(0)
     expect(JSON.parse(localStorage.getItem('groupware.hiddenCalendars') ?? '[]')).toEqual([
@@ -122,7 +297,7 @@ describe('the calendar page', () => {
 
     wrapper.unmount()
     const again = await mountPage()
-    expect(again.find<HTMLInputElement>('[data-testid="calendar-toggle"]').element.checked).toBe(false)
+    expect(again.find<HTMLInputElement>('[data-testid="calendar-toggle"] input').element.checked).toBe(false)
   })
 
   it('offers edit and delete for calendars the user may change, and nothing for others', async () => {

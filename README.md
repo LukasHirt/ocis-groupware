@@ -228,14 +228,20 @@ call shows an error toast with the server's message.
 The calendar page draws the user's calendars with FullCalendar (MIT, bundled into
 `groupware.js`) in month, week and day views. The events come from the server-expanded
 calendar view for the range on screen, so recurring events need no recurrence library in
-the browser. Each calendar has a switch in the list beside the grid; which calendars are
-switched off is kept in the browser's local storage. A calendar without a colour gets one
+the browser. The controls above the grid (Today, the arrows, the title, Month, Week and Day)
+are buttons of the design system that drive FullCalendar, and its colours follow the theme of
+oCIS Web, dark mode included. Each calendar has a checkbox in the list beside the grid, with
+calendars shared by other people under their own heading; which calendars are switched off is
+kept in the browser's local storage. On a narrow window the list folds into a menu behind a
+button, and below 640 px the page opens on the day. The keys `t`, `n`, `p`, `m`, `w`, `d` and
+`c` go to today, next, previous, the three views and a new event while no field has the focus. A calendar without a colour gets one
 from a fixed palette that depends only on its id. Event times are converted from the
 zone the server reports to the browser's zone.
 
-A user adds, renames, recolours and deletes calendars from the list beside the grid.
-Only the owner of a calendar sees the Edit and Delete buttons; a recipient who may edit its
-events can still import into it. A delete asks for confirmation first.
+A user adds a calendar with the plus button above the list. The other actions of a calendar
+are in the menu at the end of its row. Only the owner of a calendar sees Edit, Share and
+Delete; a recipient who may edit its events can still import into it. A delete asks for
+confirmation first.
 
 Marking a day or a span of time in the grid, or the New event button, opens the event
 dialog. It has a title, calendar, all-day switch, start and end, time zone, place,
@@ -259,14 +265,15 @@ event" edits the occurrence (the server stores an override) and delete excludes 
 day. "All events" edits and deletes the series. A series whose rule the Graph pattern
 cannot express is reported as such by the server, and its events open read-only.
 
-Each calendar in the list has an Export button, which downloads it as one `.ics` file
-named after the calendar, and calendars the user can write to have an Import button. Import
+Each calendar's menu has Export, which downloads it as one `.ics` file named after the
+calendar, and the calendars the user can write to have Import too. The Import button above
+the grid offers the same for each of them. Import
 sends the chosen file to `POST /groupware/v1/calendars/{id}/import` and shows the server's
 report: how many events were added, replaced or failed, and for each failure its position in
 the file, its UID and the reason. The events on screen are read again afterwards. The two
 endpoints are described under Import and export below.
 
-The Settings button on the calendar page sets the time zone, the first day of the week and
+The gear on the calendar page opens the settings for the time zone, the first day of the week and
 whether week numbers show. They are kept per user in the browser's local storage, not on the
 server, and a value that is missing or unusable falls back to its default (the browser's zone,
 Monday, no week numbers). The zone is the one the grid shows times in, the one asked for with

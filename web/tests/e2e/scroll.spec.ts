@@ -66,7 +66,7 @@ for (const size of windows) {
   test.describe(size.name, () => {
     test('the calendar page scrolls', async ({ page }) => {
       await openPage(page, 'Calendar', size)
-      await expect(page.locator('h1')).toHaveText('Calendar')
+      await expect(page.getByTestId('calendar-title')).not.toBeEmpty()
       await expectScrollsToEnd(page, '.gw-body', size.height)
     })
 

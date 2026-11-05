@@ -245,6 +245,8 @@ export const OcTag = plain('OcTag', 'span')
 // The drop is always rendered, so the items inside it can be found.
 export const OcDrop = plain('OcDrop', 'div')
 
+export const OcProgress = plain('OcProgress', 'div')
+
 export const PortalTarget = defineComponent({
   name: 'PortalTarget',
   setup() {
@@ -271,5 +273,6 @@ export const designSystemStubs = {
   OcDrop,
   OcAvatar,
   OcTag,
+  OcProgress,
   PortalTarget
 }

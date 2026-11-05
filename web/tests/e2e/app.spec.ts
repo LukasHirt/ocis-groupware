@@ -19,7 +19,7 @@ test('oCIS Web lists Calendar and Contacts as two applications with their own na
   // Calendar opens on its main page, with its own two navigation items.
   await openApp(page, 'Calendar')
   await expect(page).toHaveURL(/\/organizer\/calendar\/events$/)
-  await expect(page.locator('h1')).toHaveText('Calendar')
+  await expect(page.getByTestId('calendar-title')).not.toBeEmpty()
   const nav = page.locator('#web-nav-sidebar')
   await expect(nav.getByRole('link')).toHaveText(['Calendar', 'Devices'])
 

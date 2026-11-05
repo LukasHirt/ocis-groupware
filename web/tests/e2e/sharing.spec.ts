@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test'
-import { openApp, openNav, pickOption, selectBox, signIn, textField, user, type TestUser } from './helpers'
+import { openApp, openNav, calendarAction, pickOption, selectBox, signIn, textField, user, type TestUser } from './helpers'
 
 // Demo users that oCIS creates with IDM_CREATE_DEMO_USERS. Both are members
 // of the group physics-lovers.
@@ -55,7 +55,7 @@ test('a calendar is shared with a user and with a group, and the role and revoki
   await expect(items(guest)).toHaveCount(0)
 
   // Share with a user, who may only read.
-  await items(owner).getByTestId('calendar-share').click()
+  await calendarAction(owner, items(owner), 'calendar-share')
   await expect(owner.getByTestId('share-none')).toBeVisible()
   await textField(owner, 'share-search').fill('ma')
   await expect(owner.locator('#gw-share-search-message')).toContainText('at least 3')
@@ -70,20 +70,24 @@ test('a calendar is shared with a user and with a group, and the role and revoki
 
   await reload(guest, 'Calendar')
   await expect(items(guest)).toHaveCount(1)
-  await expect(items(guest)).toContainText('read only')
-  await expect(items(guest).getByTestId('calendar-share')).toHaveCount(0)
-  await expect(items(guest).getByTestId('calendar-edit')).toHaveCount(0)
-  await expect(items(guest).getByTestId('calendar-delete')).toHaveCount(0)
+  await expect(items(guest)).toContainText('Read only')
+  // The menu of a shared calendar only exports it.
+  await items(guest).getByTestId('calendar-actions').click()
+  await expect(guest.locator('[data-testid="calendar-export"]:visible')).toBeVisible()
+  for (const id of ['calendar-share', 'calendar-edit', 'calendar-delete', 'calendar-import']) {
+    await expect(guest.locator(`[data-testid="${id}"]:visible`)).toHaveCount(0)
+  }
+  await guest.keyboard.press('Escape')
 
   // The role changes to edit.
-  await items(owner).getByTestId('calendar-share').click()
+  await calendarAction(owner, items(owner), 'calendar-share')
   await pickOption(owner.getByTestId('share-item').filter({ hasText: 'Marie' }), 'share-role', 'Can edit')
   await owner.getByTestId('dialog-cancel').click()
   await reload(guest, 'Calendar')
-  await expect(items(guest)).toContainText('can edit')
+  await expect(items(guest)).toContainText('Can edit')
 
   // Revoking ends the access.
-  await items(owner).getByTestId('calendar-share').click()
+  await calendarAction(owner, items(owner), 'calendar-share')
   await owner.getByTestId('share-item').filter({ hasText: 'Marie' }).getByTestId('share-revoke').click()
   await expect(owner.getByTestId('share-none')).toBeVisible()
   await reload(guest, 'Calendar')
@@ -95,16 +99,16 @@ test('a calendar is shared with a user and with a group, and the role and revoki
   await expect(group).toContainText('Group')
   await owner.getByTestId('dialog-cancel').click()
   await reload(guest, 'Calendar')
-  await expect(items(guest)).toContainText('read only')
+  await expect(items(guest)).toContainText('Read only')
 
-  await items(owner).getByTestId('calendar-share').click()
+  await calendarAction(owner, items(owner), 'calendar-share')
   await group.getByTestId('share-revoke').click()
   await expect(owner.getByTestId('share-none')).toBeVisible()
   await owner.getByTestId('dialog-cancel').click()
   await reload(guest, 'Calendar')
   await expect(items(guest)).toHaveCount(0)
 
-  await items(owner).getByTestId('calendar-delete').click()
+  await calendarAction(owner, items(owner), 'calendar-delete')
   await owner.getByTestId('dialog-confirm').click()
   await expect(items(owner)).toHaveCount(0)
   await owner.context().close()
