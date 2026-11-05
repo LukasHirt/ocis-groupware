@@ -9,6 +9,8 @@ RUN go mod download
 
 COPY cmd ./cmd
 COPY internal ./internal
+COPY web/*.go ./web/
+COPY web/dist ./web/dist
 RUN go build -trimpath -ldflags="-s -w" -o /out/ocis-groupware ./cmd/ocis-groupware
 # Distroless has no shell, so the data directory is created here and copied over with its owner.
 RUN mkdir /out/data

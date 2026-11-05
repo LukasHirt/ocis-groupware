@@ -25,6 +25,7 @@ type options struct {
 	ready          func(context.Context) error
 	dav, wellKnown http.Handler
 	appPasswords   http.Handler
+	web            http.Handler
 }
 
 // WithReadiness sets the function /healthz calls on every request. A non-nil
@@ -47,6 +48,13 @@ func WithDAV(dav, wellKnown http.Handler) Option {
 // The handler runs behind the authn middleware, which requires a bearer token.
 func WithAppPasswords(h http.Handler) Option {
 	return func(o *options) { o.appPasswords = h }
+}
+
+// WithWeb serves the web application's files below /web/. The authn
+// middleware treats that prefix as public, so the handler must serve nothing
+// but static files.
+func WithWeb(h http.Handler) Option {
+	return func(o *options) { o.web = h }
 }
 
 // New builds a Server listening on addr, logging through logger. When authn is
@@ -79,6 +87,10 @@ func New(addr string, logger *slog.Logger, authn func(http.Handler) http.Handler
 		mux.Handle("/groupware/v1/app-passwords/{id}", o.appPasswords)
 		mux.Handle("/groupware/", api.NotFound())
 		mux.Handle("/groupware", api.NotFound())
+	}
+
+	if o.web != nil {
+		mux.Handle("/web/", o.web)
 	}
 
 	var handler http.Handler = mux

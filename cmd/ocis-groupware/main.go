@@ -23,6 +23,7 @@ import (
 	"github.com/owncloud/ocis-groupware/internal/logging"
 	"github.com/owncloud/ocis-groupware/internal/principals"
 	"github.com/owncloud/ocis-groupware/internal/server"
+	"github.com/owncloud/ocis-groupware/web"
 )
 
 func main() {
@@ -116,7 +117,8 @@ func run(args []string, stderr io.Writer) error {
 	srv := server.New(cfg.HTTPAddr, logger, auth.Middleware(verifier, logger),
 		server.WithReadiness(dataDirWritable(cfg.DataDir)),
 		server.WithDAV(dav, wellKnown),
-		server.WithAppPasswords(api.AppPasswords(registry, logger)))
+		server.WithAppPasswords(api.AppPasswords(registry, logger)),
+		server.WithWeb(web.Handler()))
 
 	// On shutdown the public server drains first, then the admin server,
 	// then the socket file goes, and the store is closed last (its deferred

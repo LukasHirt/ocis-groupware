@@ -7,5 +7,9 @@ coverage.txt
 /.venv/
 /cert.pem
 
+# The web build; only the placeholder that keeps the directory is tracked
+/web/dist/*
+!/web/dist/.gitkeep
+
 # Local design notes and plans
 docs/superpowers/

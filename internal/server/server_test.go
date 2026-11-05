@@ -156,6 +156,27 @@ func TestAuthMiddlewareProtectsEverythingButPublicPaths(t *testing.T) {
 	}
 }
 
+// TestWebIsPublic mounts a web handler and checks that it is reached without
+// credentials, while the paths next to it still need a token.
+func TestWebIsPublic(t *testing.T) {
+	web := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("web " + r.URL.Path))
+	})
+	s := New(":0", testLogger(), auth.Middleware(stubVerifier{}, testLogger()), WithWeb(web))
+
+	rec := httptest.NewRecorder()
+	s.httpServer.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/web/groupware.js", nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "web /web/groupware.js" {
+		t.Fatalf("GET /web/groupware.js: %d %q", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	s.httpServer.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/webx", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("GET /webx without a token: %d, want 401", rec.Code)
+	}
+}
+
 // davFixture is a server with the DAV handler mounted behind the bearer
 // middleware, as main builds it.
 type davFixture struct {

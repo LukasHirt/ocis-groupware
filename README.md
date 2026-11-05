@@ -71,6 +71,21 @@ clients sign in. A request under `/dav` without valid credentials gets `401` wit
 calendars and address books. A user's first request with a bearer token creates
 their default address book and calendar.
 
+## Web application
+
+The service serves its web application, a build of `web/`, under `/web/` without
+authentication. The build output is embedded in the binary at compile time from
+`web/dist`. That directory holds only a placeholder in git, so a binary built without
+the web build answers `404` for every path under `/web/`, and the Go tests do not need
+Node.
+
+Only `GET` and `HEAD` are answered, and only for plain files: no directory listings, no
+index, nothing whose name starts with a dot. Each response carries its content type
+and `X-Content-Type-Options: nosniff`. `/web/groupware.js`, the entry that oCIS Web
+loads, is served with `Cache-Control: no-cache` because its name never changes. Every
+other file in the build carries a content hash in its name and is served as immutable
+for a year.
+
 ## App passwords
 
 DAV clients sign in with an app password instead of an OIDC token. Create one with a
