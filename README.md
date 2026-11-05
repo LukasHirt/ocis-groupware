@@ -88,7 +88,9 @@ stack mounts as `/etc/ocis/web.yaml`), and provides `vue`, `pinia`, `luxon`, `vu
 contains none of them. `vue-router` is not provided; the application imports only
 its types and routes through the composables of `web-pkg`. The ownCloud packages are
 pinned to the Web version that the supported oCIS release ships (Web 12.5.0 in oCIS
-8.2.x) and are updated by hand with it.
+8.2.x) and are updated by hand with it. [docs/web-integration.md](docs/web-integration.md)
+records what Web provides to the application and which versions this was verified
+against.
 
 Development needs Node 24:
 
@@ -230,6 +232,13 @@ web application in its Web configuration and serves its entry. The Go tests use 
 [go-webdav](https://github.com/emersion/go-webdav) client. One test runs the Python
 caldav client check that ships with groupkit, which also exercises occurrence
 expansion.
+
+`web/tests/e2e` holds a browser test, run with Playwright and a headless Chromium,
+that signs in to oCIS Web as a demo user, opens the application from the application
+switcher and moves between its pages. CI runs it in the stack job after the Go tests,
+on both routes. By hand, with the stack up: `task web:install`, then
+`npx playwright install chromium` in `web/`, then `task web:e2e`; `STACK_URL` picks
+another stack address.
 
 CI boots the stack with `OCIS_VERSION=8.2.2` and runs them on every pull request. The
 tests are behind the `stack` build tag, so `task test` leaves them alone:

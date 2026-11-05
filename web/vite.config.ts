@@ -32,6 +32,9 @@ export default defineConfig({
     }
   },
   test: {
-    include: ['tests/unit/**/*.spec.ts']
+    // The SDK's include pattern is merged with this one, so the browser
+    // tests, which Playwright runs, must be excluded by name.
+    include: ['tests/unit/**/*.spec.ts'],
+    exclude: ['tests/e2e/**']
   }
 })

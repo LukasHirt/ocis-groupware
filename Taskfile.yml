@@ -70,6 +70,12 @@ tasks:
     cmds:
       - npm run check
 
+  web:e2e:
+    desc: Open the web application inside oCIS Web in a headless browser (needs the stack)
+    dir: web
+    cmds:
+      - npm run test:e2e
+
   docker:build:
     desc: Build the docker image
     cmds:
