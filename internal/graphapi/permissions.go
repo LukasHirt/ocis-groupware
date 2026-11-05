@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/LukasHirt/groupkit/store"
-
 	"github.com/owncloud/ocis-groupware/internal/auth"
 	"github.com/owncloud/ocis-groupware/internal/ocisgraph"
 	"github.com/owncloud/ocis-groupware/internal/principals"
@@ -95,15 +93,14 @@ func parsePermissionID(s string) (sharing.GranteeType, string, error) {
 
 // permissionRoutes serves the permissions of one kind of collection.
 type permissionRoutes struct {
-	a    *Handler
-	kind store.Kind
+	a *Handler
 	// find resolves the id in the URL to a collection the user can reach.
 	find func(ctx context.Context, user principals.Principal, id string) (CalendarEntry, *apiError)
 	noun string
 }
 
 func (a *Handler) calendarPermissionRoutes() []route {
-	pr := permissionRoutes{a: a, kind: store.KindCalendar, noun: "calendar",
+	pr := permissionRoutes{a: a, noun: "calendar",
 		find: func(ctx context.Context, user principals.Principal, id string) (CalendarEntry, *apiError) {
 			e, _, aerr := a.findCalendar(ctx, user, id)
 			return e, aerr

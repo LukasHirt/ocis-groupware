@@ -383,6 +383,14 @@ is stored in the card, as `PHOTO;ENCODING=b` in a vCard 3.0 card and as a `data:
 4.0 card. A card whose photo is only a link has no photo here. A contact shows
 `groupware.hasPhoto` so a client can skip the request.
 
+#### Contact folder permissions
+
+Address books are shared the same way, below `/graph/v1.0/me/contactFolders/{id}/permissions`
+(`GET`, `POST`) and `.../permissions/{permissionId}` (`GET`, `PATCH`, `DELETE`). A permission
+has the shape, the roles and the answers of a calendar permission. A contact folder shared
+with the user shows in `/me/contactFolders` with `groupware.canEdit` set from the share, and its
+contacts can be read, and written when the role is `write`.
+
 ### Contact mapping
 
 Contacts are stored as vCard 3.0 or 4.0 and shown as Graph contacts. The mapping loses
