@@ -592,3 +592,17 @@ func TestUnknownOwner(t *testing.T) {
 		t.Fatalf("code %d, stderr %q", code, stderr)
 	}
 }
+
+func TestListEscapesControlCharacters(t *testing.T) {
+	var out bytes.Buffer
+	err := adminCommand{}.printTable(&out, []principal{{
+		Owner: "o", Sub: "o", Username: "al\x1b[2Kice", DisplayName: "Eve\x1b]0;owned\x07\nbob\tx",
+		CreatedAt: time.Date(2026, 10, 30, 9, 12, 0, 0, time.UTC),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := out.String(); strings.ContainsAny(got, "\x1b\x07\t") || strings.Count(got, "\n") != 2 {
+		t.Errorf("unescaped output: %q", got)
+	}
+}

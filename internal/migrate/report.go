@@ -7,6 +7,8 @@ import (
 	"io"
 	"slices"
 	"strings"
+
+	"github.com/owncloud/ocis-groupware/internal/termsafe"
 )
 
 // Status values in a report. In a dry run they say what a real run would do.
@@ -212,9 +214,19 @@ func (r *Report) WriteJSON(w io.Writer) error {
 	return enc.Encode(r)
 }
 
-// WriteText writes the report for people.
+// WriteText writes the report for people. Values that came from classic, such
+// as names and URLs, are written with control characters escaped, so that they
+// cannot change what the terminal shows.
 func (r *Report) WriteText(w io.Writer) error {
 	var b strings.Builder
+	emit := func(w io.Writer, format string, args ...any) {
+		for i, a := range args {
+			if s, ok := a.(string); ok {
+				args[i] = termsafe.Clean(s)
+			}
+		}
+		_, _ = fmt.Fprintf(w, format, args...)
+	}
 	verb := func(done, would string) string {
 		if r.DryRun {
 			return would
@@ -236,13 +248,13 @@ func (r *Report) WriteText(w io.Writer) error {
 		b.WriteString("Dry run: nothing was written. The report says what a real run would do.\n\n")
 	}
 	for _, u := range r.Users {
-		fmt.Fprintf(&b, "User %s", u.Login)
+		emit(&b, "User %s", u.Login)
 		if u.Owner != "" {
-			fmt.Fprintf(&b, " (owner %s)", u.Owner)
+			emit(&b, " (owner %s)", u.Owner)
 		}
-		fmt.Fprintf(&b, ": %s", u.statusText(r.DryRun))
+		emit(&b, ": %s", u.statusText(r.DryRun))
 		if u.Reason != "" {
-			fmt.Fprintf(&b, ", %s", u.Reason)
+			emit(&b, ", %s", u.Reason)
 		}
 		b.WriteString("\n")
 		for _, group := range []struct {
@@ -250,35 +262,35 @@ func (r *Report) WriteText(w io.Writer) error {
 			list  []CollectionReport
 		}{{"calendar", u.Calendars}, {"address book", u.AddressBooks}} {
 			for _, c := range group.list {
-				fmt.Fprintf(&b, "  %s %s: %s", group.label, c.Name, status(c.Status))
+				emit(&b, "  %s %s: %s", group.label, c.Name, status(c.Status))
 				if c.Reason != "" {
-					fmt.Fprintf(&b, " (%s)", c.Reason)
+					emit(&b, " (%s)", c.Reason)
 				}
 				o := c.Objects
-				fmt.Fprintf(&b, "; %d %s, %d unchanged", o.Added, verb("added", "to add"), o.Unchanged)
+				emit(&b, "; %d %s, %d unchanged", o.Added, verb("added", "to add"), o.Unchanged)
 				if o.Different > 0 {
-					fmt.Fprintf(&b, ", %d differ and were kept as they are", o.Different)
+					emit(&b, ", %d differ and were kept as they are", o.Different)
 				}
 				if o.Skipped > 0 {
-					fmt.Fprintf(&b, ", %d skipped", o.Skipped)
+					emit(&b, ", %d skipped", o.Skipped)
 				}
 				if o.Failed > 0 {
-					fmt.Fprintf(&b, ", %d failed", o.Failed)
+					emit(&b, ", %d failed", o.Failed)
 				}
 				b.WriteString("\n")
 				for _, p := range c.Problems {
-					fmt.Fprintf(&b, "    %s\n", p)
+					emit(&b, "    %s\n", p)
 				}
 			}
 		}
 		if t := u.Tokens; t.Imported+t.Existing+t.Failed > 0 {
-			fmt.Fprintf(&b, "  app tokens: %d %s, %d existing", t.Imported, verb("imported", "to import"), t.Existing)
+			emit(&b, "  app tokens: %d %s, %d existing", t.Imported, verb("imported", "to import"), t.Existing)
 			if t.Failed > 0 {
-				fmt.Fprintf(&b, ", %d failed", t.Failed)
+				emit(&b, ", %d failed", t.Failed)
 			}
 			b.WriteString("\n")
 			for _, p := range t.Problems {
-				fmt.Fprintf(&b, "    %s\n", p)
+				emit(&b, "    %s\n", p)
 			}
 		}
 	}
@@ -286,9 +298,9 @@ func (r *Report) WriteText(w io.Writer) error {
 	if len(r.Shares) > 0 {
 		b.WriteString("\nShares\n")
 		for _, s := range r.Shares {
-			fmt.Fprintf(&b, "  %s %s/%s with %s (%s): %s", s.Kind, s.Owner, s.Collection, s.Grantee, s.Access, status(s.Status))
+			emit(&b, "  %s %s/%s with %s (%s): %s", s.Kind, s.Owner, s.Collection, s.Grantee, s.Access, status(s.Status))
 			if s.Reason != "" {
-				fmt.Fprintf(&b, ", %s", s.Reason)
+				emit(&b, ", %s", s.Reason)
 			}
 			b.WriteString("\n")
 		}
@@ -299,12 +311,12 @@ func (r *Report) WriteText(w io.Writer) error {
 		b.WriteString("  nothing\n")
 	}
 	for _, n := range r.NotMigrated {
-		fmt.Fprintf(&b, "  %s", n.What)
+		emit(&b, "  %s", n.What)
 		if n.Owner != "" || n.Name != "" {
-			fmt.Fprintf(&b, " %s", strings.Trim(n.Owner+"/"+n.Name, "/"))
+			emit(&b, " %s", strings.Trim(n.Owner+"/"+n.Name, "/"))
 		}
 		if n.Detail != "" {
-			fmt.Fprintf(&b, ": %s", n.Detail)
+			emit(&b, ": %s", n.Detail)
 		}
 		b.WriteString("\n")
 	}
@@ -312,18 +324,18 @@ func (r *Report) WriteText(w io.Writer) error {
 	if len(r.Unmapped) > 0 {
 		b.WriteString("\nWithout an oCIS counterpart\n")
 		for _, u := range r.Unmapped {
-			fmt.Fprintf(&b, "  %s %s: %s\n", u.Kind, u.ID, u.Reason)
+			emit(&b, "  %s %s: %s\n", u.Kind, u.ID, u.Reason)
 		}
 	}
 	if len(r.Warnings) > 0 {
 		b.WriteString("\nWarnings\n")
 		for _, w := range r.Warnings {
-			fmt.Fprintf(&b, "  %s\n", w)
+			emit(&b, "  %s\n", w)
 		}
 	}
 
 	t := r.Totals
-	fmt.Fprintf(&b, "\nSummary: %d users (%d skipped), %d collections, %d objects %s, %d app tokens %s, %d shares %s, %d not migrated, %d problems\n",
+	emit(&b, "\nSummary: %d users (%d skipped), %d collections, %d objects %s, %d app tokens %s, %d shares %s, %d not migrated, %d problems\n",
 		t.Users, t.UsersSkipped, t.Collections, t.ObjectsAdded, verb("added", "to add"), t.Tokens, verb("imported", "to import"),
 		t.Shares, verb("written", "to write"), t.NotMigrated, t.Problems)
 	_, err := io.WriteString(w, b.String())
