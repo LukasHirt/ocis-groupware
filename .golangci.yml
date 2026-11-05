@@ -11,3 +11,7 @@ linters:
     - unused
     - errcheck
     - govet
+formatters:
+  # gofmt -l found unformatted files that the linters did not.
+  enable:
+    - gofmt

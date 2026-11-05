@@ -125,7 +125,9 @@ func TestCompatClassicHrefs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FindCalendars: %v", err)
 	}
-	if !slices.ContainsFunc(cals, func(c caldav.Calendar) bool { return strings.HasPrefix(c.Path, compatCalendars) && c.Name == "Personal" }) {
+	if !slices.ContainsFunc(cals, func(c caldav.Calendar) bool {
+		return strings.HasPrefix(c.Path, compatCalendars) && c.Name == "Personal"
+	}) {
 		t.Errorf("the default calendar is not below its classic path: %+v", cals)
 	}
 
