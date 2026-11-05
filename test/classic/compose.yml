@@ -1,0 +1,106 @@
+# A classic ownCloud 10 server with a seeded calendar and contacts, used to
+# produce and check the database dumps the migration tests read.
+#
+#   docker compose -f test/classic/compose.yml up -d --wait
+#   test/classic/seed.sh
+#
+# PostgreSQL instead of MariaDB:
+#
+#   docker compose -f test/classic/compose.yml --profile postgres up -d --wait
+#   CLASSIC_DB=pgsql test/classic/seed.sh
+#
+# The project name and host ports differ from the main compose stack, so both
+# can run side by side. Not for production.
+
+name: classic-fixture
+
+x-server: &server
+  image: owncloud/server:${CLASSIC_VERSION:-10.15}
+  ports:
+    - "${CLASSIC_PORT:-18080}:8080"
+  environment: &server-env
+    OWNCLOUD_DOMAIN: localhost:${CLASSIC_PORT:-18080}
+    OWNCLOUD_TRUSTED_DOMAINS: localhost
+    OWNCLOUD_ADMIN_USERNAME: admin
+    OWNCLOUD_ADMIN_PASSWORD: admin
+    OWNCLOUD_REDIS_ENABLED: "false"
+    OWNCLOUD_APPS_INSTALL: calendar,contacts
+    OWNCLOUD_APPS_ENABLE: calendar,contacts
+  volumes:
+    - classic-files:/mnt/data
+  healthcheck:
+    test: ["CMD", "/usr/bin/healthcheck"]
+    interval: 10s
+    timeout: 5s
+    retries: 30
+    start_period: 60s
+
+services:
+  mariadb:
+    image: mariadb:10.11
+    environment:
+      MARIADB_ROOT_PASSWORD: owncloud
+      MARIADB_USER: owncloud
+      MARIADB_PASSWORD: owncloud
+      MARIADB_DATABASE: owncloud
+    command: ["--max-allowed-packet=128M", "--innodb-log-file-size=64M"]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - classic-mariadb:/var/lib/mysql
+
+  classic:
+    <<: *server
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      <<: *server-env
+      OWNCLOUD_DB_TYPE: mysql
+      OWNCLOUD_DB_HOST: mariadb
+      OWNCLOUD_DB_NAME: owncloud
+      OWNCLOUD_DB_USERNAME: owncloud
+      OWNCLOUD_DB_PASSWORD: owncloud
+
+  postgres:
+    profiles: ["postgres"]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: owncloud
+      POSTGRES_PASSWORD: owncloud
+      POSTGRES_DB: owncloud
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U owncloud"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - classic-postgres:/var/lib/postgresql/data
+
+  classic-pgsql:
+    <<: *server
+    profiles: ["postgres"]
+    ports:
+      - "${CLASSIC_PG_PORT:-18081}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *server-env
+      OWNCLOUD_DOMAIN: localhost:${CLASSIC_PG_PORT:-18081}
+      OWNCLOUD_DB_TYPE: pgsql
+      OWNCLOUD_DB_HOST: postgres
+      OWNCLOUD_DB_NAME: owncloud
+      OWNCLOUD_DB_USERNAME: owncloud
+      OWNCLOUD_DB_PASSWORD: owncloud
+    volumes:
+      - classic-files-pgsql:/mnt/data
+
+volumes:
+  classic-files:
+  classic-files-pgsql:
+  classic-mariadb:
+  classic-postgres:

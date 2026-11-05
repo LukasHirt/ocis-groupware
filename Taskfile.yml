@@ -100,3 +100,19 @@ tasks:
     desc: Run the client flows in test/stack against the running compose stack
     cmds:
       - go test -tags stack -count=1 ./test/stack/ {{.CLI_ARGS}}
+
+  classic:up:
+    desc: Start the classic test instance (MariaDB and PostgreSQL) on ports 18080 and 18081
+    cmds:
+      - docker compose -f test/classic/compose.yml --profile postgres up -d --wait
+
+  classic:seed:
+    desc: Seed the running classic instances and rewrite test/classic/dumps
+    cmds:
+      - test/classic/seed.sh
+      - CLASSIC_DB=pgsql test/classic/seed.sh
+
+  classic:down:
+    desc: Remove the classic test instances and their volumes
+    cmds:
+      - docker compose -f test/classic/compose.yml --profile postgres down -v
