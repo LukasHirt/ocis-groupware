@@ -1,0 +1,52 @@
+name: Load
+
+# Reports how the service behaves at the sizes in docs/sizing.md. It never
+# gates anything: it is not a required check, it does not run on pull
+# requests, and a slow figure does not fail it. Only a run that cannot finish
+# (the build, the seeding, the service not starting) shows as failed.
+on:
+  schedule:
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+    inputs:
+      sizes:
+        description: Comma separated sizes of the large calendars
+        default: '10000'
+      duration:
+        description: Length of the sync storm
+        default: 5m
+
+permissions:
+  contents: read
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Run the load
+        env:
+          SIZES: ${{ inputs.sizes || '10000' }}
+          DURATION: ${{ inputs.duration || '5m' }}
+        shell: bash
+        run: |
+          go run ./test/load -sizes "$SIZES" -duration "$DURATION" -json load.json | tee load.txt
+          {
+            echo '```'
+            cat load.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: load
+          path: |
+            load.json
+            load.txt
+          if-no-files-found: ignore
