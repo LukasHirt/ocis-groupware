@@ -300,6 +300,9 @@ export interface Account {
   // True when the user's oCIS username is held by another account that can
   // still use it. username is then empty.
   username_conflict?: boolean
+  // RFC 3339 time until which app passwords work unless the user opens oCIS
+  // Web again. null when the service does not limit it or has no record yet.
+  app_passwords_valid_until?: string | null
   dav: {
     url: string
     calendarHomeUrl: string

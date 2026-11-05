@@ -113,6 +113,45 @@ describe('DAV address', () => {
   })
 })
 
+describe('app password validity', () => {
+  const now = new Date('2026-11-05T12:00:00Z')
+  function withValidUntil(iso: string | null) {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now)
+    api.getAccount.mockResolvedValue({ ...structuredClone(account), app_passwords_valid_until: iso })
+    return page()
+  }
+
+  it('shows nothing when the lease is off or unknown', async () => {
+    const wrapper = await withValidUntil(null)
+    expect(wrapper.find('[data-testid="dav-valid-until"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="dav-valid-until-warning"]').exists()).toBe(false)
+  })
+
+  it('says until when app passwords work and that opening oCIS Web renews it', async () => {
+    const wrapper = await withValidUntil('2026-12-05T10:00:00Z')
+    const text = wrapper.get('[data-testid="dav-valid-until"]').text()
+    expect(text).toContain(new Date('2026-12-05T10:00:00Z').toLocaleDateString())
+    expect(text).toContain('open oCIS Web again')
+    expect(wrapper.find('[data-testid="dav-valid-until-warning"]').exists()).toBe(false)
+  })
+
+  it('warns when fewer than 7 days remain', async () => {
+    const wrapper = await withValidUntil('2026-11-11T12:00:00Z')
+    expect(wrapper.find('[data-testid="dav-valid-until-warning"]').exists()).toBe(true)
+  })
+
+  it('does not warn with exactly 7 days left', async () => {
+    const wrapper = await withValidUntil('2026-11-12T12:00:00Z')
+    expect(wrapper.find('[data-testid="dav-valid-until-warning"]').exists()).toBe(false)
+  })
+
+  it('warns when the date has passed', async () => {
+    const wrapper = await withValidUntil('2026-11-04T12:00:00Z')
+    expect(wrapper.get('[data-testid="dav-valid-until-warning"]').text()).toContain('stopped')
+  })
+})
+
 describe('app password list', () => {
   it('lists each password with its expiry and last use', async () => {
     const wrapper = await page()

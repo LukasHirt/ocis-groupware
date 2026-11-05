@@ -950,6 +950,15 @@ msgstr ""
 msgid "You have no calendars yet."
 msgstr ""
 
+msgid "Your app passwords have stopped working. Open oCIS Web to renew them."
+msgstr ""
+
+msgid "Your app passwords stop working soon. Open oCIS Web to renew them."
+msgstr ""
+
+msgid "Your app passwords work until %{date}, unless you open oCIS Web again. Opening it renews them."
+msgstr ""
+
 msgid "Your DAV username is not available. If another user has taken over your name, ask an administrator."
 msgstr ""
 
