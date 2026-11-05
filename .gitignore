@@ -1,5 +1,6 @@
 /ocis-groupware
 /bin/
+/dist/
 *.out
 coverage.txt
 

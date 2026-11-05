@@ -1,0 +1,51 @@
+# GoReleaser builds the binaries, archives, checksums and SBOMs for a release.
+# The Release workflow runs it after building the web app, which the binary
+# embeds. The container image is built from the Dockerfile in the same workflow.
+# Check this file with `goreleaser check`, and try a build without publishing
+# anything with `goreleaser release --snapshot --clean`.
+version: 2
+
+project_name: ocis-groupware
+
+builds:
+  - id: ocis-groupware
+    main: ./cmd/ocis-groupware
+    binary: ocis-groupware
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: ocis-groupware
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# One SBOM (SPDX) per archive, made with syft.
+sboms:
+  - id: archives
+    artifacts: archive
+
+# The release notes come from the signed tag message (see the Release workflow),
+# and the workflow passes them with --release-notes.
+changelog:
+  disable: true
+
+release:
+  prerelease: auto
