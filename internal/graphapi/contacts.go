@@ -266,6 +266,7 @@ func (a *Handler) deleteContactFolder(w http.ResponseWriter, r *http.Request, c 
 		writeError(w, a.storeError("delete a contact folder", c.caller, err))
 		return
 	}
+	a.dropShares(r.Context(), e.Collection.Ref)
 	w.WriteHeader(http.StatusNoContent)
 }
 
