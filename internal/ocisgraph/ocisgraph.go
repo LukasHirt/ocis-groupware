@@ -1,7 +1,7 @@
-// Package ocisgraph is a small client for the oCIS Graph API. It asks one
-// question: who is the caller, and which groups is the caller in. It always
-// acts with the caller's own bearer token, so the service needs no credential
-// of its own for oCIS.
+// Package ocisgraph is a small client for the oCIS Graph API. It asks who the
+// caller is and which groups the caller is in, and whether a user or group
+// exists. It always acts with the caller's own bearer token, so the service
+// needs no credential of its own for oCIS.
 package ocisgraph
 
 import (
@@ -26,6 +26,9 @@ const (
 	// maxPages is the most pages of group memberships the client follows.
 	maxPages = 20
 )
+
+// ErrNotFound means the Graph API has no such user or group.
+var ErrNotFound = errors.New("ocisgraph: not found")
 
 // ErrUnauthorized means the Graph API refused the token (401 or 403).
 var ErrUnauthorized = errors.New("ocisgraph: token refused")
@@ -143,6 +146,38 @@ func (c *Client) Me(ctx context.Context, token string) (User, error) {
 	return user, nil
 }
 
+// Entity is a user or a group as the directory knows it.
+type Entity struct {
+	ID          string
+	DisplayName string
+}
+
+// User returns the user with the given oCIS id, or ErrNotFound.
+func (c *Client) User(ctx context.Context, token, id string) (Entity, error) {
+	return c.entity(ctx, token, "users", id)
+}
+
+// Group returns the group with the given oCIS id, or ErrNotFound.
+func (c *Client) Group(ctx context.Context, token, id string) (Entity, error) {
+	return c.entity(ctx, token, "groups", id)
+}
+
+func (c *Client) entity(ctx context.Context, token, collection, id string) (Entity, error) {
+	// An id that could change the path is not an id the directory has.
+	if id == "" || id == "." || id == ".." || strings.Contains(id, "/") {
+		return Entity{}, fmt.Errorf("%w: malformed id", ErrNotFound)
+	}
+	u := c.base.JoinPath("/graph/v1.0/"+collection).String() + "/" + url.PathEscape(id)
+	var got graphGroup
+	if err := c.get(ctx, u, token, &got); err != nil {
+		return Entity{}, err
+	}
+	if got.ID == "" {
+		return Entity{}, errors.New("ocisgraph: answer has no id")
+	}
+	return Entity(got), nil
+}
+
 func appendGroups(dst []Group, src []graphGroup) []Group {
 	for _, g := range src {
 		if g.ID != "" {
@@ -168,6 +203,8 @@ func (c *Client) get(ctx context.Context, rawURL, token string, out any) error {
 	switch {
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
 		return fmt.Errorf("%w: status %d", ErrUnauthorized, resp.StatusCode)
+	case resp.StatusCode == http.StatusNotFound:
+		return fmt.Errorf("%w: status %d", ErrNotFound, resp.StatusCode)
 	case resp.StatusCode != http.StatusOK:
 		return fmt.Errorf("ocisgraph: status %d", resp.StatusCode)
 	}

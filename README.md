@@ -25,7 +25,7 @@ over file, file wins over defaults.
 | `GROUPWARE_OIDC_ISSUER` | `oidc_issuer` | **Required.** The oCIS public URL, which is also the OIDC issuer |
 | `GROUPWARE_OIDC_AUDIENCE` | `oidc_audience` | Optional. If set, tokens must carry it in `aud`; oCIS sets that to the client ID of the requesting app, e.g. `web` |
 | `GROUPWARE_OIDC_CA_FILE` | `oidc_ca_file` | Optional PEM bundle of extra CAs to trust when contacting the issuer |
-| `GROUPWARE_OCIS_URL` | `ocis_url` | Optional. Where the service calls the oCIS Graph API to look up the signed-in user's id and groups. Defaults to the issuer URL. Uses the same CA file |
+| `GROUPWARE_OCIS_URL` | `ocis_url` | Optional. Where the service calls the oCIS Graph API to look up the signed-in user's id and groups, and to check the users and groups a share names. Defaults to the issuer URL. Uses the same CA file |
 | `GROUPWARE_DATA_DIR` | `data_dir` | **Required.** Directory that holds all service state. The image sets it to `/data` |
 | `GROUPWARE_ADMIN_SOCKET` | `admin_socket` | Path of the admin API's unix socket, default `admin.sock` in the data directory. Leave it alone unless the data directory cannot hold a socket (see below) |
 | `GROUPWARE_LEGACY_TOKEN_SECRET` | `legacy_token_secret` | Optional. The instance secret of a classic installation whose app tokens were imported. Without it, imported tokens do not work (see below) |
@@ -251,6 +251,29 @@ A calendar carries `canEdit` (may change events), `canShare` (owner only) and
 that is not one of the user's calendars answers `404`, whether it does not exist or
 belongs to someone else. Calendars made here hold events, and the DAV URL of a new one
 carries a generated name.
+
+#### Calendar permissions
+
+The owner of a calendar manages who it is shared with below the calendar:
+
+| Request | Answer |
+|---|---|
+| `GET /graph/v1.0/me/calendars/{id}/calendarPermissions` | The users and groups the calendar is shared with, paged |
+| `POST /graph/v1.0/me/calendars/{id}/calendarPermissions` | Shares the calendar; `201` with the permission |
+| `GET`, `PATCH`, `DELETE /graph/v1.0/me/calendars/{id}/calendarPermissions/{permissionId}` | One permission; `PATCH` changes the `role`; `DELETE` revokes it with `204` |
+
+A permission has Graph's `role` (`read` or `write`, the only two a share can give),
+`allowedRoles`, `isRemovable` and `emailAddress.name`, which holds the display name the
+user or group had when it was shared. One field is added: `grantee`, `{"type": "user" |
+"group", "id": "<oCIS id>"}`. A `POST` body carries `role` and `grantee`; any
+`emailAddress` in it is ignored. Before it stores a share, the service asks oCIS, with the
+caller's own token, whether that user or group exists. A grantee oCIS does not know is
+`400`, a failed lookup is `502`, a grantee that already has a permission is `409`, and
+sharing with oneself is `400`.
+
+Only the owner can use these endpoints. Someone the calendar is shared with gets `403`,
+and anyone else gets `404`, as for the calendar itself. A change takes effect for the
+recipients' DAV clients with their next request.
 
 ### Events
 

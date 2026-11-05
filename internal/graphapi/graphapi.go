@@ -18,6 +18,7 @@ import (
 	"github.com/owncloud/ocis-groupware/internal/auth"
 	"github.com/owncloud/ocis-groupware/internal/principals"
 	"github.com/owncloud/ocis-groupware/internal/provision"
+	"github.com/owncloud/ocis-groupware/internal/sharing"
 )
 
 // Prefix is the URL path the facade is mounted at, without a trailing slash.
@@ -32,8 +33,15 @@ type Config struct {
 	// Identities signs the caller in and keeps its oCIS identity snapshot
 	// current. Nil provisions the caller without the snapshot.
 	Identities *provision.Identities
+	// Shares holds who each collection is shared with. Nil turns sharing
+	// off: users see their own calendars only, and the permission endpoints
+	// answer 501. Directory is then not needed.
+	Shares *sharing.Shares
+	// Directory checks, with the caller's token, that a user or group named in
+	// a share exists. It is required when Shares is set.
+	Directory Directory
 	// Calendars decides which calendars a user sees. Nil shows each user
-	// their own calendars only.
+	// their own calendars and, when Shares is set, the ones shared with them.
 	Calendars CalendarSource
 	// ContactFolders decides which address books a user sees. Nil shows each
 	// user their own address books only.
@@ -83,6 +91,8 @@ func New(cfg Config, opts ...Option) (*Handler, error) {
 		return nil, errors.New("graphapi: store is nil")
 	case cfg.Registry == nil:
 		return nil, errors.New("graphapi: registry is nil")
+	case cfg.Shares != nil && cfg.Directory == nil:
+		return nil, errors.New("graphapi: shares need a directory")
 	}
 	a := &Handler{cfg: cfg, logger: cfg.Logger}
 	if a.logger == nil {
@@ -95,6 +105,9 @@ func New(cfg Config, opts ...Option) (*Handler, error) {
 	a.calendars = cfg.Calendars
 	if a.calendars == nil {
 		a.calendars = ownCalendars{st: cfg.Store}
+		if cfg.Shares != nil {
+			a.calendars = sharedCalendars{sharedCollections{st: cfg.Store, shares: cfg.Shares, reg: cfg.Registry}}
+		}
 	}
 	a.contactFolders = cfg.ContactFolders
 	if a.contactFolders == nil {
@@ -131,6 +144,9 @@ func New(cfg Config, opts ...Option) (*Handler, error) {
 	a.routes = append(a.routes, a.photoRoutes()...)
 	for _, opt := range opts {
 		opt(a)
+	}
+	if cfg.Shares != nil {
+		a.routes = append(a.routes, a.calendarPermissionRoutes()...)
 	}
 	return a, nil
 }

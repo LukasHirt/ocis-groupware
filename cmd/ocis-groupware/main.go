@@ -114,7 +114,7 @@ func run(args []string, stderr io.Writer) error {
 	}
 	identities := provision.NewIdentities(registry, graph, logger)
 
-	_, view, err := openSharing(store, registry, logger)
+	shares, view, err := openSharing(store, registry, logger)
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,9 @@ func run(args []string, stderr io.Writer) error {
 		return err
 	}
 
-	facade, err := graphapi.New(graphapi.Config{Store: store, Registry: registry, Identities: identities, Logger: logger})
+	facade, err := graphapi.New(graphapi.Config{
+		Store: store, Registry: registry, Identities: identities, Shares: shares, Directory: graph, Logger: logger,
+	})
 	if err != nil {
 		return err
 	}
