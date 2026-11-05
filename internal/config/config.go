@@ -7,11 +7,13 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/owncloud/ocis-groupware/internal/logging"
+	"github.com/owncloud/ocis-groupware/internal/ratelimit"
 )
 
 // Config holds ocis-groupware's runtime configuration.
@@ -49,6 +51,17 @@ type Config struct {
 	// stored. The ingress has to send those paths to the service. Off by
 	// default.
 	CompatPaths bool `yaml:"compat_paths"`
+	// TrustedProxies lists the addresses and networks of the reverse proxies
+	// in front of the service. Only requests from them are believed when they
+	// say who the client is in X-Forwarded-For. The sign-in rate limiter
+	// counts failures per client address.
+	TrustedProxies []string `yaml:"trusted_proxies"`
+	// AuthMaxFailures is how many failed app password sign-ins of one user
+	// from one address are allowed within AuthFailureWindow. After that the
+	// service answers 429 until the window has passed.
+	AuthMaxFailures int `yaml:"auth_max_failures"`
+	// AuthFailureWindow is how long failed sign-ins count.
+	AuthFailureWindow time.Duration `yaml:"auth_failure_window"`
 }
 
 // Default returns the built-in configuration defaults.
@@ -58,6 +71,9 @@ func Default() Config {
 		LogLevel: "info",
 
 		LegacyTokenTTL: 180 * 24 * time.Hour,
+
+		AuthMaxFailures:   10,
+		AuthFailureWindow: 15 * time.Minute,
 	}
 }
 
@@ -122,6 +138,28 @@ func Load(path string) (Config, error) {
 		}
 		cfg.CompatPaths = on
 	}
+	if v, ok := os.LookupEnv("GROUPWARE_TRUSTED_PROXIES"); ok {
+		cfg.TrustedProxies = nil
+		for _, entry := range strings.Split(v, ",") {
+			if entry = strings.TrimSpace(entry); entry != "" {
+				cfg.TrustedProxies = append(cfg.TrustedProxies, entry)
+			}
+		}
+	}
+	if v, ok := os.LookupEnv("GROUPWARE_AUTH_MAX_FAILURES"); ok {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("config: GROUPWARE_AUTH_MAX_FAILURES: %w", err)
+		}
+		cfg.AuthMaxFailures = n
+	}
+	if v, ok := os.LookupEnv("GROUPWARE_AUTH_FAILURE_WINDOW"); ok {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("config: GROUPWARE_AUTH_FAILURE_WINDOW: %w", err)
+		}
+		cfg.AuthFailureWindow = d
+	}
 	if cfg.AdminSocket == "" && cfg.DataDir != "" {
 		cfg.AdminSocket = filepath.Join(cfg.DataDir, "admin.sock")
 	}
@@ -145,6 +183,15 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.LegacyTokenTTL < 0 {
 		return fmt.Errorf("config: legacy_token_ttl must not be negative")
+	}
+	if cfg.AuthMaxFailures < 1 {
+		return fmt.Errorf("config: auth_max_failures must be at least 1")
+	}
+	if cfg.AuthFailureWindow <= 0 {
+		return fmt.Errorf("config: auth_failure_window must be positive")
+	}
+	if _, err := ratelimit.ParseProxies(cfg.TrustedProxies); err != nil {
+		return fmt.Errorf("config: trusted_proxies: %w", err)
 	}
 	return nil
 }

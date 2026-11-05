@@ -7,9 +7,12 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/LukasHirt/groupkit"
 	"github.com/LukasHirt/groupkit/store"
@@ -17,6 +20,7 @@ import (
 	"github.com/owncloud/ocis-groupware/internal/auth"
 	"github.com/owncloud/ocis-groupware/internal/principals"
 	"github.com/owncloud/ocis-groupware/internal/provision"
+	"github.com/owncloud/ocis-groupware/internal/ratelimit"
 )
 
 const (
@@ -29,6 +33,9 @@ const (
 
 	// challenge is the WWW-Authenticate value of every 401.
 	challenge = `Basic realm="ocis-groupware"`
+
+	// defaultRetryAfter is the Retry-After of a 429 whose limiter gave no time.
+	defaultRetryAfter = time.Minute
 )
 
 // Config holds what New needs.
@@ -42,6 +49,10 @@ type Config struct {
 	// Identities refreshes the oCIS identity snapshot at bearer sign-ins. Nil
 	// signs in without a lookup.
 	Identities *provision.Identities
+	// Limiter counts failed Basic sign-ins and refuses more of them with 429
+	// while a user or an address has failed too often. Nil limits nothing
+	// here, except what a gate set on Registry refuses.
+	Limiter *ratelimit.Limiter
 	// Logger receives refusals and faults. Nil discards them.
 	Logger *slog.Logger
 }
@@ -104,7 +115,7 @@ func build(cfg Config, prefix string, usersSegment bool) (*groupkit.Server, *aut
 	if ids == nil {
 		ids = provision.NewIdentities(cfg.Registry, nil, logger)
 	}
-	a := &authenticator{reg: cfg.Registry, ids: ids, verifier: cfg.Verifier, logger: logger}
+	a := &authenticator{reg: cfg.Registry, ids: ids, verifier: cfg.Verifier, limiter: cfg.Limiter, logger: logger}
 	return srv, a, nil
 }
 
@@ -112,6 +123,8 @@ func build(cfg Config, prefix string, usersSegment bool) (*groupkit.Server, *aut
 type identity struct {
 	owner    string
 	username string
+	// retryAfter is set on a refusal with 429.
+	retryAfter time.Duration
 }
 
 type identityKey struct{}
@@ -149,6 +162,7 @@ type authenticator struct {
 	reg      *principals.Registry
 	ids      *provision.Identities
 	verifier auth.Verifier
+	limiter  *ratelimit.Limiter
 	logger   *slog.Logger
 }
 
@@ -158,6 +172,13 @@ type authenticator struct {
 func (a *authenticator) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, status := a.authenticate(r)
+		if status == http.StatusTooManyRequests {
+			retryAfter := defaultRetryAfter
+			if id.retryAfter > 0 {
+				retryAfter = id.retryAfter
+			}
+			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retryAfter.Seconds()))))
+		}
 		if status != 0 {
 			refuse(w, status)
 			return
@@ -177,7 +198,7 @@ func (a *authenticator) authenticate(r *http.Request) (identity, int) {
 		return identity{}, http.StatusUnauthorized
 	}
 	if user, password, ok := r.BasicAuth(); ok {
-		return a.basic(r.Context(), user, password)
+		return a.basic(r, user, password)
 	}
 	scheme, token, _ := strings.Cut(header, " ")
 	if strings.EqualFold(scheme, "Bearer") {
@@ -189,16 +210,38 @@ func (a *authenticator) authenticate(r *http.Request) (identity, int) {
 }
 
 // basic checks a username and app password. Every refusal is the same 401,
-// so the answer does not show whether the user exists or why it failed.
-func (a *authenticator) basic(ctx context.Context, username, password string) (identity, int) {
+// so the answer does not show whether the user exists or why it failed. Too
+// many failed attempts of a user or from an address are refused with 429
+// before the password is looked at.
+func (a *authenticator) basic(r *http.Request, username, password string) (identity, int) {
+	ctx := r.Context()
+	var addr string
+	if a.limiter != nil {
+		addr = a.limiter.ClientAddr(r)
+		if wait, ok := a.limiter.Allow(username, addr); !ok {
+			a.logger.Info("sign-in refused by the rate limiter", "username", username, "address", addr)
+			return identity{retryAfter: wait}, http.StatusTooManyRequests
+		}
+		ctx = ratelimit.WithAddr(ctx, addr)
+	}
 	p, err := a.reg.VerifyBasic(ctx, username, password)
 	switch {
 	case err == nil:
+		if a.limiter != nil {
+			a.limiter.Succeed(username, addr)
+		}
 		return identity{owner: p.Owner, username: p.Username}, 0
 	case errors.Is(err, principals.ErrInvalidCredentials):
 		a.logger.Debug("app password rejected")
+		if a.limiter != nil {
+			a.limiter.Fail(username, addr)
+		}
 	case errors.Is(err, principals.ErrRateLimited):
-		a.logger.Info("sign-in refused by the rate limiter", "username", username)
+		a.logger.Info("sign-in refused by the rate limiter", "username", username, "address", addr)
+		var limited *ratelimit.LimitedError
+		if errors.As(err, &limited) {
+			return identity{retryAfter: limited.RetryAfter}, http.StatusTooManyRequests
+		}
 		return identity{}, http.StatusTooManyRequests
 	case errors.Is(err, principals.ErrExpired):
 		a.logger.Info("app password expired", "username", username)
@@ -264,6 +307,8 @@ func refuse(w http.ResponseWriter, status int) {
 		msg = "bad request"
 	case http.StatusServiceUnavailable:
 		msg = "service unavailable"
+	case http.StatusTooManyRequests:
+		msg = "too many requests"
 	default:
 		msg = "internal error"
 	}

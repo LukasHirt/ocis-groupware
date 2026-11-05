@@ -31,6 +31,9 @@ over file, file wins over defaults.
 | `GROUPWARE_LEGACY_TOKEN_SECRET` | `legacy_token_secret` | Optional. The instance secret of a classic installation whose app tokens were imported. Without it, imported tokens do not work (see below) |
 | `GROUPWARE_COMPAT_PATHS` | `compat_paths` | Optional boolean, default `false`. Also serves the classic DAV layout below `/remote.php/dav`, for devices set up against a classic server. The ingress has to route those paths to the service (see `docs/routing.md`) |
 | `GROUPWARE_LEGACY_TOKEN_TTL` | `legacy_token_ttl` | Optional Go duration, default `4320h` (180 days). How long an imported token stays valid without being used |
+| `GROUPWARE_AUTH_MAX_FAILURES` | `auth_max_failures` | Optional integer, default `10`. How many failed app password sign-ins of one user from one address are allowed within the window (see "Limiting failed sign-ins") |
+| `GROUPWARE_AUTH_FAILURE_WINDOW` | `auth_failure_window` | Optional Go duration, default `15m`. How long failed sign-ins count, and so how long a block lasts |
+| `GROUPWARE_TRUSTED_PROXIES` | `trusted_proxies` | Optional. Comma-separated addresses and networks (`10.0.0.0/8,192.168.1.5`) of the reverse proxies in front of the service. In YAML, a list. Only they are believed when they send `X-Forwarded-For`. Empty by default |
 
 ## Data directory
 
@@ -328,8 +331,35 @@ service needs that secret in `GROUPWARE_LEGACY_TOKEN_SECRET` to recognise the to
 first successful sign-in the service stores a bcrypt hash of the token and forgets the
 digest; from then on the token is an ordinary app password and is valid for 365 days. A
 token that is not used expires 180 days after its last use (or its import), or after
-`GROUPWARE_LEGACY_TOKEN_TTL`. Checks of imported tokens can be refused by a limiter, which
-answers `429`.
+`GROUPWARE_LEGACY_TOKEN_TTL`. Checks of imported tokens go through the same limiter as app
+passwords (see below).
+
+### Limiting failed sign-ins
+
+Guessing an app password over HTTP Basic is slowed down. The service counts failed Basic
+sign-ins of the DAV endpoints, three ways: per user and address together, per user, and per
+address. One user from one address may fail `GROUPWARE_AUTH_MAX_FAILURES` times (default 10)
+within `GROUPWARE_AUTH_FAILURE_WINDOW` (default 15 minutes). A whole user, and a whole
+address, may fail ten times as often, which stops a guesser who spreads the attempts over
+many addresses or many users while one person's typos do not lock others out. Once a limit
+is reached, every Basic request that falls under it gets `429 Too Many Requests` with a
+`Retry-After` header in seconds, and the password is not checked, not even a right one. The
+block ends when the window of the first failure has passed.
+
+A successful sign-in is never counted and clears the failures of that user and address
+pair. Bearer tokens are not limited. Imported classic tokens are compared only while the
+limiter lets the request through.
+
+The address is the one of the TCP peer. Behind a reverse proxy that is the proxy, and all
+clients would share one counter, so list the proxies in `GROUPWARE_TRUSTED_PROXIES`. From a
+listed proxy the service takes the client from `X-Forwarded-For`: the rightmost entry that
+is not itself a listed proxy. From any other peer the header is ignored, so a client cannot
+choose the address it is counted under. IPv6 clients are counted by their /64 network.
+
+The counters live in memory and are lost on restart. At most 10000 are kept; when that is
+exceeded the least recently used one is dropped. They are exposed at `/metrics`:
+`groupware_auth_failures_total`, `groupware_auth_rate_limited_total` and
+`groupware_auth_limiter_entries`.
 
 ocis-groupware contacts the issuer on the first authenticated request, and retries after
 a failure, so it can start before oCIS is ready. While the issuer is

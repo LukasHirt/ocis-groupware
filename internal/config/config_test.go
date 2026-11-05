@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -13,7 +14,7 @@ func TestLoadDefaults(t *testing.T) {
 		t.Fatalf("Load(\"\"): unexpected error: %v", err)
 	}
 	want := Default()
-	if cfg != want {
+	if !reflect.DeepEqual(cfg, want) {
 		t.Errorf("Load(\"\") = %+v, want %+v", cfg, want)
 	}
 }
@@ -121,12 +122,16 @@ func TestValidate(t *testing.T) {
 		cfg     Config
 		wantErr bool
 	}{
-		{"valid", Config{HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, false},
-		{"empty addr", Config{HTTPAddr: "", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
-		{"bad level", Config{HTTPAddr: ":8080", LogLevel: "bogus", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
-		{"missing issuer", Config{HTTPAddr: ":8080", LogLevel: "info", DataDir: "/data"}, true},
-		{"negative legacy lifetime", Config{HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data", LegacyTokenTTL: -time.Hour}, true},
-		{"missing data dir", Config{HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example"}, true},
+		{"valid", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, false},
+		{"empty addr", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: "", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
+		{"bad level", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "bogus", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
+		{"missing issuer", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", DataDir: "/data"}, true},
+		{"negative legacy lifetime", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data", LegacyTokenTTL: -time.Hour}, true},
+		{"no failure limit", Config{AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
+		{"no failure window", Config{AuthMaxFailures: 10, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
+		{"bad proxy", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, TrustedProxies: []string{"nope"}, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
+		{"good proxies", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, TrustedProxies: []string{"10.0.0.0/8", "::1"}, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, false},
+		{"missing data dir", Config{AuthMaxFailures: 10, AuthFailureWindow: time.Minute, HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example"}, true},
 	}
 
 	for _, tc := range cases {
@@ -281,5 +286,50 @@ func TestCompatPaths(t *testing.T) {
 	t.Setenv("GROUPWARE_COMPAT_PATHS", "maybe")
 	if _, err := Load(""); err == nil {
 		t.Fatal("a value that is not a boolean was accepted")
+	}
+}
+
+func TestSignInLimitSettings(t *testing.T) {
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AuthMaxFailures != 10 || cfg.AuthFailureWindow != 15*time.Minute || len(cfg.TrustedProxies) != 0 {
+		t.Fatalf("defaults = %d, %v, %v", cfg.AuthMaxFailures, cfg.AuthFailureWindow, cfg.TrustedProxies)
+	}
+
+	path := filepath.Join(t.TempDir(), "groupware.yaml")
+	yaml := "auth_max_failures: 5\nauth_failure_window: 30m\ntrusted_proxies:\n  - 10.0.0.0/8\n"
+	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AuthMaxFailures != 5 || cfg.AuthFailureWindow != 30*time.Minute || len(cfg.TrustedProxies) != 1 {
+		t.Fatalf("file = %d, %v, %v", cfg.AuthMaxFailures, cfg.AuthFailureWindow, cfg.TrustedProxies)
+	}
+
+	t.Setenv("GROUPWARE_AUTH_MAX_FAILURES", "3")
+	t.Setenv("GROUPWARE_AUTH_FAILURE_WINDOW", "1h")
+	t.Setenv("GROUPWARE_TRUSTED_PROXIES", "192.168.0.0/16, 172.16.0.1 ,")
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AuthMaxFailures != 3 || cfg.AuthFailureWindow != time.Hour ||
+		len(cfg.TrustedProxies) != 2 || cfg.TrustedProxies[0] != "192.168.0.0/16" || cfg.TrustedProxies[1] != "172.16.0.1" {
+		t.Fatalf("env = %d, %v, %v", cfg.AuthMaxFailures, cfg.AuthFailureWindow, cfg.TrustedProxies)
+	}
+
+	t.Setenv("GROUPWARE_AUTH_MAX_FAILURES", "many")
+	if _, err := Load(path); err == nil {
+		t.Fatal("a failure limit that is not a number was accepted")
+	}
+	t.Setenv("GROUPWARE_AUTH_MAX_FAILURES", "3")
+	t.Setenv("GROUPWARE_AUTH_FAILURE_WINDOW", "soon")
+	if _, err := Load(path); err == nil {
+		t.Fatal("a window that is not a duration was accepted")
 	}
 }
