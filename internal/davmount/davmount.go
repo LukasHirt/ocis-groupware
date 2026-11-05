@@ -23,6 +23,10 @@ const (
 	// Prefix is the URL path the DAV server is mounted at.
 	Prefix = "/dav"
 
+	// CompatPrefix is the URL path of the second DAV server, which serves the
+	// classic layout (see NewCompat).
+	CompatPrefix = "/remote.php/dav"
+
 	// challenge is the WWW-Authenticate value of every 401.
 	challenge = `Basic realm="ocis-groupware"`
 )
@@ -46,6 +50,31 @@ type Config struct {
 // /.well-known/caldav and /.well-known/carddav. The DAV handler authenticates
 // every request itself; the well-known handler needs no credentials.
 func New(cfg Config) (dav, wellKnown http.Handler, err error) {
+	srv, a, err := build(cfg, Prefix, false)
+	if err != nil {
+		return nil, nil, err
+	}
+	return a.wrap(srv.Handler()), srv.WellKnown(), nil
+}
+
+// NewCompat returns a handler for the classic layout, to mount at
+// /remote.php/dav/ and /remote.php/dav. It serves the same data as the handler
+// from New, from the same store, behind the same authentication, with
+// principals at /remote.php/dav/principals/users/{user}/, address books at
+// /remote.php/dav/addressbooks/users/{user}/ and calendars at
+// /remote.php/dav/calendars/{user}/. These are the URLs that clients set up
+// against a classic server have stored.
+func NewCompat(cfg Config) (http.Handler, error) {
+	srv, a, err := build(cfg, CompatPrefix, true)
+	if err != nil {
+		return nil, err
+	}
+	return a.wrap(srv.Handler()), nil
+}
+
+// build checks cfg and returns the DAV server for prefix and the
+// authenticator that guards it.
+func build(cfg Config, prefix string, usersSegment bool) (*groupkit.Server, *authenticator, error) {
 	switch {
 	case cfg.Store == nil:
 		return nil, nil, errors.New("davmount: store is nil")
@@ -60,12 +89,13 @@ func New(cfg Config) (dav, wellKnown http.Handler, err error) {
 	}
 
 	srv, err := groupkit.NewServer(groupkit.Config{
-		Store:       cfg.Store,
-		Prefix:      Prefix,
-		CurrentUser: currentUser,
-		Authorize:   authorize,
-		Challenge:   challenge,
-		Logger:      logger,
+		Store:        cfg.Store,
+		Prefix:       prefix,
+		UsersSegment: usersSegment,
+		CurrentUser:  currentUser,
+		Authorize:    authorize,
+		Challenge:    challenge,
+		Logger:       logger,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -75,7 +105,7 @@ func New(cfg Config) (dav, wellKnown http.Handler, err error) {
 		ids = provision.NewIdentities(cfg.Registry, nil, logger)
 	}
 	a := &authenticator{reg: cfg.Registry, ids: ids, verifier: cfg.Verifier, logger: logger}
-	return a.wrap(srv.Handler()), srv.WellKnown(), nil
+	return srv, a, nil
 }
 
 // identity is the authenticated caller of a request.

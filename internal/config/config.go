@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -41,6 +42,13 @@ type Config struct {
 	// LegacyTokenTTL is how long an imported token stays valid without being
 	// used. A Go duration such as 4320h.
 	LegacyTokenTTL time.Duration `yaml:"legacy_token_ttl"`
+	// CompatPaths also serves the classic DAV layout below /remote.php/dav:
+	// principals at principals/users/{user}/, address books at
+	// addressbooks/users/{user}/ and calendars at calendars/{user}/. Clients
+	// that were set up against a classic server keep working at the URLs they
+	// stored. The ingress has to send those paths to the service. Off by
+	// default.
+	CompatPaths bool `yaml:"compat_paths"`
 }
 
 // Default returns the built-in configuration defaults.
@@ -106,6 +114,13 @@ func Load(path string) (Config, error) {
 			return Config{}, fmt.Errorf("config: GROUPWARE_LEGACY_TOKEN_TTL: %w", err)
 		}
 		cfg.LegacyTokenTTL = ttl
+	}
+	if v, ok := os.LookupEnv("GROUPWARE_COMPAT_PATHS"); ok {
+		on, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("config: GROUPWARE_COMPAT_PATHS: %w", err)
+		}
+		cfg.CompatPaths = on
 	}
 	if cfg.AdminSocket == "" && cfg.DataDir != "" {
 		cfg.AdminSocket = filepath.Join(cfg.DataDir, "admin.sock")

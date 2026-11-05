@@ -4,9 +4,6 @@ package stack
 
 import (
 	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -28,26 +25,8 @@ func TestPythonClient(t *testing.T) {
 	}
 	ctx := ctxTimeout(t)
 
-	dir, err := exec.CommandContext(ctx, "go", "list", "-m", "-f", "{{.Dir}}", "github.com/LukasHirt/groupkit").Output()
-	if err != nil {
-		t.Fatalf("locating the groupkit module: %v", err)
-	}
-	script := filepath.Join(strings.TrimSpace(string(dir)), "test", "pyclient", "accept.py")
-	if _, err := os.Stat(script); err != nil {
-		t.Fatal(err)
-	}
+	script := groupkitScript(ctx, t, "accept.py")
 
 	a := signInWithAppPassword(t, pyUser, pyPassword)
-	cmd := exec.CommandContext(ctx, python, "-I", script)
-	cmd.Env = append(os.Environ(),
-		"GROUPKIT_URL="+baseURL+davPrefix,
-		"GROUPKIT_USER="+a.user,
-		"GROUPKIT_PASSWORD="+a.appPassword,
-		"REQUESTS_CA_BUNDLE="+caFile,
-	)
-	out, err := cmd.CombinedOutput()
-	t.Logf("%s", out)
-	if err != nil {
-		t.Fatalf("the Python client check failed: %v", err)
-	}
+	runPython(ctx, t, python, script, caFile, baseURL+davPrefix, a)
 }

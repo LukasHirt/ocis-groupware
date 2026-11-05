@@ -249,3 +249,37 @@ func TestLegacyTokenSettings(t *testing.T) {
 		t.Fatal("a lifetime that is not a duration was accepted")
 	}
 }
+
+func TestCompatPaths(t *testing.T) {
+	t.Setenv("GROUPWARE_COMPAT_PATHS", "")
+	_ = os.Unsetenv("GROUPWARE_COMPAT_PATHS")
+	cfg, err := Load("")
+	if err != nil || cfg.CompatPaths {
+		t.Fatalf("default = %v, %v; want off", cfg.CompatPaths, err)
+	}
+
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("compat_paths: true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load(path)
+	if err != nil || !cfg.CompatPaths {
+		t.Fatalf("file = %v, %v; want on", cfg.CompatPaths, err)
+	}
+
+	t.Setenv("GROUPWARE_COMPAT_PATHS", "false")
+	cfg, err = Load(path)
+	if err != nil || cfg.CompatPaths {
+		t.Fatalf("env false over file true = %v, %v", cfg.CompatPaths, err)
+	}
+	t.Setenv("GROUPWARE_COMPAT_PATHS", "true")
+	cfg, err = Load("")
+	if err != nil || !cfg.CompatPaths {
+		t.Fatalf("env = %v, %v; want on", cfg.CompatPaths, err)
+	}
+
+	t.Setenv("GROUPWARE_COMPAT_PATHS", "maybe")
+	if _, err := Load(""); err == nil {
+		t.Fatal("a value that is not a boolean was accepted")
+	}
+}

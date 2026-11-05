@@ -99,26 +99,36 @@ jobs:
           persist-credentials: false
       - run: docker build -t ocis-groupware:ci .
 
-  # Boots oCIS and the service twice: once with the ingress routing the
-  # groupware paths (docker-compose.yml as it is) and once with the oCIS
-  # proxy forwarding them (deploy/compose/ocis-proxy.yml on top). The tests
-  # know which route they are on through STACK_ROUTE.
+  # Boots oCIS and the service three times: with the ingress routing the
+  # groupware paths (docker-compose.yml as it is), with the classic DAV paths
+  # on top of that (deploy/compose/compat-paths.yml), and with the oCIS proxy
+  # forwarding them (deploy/compose/ocis-proxy.yml on top). The tests know
+  # which route they are on through STACK_ROUTE and STACK_COMPAT.
   stack:
-    name: stack (${{ matrix.route }})
+    name: stack (${{ matrix.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
-          - route: ingress
+          - name: ingress
+            route: ingress
+            compat: "false"
             compose_file: docker-compose.yml
-          - route: ocis-proxy
+          - name: ingress-compat
+            route: ingress
+            compat: "true"
+            compose_file: docker-compose.yml:deploy/compose/compat-paths.yml
+          - name: ocis-proxy
+            route: ocis-proxy
+            compat: "false"
             compose_file: docker-compose.yml:deploy/compose/ocis-proxy.yml
     env:
       OCIS_VERSION: 8.2.2
       COMPOSE_FILE: ${{ matrix.compose_file }}
       STACK_ROUTE: ${{ matrix.route }}
+      STACK_COMPAT: ${{ matrix.compat }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -165,7 +175,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
-          name: playwright-${{ matrix.route }}
+          name: playwright-${{ matrix.name }}
           path: |
             web/playwright-report/
             web/test-results/

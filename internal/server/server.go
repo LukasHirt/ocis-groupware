@@ -24,6 +24,7 @@ type Option func(*options)
 type options struct {
 	ready          func(context.Context) error
 	dav, wellKnown http.Handler
+	compatDAV      http.Handler
 	appPasswords   http.Handler
 	graph          http.Handler
 	groupware      http.Handler
@@ -44,6 +45,14 @@ func WithDAV(dav, wellKnown http.Handler) Option {
 		o.dav = dav
 		o.wellKnown = wellKnown
 	}
+}
+
+// WithCompatDAV mounts the classic-layout DAV handler at /remote.php/dav and
+// /remote.php/dav/. Like the handler of WithDAV it must authenticate requests
+// itself, and the authn middleware must be built with
+// auth.WithDAVPrefix("/remote.php/dav") so that it leaves them to it.
+func WithCompatDAV(h http.Handler) Option {
+	return func(o *options) { o.compatDAV = h }
 }
 
 // WithAppPasswords serves the app password API at /groupware/v1/app-passwords.
@@ -89,6 +98,10 @@ func New(addr string, logger *slog.Logger, authn func(http.Handler) http.Handler
 		// Both, because the mux would otherwise answer /dav with a redirect.
 		mux.Handle("/dav/", o.dav)
 		mux.Handle("/dav", o.dav)
+	}
+	if o.compatDAV != nil {
+		mux.Handle("/remote.php/dav/", o.compatDAV)
+		mux.Handle("/remote.php/dav", o.compatDAV)
 	}
 	if o.wellKnown != nil {
 		mux.Handle("/.well-known/caldav", o.wellKnown)

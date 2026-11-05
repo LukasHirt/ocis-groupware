@@ -137,13 +137,33 @@ func run(args []string, stderr io.Writer) error {
 		return err
 	}
 
-	srv := server.New(cfg.HTTPAddr, logger, auth.Middleware(verifier, logger),
+	// The classic layout is a second DAV server over the same store, behind
+	// the same authentication. It is off unless asked for.
+	var davOpts []auth.Option
+	srvOpts := []server.Option{
 		server.WithReadiness(dataDirWritable(cfg.DataDir)),
 		server.WithDAV(dav, wellKnown),
 		server.WithAppPasswords(api.AppPasswords(registry, identities, logger)),
 		server.WithGraph(facade),
 		server.WithGroupware(facade.Groupware()),
-		server.WithWeb(web.Handler()))
+		server.WithWeb(web.Handler()),
+	}
+	if cfg.CompatPaths {
+		compat, err := davmount.NewCompat(davmount.Config{
+			Store:      view,
+			Registry:   registry,
+			Verifier:   verifier,
+			Identities: identities,
+			Logger:     logger,
+		})
+		if err != nil {
+			return err
+		}
+		davOpts = append(davOpts, auth.WithDAVPrefix(davmount.CompatPrefix))
+		srvOpts = append(srvOpts, server.WithCompatDAV(compat))
+		logger.Info("classic DAV paths enabled", "prefix", davmount.CompatPrefix)
+	}
+	srv := server.New(cfg.HTTPAddr, logger, auth.Middleware(verifier, logger, davOpts...), srvOpts...)
 
 	// On shutdown the public server drains first, then the admin server,
 	// then the socket file goes, and the store is closed last (its deferred
