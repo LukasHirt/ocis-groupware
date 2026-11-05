@@ -172,6 +172,20 @@ ocis-groupware contacts the issuer on the first authenticated request, and retri
 a failure, so it can start before oCIS is ready. While the issuer is
 unreachable, authenticated requests get `503`.
 
+## Graph API
+
+The calendar and contacts part of the Microsoft Graph API is served below
+`/graph/v1.0/`. It takes the same OIDC bearer token as the other endpoints and nothing
+else, so app passwords do not work here. Errors use Graph's body, `{"error": {"code",
+"message", "innerError": {"request-id", "date"}}}`. Anything the service does not
+implement answers `501` with the code `notImplemented`, so a client can tell an
+unsupported request from a missing item.
+
+Calendars and contact folders have the same id for their owner and for everyone they
+are shared with: the URL-safe base64 form, without padding, of the collection id. List
+answers carry `@odata.nextLink` when more items follow; `$top` (1 to 1000, default 100)
+and `$skip` select the page.
+
 ## Administration
 
 The same binary administers a running service through the admin socket. It reads the

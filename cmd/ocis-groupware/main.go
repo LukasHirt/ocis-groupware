@@ -20,6 +20,7 @@ import (
 	"github.com/owncloud/ocis-groupware/internal/auth"
 	"github.com/owncloud/ocis-groupware/internal/config"
 	"github.com/owncloud/ocis-groupware/internal/davmount"
+	"github.com/owncloud/ocis-groupware/internal/graphapi"
 	"github.com/owncloud/ocis-groupware/internal/logging"
 	"github.com/owncloud/ocis-groupware/internal/ocisgraph"
 	"github.com/owncloud/ocis-groupware/internal/principals"
@@ -123,10 +124,16 @@ func run(args []string, stderr io.Writer) error {
 		return err
 	}
 
+	facade, err := graphapi.New(graphapi.Config{Store: store, Registry: registry, Identities: identities, Logger: logger})
+	if err != nil {
+		return err
+	}
+
 	srv := server.New(cfg.HTTPAddr, logger, auth.Middleware(verifier, logger),
 		server.WithReadiness(dataDirWritable(cfg.DataDir)),
 		server.WithDAV(dav, wellKnown),
 		server.WithAppPasswords(api.AppPasswords(registry, identities, logger)),
+		server.WithGraph(facade),
 		server.WithWeb(web.Handler()))
 
 	// On shutdown the public server drains first, then the admin server,

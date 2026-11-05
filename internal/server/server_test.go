@@ -640,3 +640,29 @@ func TestAdminPathsAreNotOnThePublicServer(t *testing.T) {
 		t.Fatalf("alice after the requests: %+v, %v", p, err)
 	}
 }
+
+// TestGraphRequiresBearerToken mounts a handler at /graph/v1.0/ behind the
+// authn middleware.
+func TestGraphRequiresBearerToken(t *testing.T) {
+	reached := false
+	graph := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+	s := New(":0", testLogger(), auth.Middleware(stubVerifier{}, testLogger()), WithGraph(graph))
+	do := func(authz string) int {
+		req := httptest.NewRequest(http.MethodGet, "/graph/v1.0/me/calendars", nil)
+		if authz != "" {
+			req.Header.Set("Authorization", authz)
+		}
+		rec := httptest.NewRecorder()
+		s.httpServer.Handler.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if code := do(""); code != http.StatusUnauthorized || reached {
+		t.Fatalf("without a token: %d, reached %v", code, reached)
+	}
+	if code := do("Bearer x"); code != http.StatusNoContent || !reached {
+		t.Fatalf("with a token: %d, reached %v", code, reached)
+	}
+}

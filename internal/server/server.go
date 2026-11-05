@@ -25,6 +25,7 @@ type options struct {
 	ready          func(context.Context) error
 	dav, wellKnown http.Handler
 	appPasswords   http.Handler
+	graph          http.Handler
 	web            http.Handler
 }
 
@@ -48,6 +49,12 @@ func WithDAV(dav, wellKnown http.Handler) Option {
 // The handler runs behind the authn middleware, which requires a bearer token.
 func WithAppPasswords(h http.Handler) Option {
 	return func(o *options) { o.appPasswords = h }
+}
+
+// WithGraph serves the Graph facade below /graph/v1.0/. The handler runs
+// behind the authn middleware, which requires a bearer token.
+func WithGraph(h http.Handler) Option {
+	return func(o *options) { o.graph = h }
 }
 
 // WithWeb serves the web application's files below /web/. The authn
@@ -87,6 +94,10 @@ func New(addr string, logger *slog.Logger, authn func(http.Handler) http.Handler
 		mux.Handle("/groupware/v1/app-passwords/{id}", o.appPasswords)
 		mux.Handle("/groupware/", api.NotFound())
 		mux.Handle("/groupware", api.NotFound())
+	}
+
+	if o.graph != nil {
+		mux.Handle("/graph/v1.0/", o.graph)
 	}
 
 	if o.web != nil {
