@@ -184,7 +184,7 @@ name. A holder who renames in oCIS releases the old name at their own next sign-
 Otherwise the newcomer is signed in and provisioned without a username. The web
 application and the Graph API work for them, DAV and app passwords do not. The service logs
 a warning with both owners, `GET /groupware/v1/me` returns `username: ""` and
-`username_conflict: true`, and the Account page says that the name is in use by another
+`username_conflict: true`, and the Devices page says that the name is in use by another
 account. The claim is made again at every sign-in and the principal file is written only
 when the outcome changes. To resolve it, run `ocis-groupware admin principals disable
 <holder>`: the newcomer's next sign-in takes the name. A holder that was deleted or renamed
@@ -205,7 +205,8 @@ the web build answers `404` for every path under `/web/`, and the Go tests do no
 Node. The Docker image always contains the build.
 
 `web/` is a Vue 3 and TypeScript project built with ownCloud's extension SDK. It is an
-application for ownCloud Web, with Calendar, Contacts and Account entries in the sidebar. oCIS
+application for ownCloud Web. It adds two entries to the application menu, Calendar and
+Contacts, each with its own navigation, and a Devices page in both. oCIS
 Web loads `/web/groupware.js` when the Web configuration lists the application under
 `external_apps` (`deploy/ocis/web.yaml` is such a configuration, which the compose
 stack mounts as `/etc/ocis/web.yaml`), and provides `vue`, `pinia`, `luxon`, `vue3-gettext`,
@@ -323,7 +324,7 @@ again. The service checks the chosen user or group against the directory when it
 share. Calendars and address books shared with the user show who owns them and whether
 they are read only or can be edited, and only the owner sees the Share button.
 
-The Account page has the details a CalDAV or CardDAV app needs: the server address, the
+The Devices page has the details a CalDAV or CardDAV app needs: the server address, the
 username and the calendar and address book home addresses from `GET /groupware/v1/me`,
 each with a copy button, and short setup hints for Thunderbird, Apple's apps and DAVx5.
 Below them it lists the user's app passwords with their creation, expiry and last use,
@@ -436,7 +437,7 @@ device needs no new setup. The web application does this by itself: once per pag
 soon as oCIS Web knows the user, it calls `GET /groupware/v1/me` with the user's token,
 whichever app of oCIS Web is open, so a user who only works in Files keeps their devices
 signed in. The call is skipped in public link pages, and a failure is ignored. `GET /groupware/v1/me` returns `app_passwords_valid_until`, the
-end of the current lease, or `null` when the check is off. The Account page shows that date, with a warning when fewer than 7 days remain, and shows nothing when it is `null`. The service logs a refusal at
+end of the current lease, or `null` when the check is off. The Devices page shows that date, with a warning when fewer than 7 days remain, and shows nothing when it is `null`. The service logs a refusal at
 Info once per user and hour and counts them in `groupware_auth_identity_stale_total`.
 `admin principals list` shows the age of each user's last confirmation and marks those that
 are past the lease as stale.
@@ -920,7 +921,7 @@ task stack:up
 ```
 
 Then open <https://ocis.localhost> (`admin` / `admin`). The application menu lists
-"Calendar and Contacts", which oCIS Web loads from ocis-groupware because the stack
+"Calendar" and "Contacts", which oCIS Web loads from ocis-groupware because the stack
 mounts `deploy/ocis/web.yaml` into the oCIS configuration directory. A `certs` service
 generates a self-signed certificate on each start. Your browser will warn about it;
 ocis-groupware trusts it through `GROUPWARE_OIDC_CA_FILE`.

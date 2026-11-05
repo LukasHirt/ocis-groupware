@@ -5,5 +5,5 @@
 web:
   config:
     external_apps:
-      - id: groupware
+      - id: organizer
         path: /web/groupware.js

@@ -1,5 +1,5 @@
 <template>
-  <page-layout :title="$gettext('Account')" :loading="loading">
+  <page-layout :title="$gettext('Devices')" :loading="loading">
     <div class="groupware-account oc-mt-m">
       <dav-setup v-if="account" :account="account" />
 
@@ -100,7 +100,7 @@ import { useApi } from '../composables/useApi'
 import DavSetup from '../account/DavSetup.vue'
 import NewAppPasswordDialog from '../account/NewAppPasswordDialog.vue'
 
-defineOptions({ name: 'AccountPage' })
+defineOptions({ name: 'DevicesPage' })
 
 const { $gettext } = useGettext()
 const { run } = useApi()

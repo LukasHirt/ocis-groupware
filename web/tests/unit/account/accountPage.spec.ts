@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import account from '../../../../internal/graphapi/testdata/contract/account.json'
-import AccountPage from '../../../src/pages/AccountPage.vue'
+import DevicesPage from '../../../src/pages/DevicesPage.vue'
 
 vi.mock('vue3-gettext', () => ({
   useGettext: () => ({ $gettext: (s: string) => s })
@@ -42,7 +42,7 @@ const laptop = {
 let writeText: ReturnType<typeof vi.fn>
 
 async function page() {
-  const wrapper = mount(AccountPage, { global, attachTo: document.body })
+  const wrapper = mount(DevicesPage, { global, attachTo: document.body })
   await flushPromises()
   return wrapper
 }

@@ -24,6 +24,11 @@ Only these go to the service, plus the classic paths below when they are switche
 stay with oCIS. The matches are on the path only; the
 service does not need the ingress to rewrite anything or add headers.
 
+The pages of the web application live below `/organizer/` on the oCIS domain, for
+example `/organizer/calendar/events`. Those are oCIS Web's own paths and stay with oCIS,
+which answers a reload or a bookmark with the web client. This is why the application's
+id is not `groupware`: a path below `/groupware/` goes to the service.
+
 `/healthz` and `/metrics` are for the monitoring side. `/metrics` is not on the service's
 public port at all: it is served on the debug address (`GROUPWARE_DEBUG_ADDR`, default
 `127.0.0.1:9180`, port 9180 in the container image and the Helm chart), which has no

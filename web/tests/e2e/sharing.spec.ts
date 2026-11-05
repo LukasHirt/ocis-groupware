@@ -8,22 +8,24 @@ const marie = { name: 'marie', password: 'radioactivity' }
 
 // A user gets a browser context of their own, so the two stay signed in side
 // by side.
-async function signInAs(browser: Browser, who: TestUser): Promise<Page> {
+async function signInAs(
+  browser: Browser,
+  who: TestUser,
+  app: 'Calendar' | 'Contacts'
+): Promise<Page> {
   const context = await browser.newContext({
     ignoreHTTPSErrors: true,
     baseURL: process.env.STACK_URL ?? 'https://ocis.localhost'
   })
   const page = await context.newPage()
   await signIn(page, who)
-  await openApp(page, 'Calendar and Contacts')
+  await openApp(page, app)
   return page
 }
 
-// The application's paths are not served by Web, so a reload would leave
-// it. Going to the other page and back reads the lists again.
+// Going to the Devices page and back reads the lists again.
 async function reload(page: Page, name: 'Calendar' | 'Contacts') {
-  const other = name === 'Calendar' ? 'Contacts' : 'Calendar'
-  await openNav(page, other)
+  await openNav(page, 'Devices')
   await openNav(page, name)
 }
 
@@ -39,11 +41,11 @@ async function share(page: Page, search: string, label: string, role: 'read' | '
 test('a calendar is shared with a user and with a group, and the role and revoking take effect', async ({
   browser
 }) => {
-  const owner = await signInAs(browser, einstein)
-  const guest = await signInAs(browser, marie)
+  const owner = await signInAs(browser, einstein, 'Calendar')
+  const guest = await signInAs(browser, marie, 'Calendar')
   const items = (p: Page) => p.getByTestId('calendar-item').filter({ hasText: 'Shared notes' })
 
-  await expect(owner).toHaveURL(/\/groupware\/calendar$/)
+  await expect(owner).toHaveURL(/\/organizer\/calendar\/events$/)
   await owner.getByTestId('calendar-add').click()
   await owner.getByTestId('calendar-name').fill('Shared notes')
   await owner.getByTestId('dialog-confirm').click()
@@ -112,11 +114,10 @@ test('a calendar is shared with a user and with a group, and the role and revoki
 test('an address book is shared with a user and shows as read only and then editable', async ({
   browser
 }) => {
-  const owner = await signInAs(browser, einstein)
-  const guest = await signInAs(browser, marie)
+  const owner = await signInAs(browser, einstein, 'Contacts')
+  const guest = await signInAs(browser, marie, 'Contacts')
   const folders = (p: Page) => p.getByTestId('folder-item').filter({ hasText: 'Lab contacts' })
   for (const p of [owner, guest]) {
-    await openNav(p, 'Contacts')
     await expect(p.locator('h1')).toHaveText('Contacts')
   }
 
