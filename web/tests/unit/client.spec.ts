@@ -28,6 +28,7 @@ import event from '../../../internal/graphapi/testdata/contract/event.json'
 import eventOccurrence from '../../../internal/graphapi/testdata/contract/event-occurrence.json'
 import eventSeries from '../../../internal/graphapi/testdata/contract/event-series.json'
 import eventZone from '../../../internal/graphapi/testdata/contract/event-zone.json'
+import calendarReport from '../../../internal/graphapi/testdata/contract/import-report.json'
 import events from '../../../internal/graphapi/testdata/contract/events.json'
 
 // The golden files are written by the Go tests of the facade. Typing them
@@ -438,5 +439,43 @@ describe('sharing', () => {
     expect(await client.searchUsers('mar')).toEqual([{ id: 'u1', displayName: 'Marie Curie' }])
     expect(await client.searchGroups('phy')).toEqual([{ id: 'g1', displayName: 'physics-lovers' }])
     expect(calls.map((c) => c.params)).toEqual([{ $search: 'mar', $top: '10' }, { $search: 'phy', $top: '10' }])
+  })
+})
+
+describe('import and export of calendars', () => {
+  it('sends the file as the body and reads the report', async () => {
+    const file = new Blob(['BEGIN:VCALENDAR'], { type: 'text/calendar' })
+    const { client, calls } = fake({
+      ['POST /groupware/v1/calendars/c1/import']: { status: 200, data: calendarReport }
+    })
+    const report: ImportReport = await client.importCalendar('c1', file)
+    expect(report.total).toBe(3)
+    expect(report.results[1]).toMatchObject({ status: 'failed' })
+    expect(calls[0].data).toBe(file)
+    expect(calls[0].headers).toEqual({ 'Content-Type': 'text/calendar' })
+  })
+
+  it('names a content type when the file has none', async () => {
+    const { client, calls } = fake({
+      ['POST /groupware/v1/calendars/c1/import']: { status: 200, data: calendarReport }
+    })
+    await client.importCalendar('c1', new Blob(['x']))
+    expect(calls[0].headers).toEqual({ 'Content-Type': 'text/calendar' })
+  })
+
+  it('downloads a calendar as a blob', async () => {
+    const blob = new Blob(['x'])
+    const { client, calls } = fake({
+      ['GET /groupware/v1/calendars/c1/export']: { status: 200, data: blob }
+    })
+    expect(await client.exportCalendar('c1')).toBe(blob)
+    expect(calls[0].responseType).toBe('blob')
+  })
+
+  it('keeps the golden report within the type', () => {
+    const report: ImportReport = calendarReport as ImportReport
+    for (const r of report.results) {
+      expect(['created', 'updated', 'failed']).toContain(r.status)
+    }
   })
 })

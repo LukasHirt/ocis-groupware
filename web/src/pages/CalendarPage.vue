@@ -15,6 +15,8 @@
           @edit="(calendar: GraphCalendar) => (dialog = { kind: 'edit', calendar })"
           @share="(calendar: GraphCalendar) => (dialog = { kind: 'share', calendar })"
           @remove="(calendar: GraphCalendar) => (dialog = { kind: 'delete', calendar })"
+          @import="importFile"
+          @export="exportCalendar"
         />
         <button
           type="button"
@@ -82,6 +84,12 @@
       @close="dialog = undefined"
       @save="createEvent"
     />
+    <import-report-dialog
+      v-else-if="dialog?.kind === 'import-report'"
+      :name="dialog.calendar.name"
+      :report="dialog.report"
+      @close="dialog = undefined"
+    />
     <scope-dialog
       v-else-if="dialog?.kind === 'event-scope'"
       @close="dialog = undefined"
@@ -131,6 +139,8 @@ import CalendarGrid from '../calendar/CalendarGrid.vue'
 import CalendarDialog from '../calendar/CalendarDialog.vue'
 import CalendarList from '../calendar/CalendarList.vue'
 import SettingsDialog from '../calendar/SettingsDialog.vue'
+import ImportReportDialog from '../calendar/ImportReportDialog.vue'
+import { fileNameFor, saveBlob } from '../components/download'
 import ScopeDialog from '../calendar/ScopeDialog.vue'
 import EventDialog from '../calendar/EventDialog.vue'
 import ShareDialog from '../sharing/ShareDialog.vue'
@@ -141,7 +151,7 @@ import { useHiddenCalendars } from '../calendar/visibility'
 import { blankForm, formFromEvent } from '../calendar/eventForm'
 import { localZone } from '../calendar/zones'
 import { useCalendarSettings, type CalendarSettings } from '../calendar/settings'
-import type { CalendarInput, EventInput, GraphCalendar, GraphEvent } from '../api/types'
+import type { CalendarInput, EventInput, GraphCalendar, GraphEvent, ImportReport } from '../api/types'
 import type { EventForm } from '../calendar/eventForm'
 
 defineOptions({ name: 'CalendarPage' })
@@ -157,6 +167,7 @@ const loading = ref(true)
 type Scope = 'single' | 'this' | 'all'
 const dialog = ref<
   | { kind: 'settings' }
+  | { kind: 'import-report'; calendar: GraphCalendar; report: ImportReport }
   | { kind: 'create' }
   | { kind: 'edit'; calendar: GraphCalendar }
   | { kind: 'delete'; calendar: GraphCalendar }
@@ -356,6 +367,21 @@ function saveSettings(next: CalendarSettings) {
   return loadEvents()
 }
 
+async function importFile(calendar: GraphCalendar, file: File) {
+  const report = await run($gettext('Could not import the file'), (c) => c.importCalendar(calendar.id, file))
+  if (report) {
+    dialog.value = { kind: 'import-report', calendar, report }
+    await loadEvents()
+  }
+}
+
+async function exportCalendar(calendar: GraphCalendar) {
+  const blob = await run($gettext('Could not export the calendar'), (c) => c.exportCalendar(calendar.id))
+  if (blob) {
+    saveBlob(blob, fileNameFor(calendar.name, 'ics'))
+  }
+}
+
 async function create(input: CalendarInput) {
   const created = await run($gettext('Could not create the calendar'), (c) => c.createCalendar(input))
   if (created) {
@@ -401,7 +427,7 @@ onMounted(async () => {
 
 <style>
 .groupware-calendar-side {
-  flex: 0 0 14rem;
+  flex: 0 0 16rem;
   min-width: 0;
 }
 .groupware-calendar-main {

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import CalendarPage from '../../../src/pages/CalendarPage.vue'
 import calendars from '../../../../internal/graphapi/testdata/contract/calendars.json'
+import importReport from '../../../../internal/graphapi/testdata/contract/import-report.json'
 import eventSeries from '../../../../internal/graphapi/testdata/contract/event-series.json'
 import calendarview from '../../../../internal/graphapi/testdata/contract/calendarview.json'
 
@@ -13,6 +14,11 @@ vi.mock('vue3-gettext', () => ({
 }))
 
 // The signed-in user comes from the host's store, which is not here.
+const saved = vi.hoisted(() => ({ calls: [] as { name: string; blob: Blob }[] }))
+vi.mock('../../../src/components/download', async (orig) => ({
+  ...(await orig<typeof import('../../../src/components/download')>()),
+  saveBlob: (blob: Blob, name: string) => saved.calls.push({ blob, name })
+}))
 vi.mock('../../../src/composables/useUserKey', () => ({ useUserKey: () => '' }))
 
 const hoisted = vi.hoisted(() => ({
@@ -42,6 +48,8 @@ vi.mock('../../../src/composables/useApi', () => {
     Promise.resolve({ ...calendars.value.find((c) => c.id === id), ...input })
   )
   api.deleteCalendar = vi.fn(() => Promise.resolve())
+  api.importCalendar = vi.fn(() => Promise.resolve(importReport))
+  api.exportCalendar = vi.fn(() => Promise.resolve(new Blob(['BEGIN:VCALENDAR'])))
   api.getEvent = vi.fn(() => Promise.resolve(eventSeries))
   api.createEvent = vi.fn(() => Promise.resolve({}))
   api.updateEvent = vi.fn(() => Promise.resolve({}))
@@ -49,7 +57,9 @@ vi.mock('../../../src/composables/useApi', () => {
   return { useApi: () => ({ client: api, run: (_t: string, f: (c: unknown) => unknown) => f(api) }) }
 })
 
-const mountOptions = { global: { mocks: { $gettext: (s: string) => s } } }
+const interpolate = (s: string, vars?: Record<string, string>) =>
+  s.replace(/%\{(\w+)\}/g, (_m, k: string) => vars?.[k] ?? '')
+const mountOptions = { global: { mocks: { $gettext: interpolate } } }
 
 async function mountPage() {
   const wrapper = mount(CalendarPage, { ...mountOptions, attachTo: document.body })
@@ -63,6 +73,7 @@ describe('the calendar page', () => {
     vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-05T12:00:00Z') })
     localStorage.clear()
     calendarViewCalls.length = 0
+    saved.calls.length = 0
     hoisted.state.calendars = structuredClone(calendars.value)
     for (const f of Object.values(hoisted.api)) f.mockClear()
     document.body.innerHTML = ''
@@ -363,6 +374,65 @@ describe('the calendar page', () => {
       const wrapper = await mountPage()
       await wrapper.get('[data-testid="event-add"]').trigger('click')
       expect(wrapper.get<HTMLSelectElement>('[data-testid="event-zone"]').element.value).toBe('Asia/Tokyo')
+    })
+  })
+
+  it('offers edit and delete only to the owner, not to a recipient who can edit events', async () => {
+    hoisted.state.calendars[2] = { ...hoisted.state.calendars[2], canEdit: true, canShare: false, isRemovable: true }
+    const wrapper = await mountPage()
+    const team = wrapper.findAll('[data-testid="calendar-item"]')[2]
+    expect(team.find('[data-testid="calendar-edit"]').exists()).toBe(false)
+    expect(team.find('[data-testid="calendar-delete"]').exists()).toBe(false)
+    expect(team.find('[data-testid="calendar-import"]').exists()).toBe(true)
+  })
+
+  describe('import and export', () => {
+    function choose(wrapper: ReturnType<typeof mount>, file: File) {
+      const input = wrapper.get<HTMLInputElement>('[data-testid="calendar-import-file"]')
+      Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+      return input.trigger('change')
+    }
+
+    it('offers export for every calendar and import only where the user can write', async () => {
+      const wrapper = await mountPage()
+      const [personal, work, team] = wrapper.findAll('[data-testid="calendar-item"]')
+      expect(personal.find('[data-testid="calendar-export"]').exists()).toBe(true)
+      expect(personal.find('[data-testid="calendar-import"]').exists()).toBe(true)
+      expect(work.find('[data-testid="calendar-import"]').exists()).toBe(true)
+      expect(team.find('[data-testid="calendar-export"]').exists()).toBe(true)
+      expect(team.find('[data-testid="calendar-import"]').exists()).toBe(false)
+    })
+
+    it('imports a file into the chosen calendar, shows the report and reads the events again', async () => {
+      const wrapper = await mountPage()
+      await wrapper.findAll('[data-testid="calendar-import"]')[1].trigger('click')
+      const file = new File(['BEGIN:VCALENDAR'], 'holidays.ics', { type: 'text/calendar' })
+      calendarViewCalls.length = 0
+      await choose(wrapper, file)
+      await flushPromises()
+      expect(hoisted.api.importCalendar).toHaveBeenCalledWith(calendars.value[1].id, file)
+      expect(wrapper.get('[data-testid="import-summary"]').text()).toContain('2 added')
+      expect(wrapper.findAll('[data-testid="import-failure"]')).toHaveLength(1)
+      expect(calendarViewCalls).toHaveLength(1)
+      await wrapper.get('[data-testid="dialog-confirm"]').trigger('click')
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    })
+
+    it('shows no report when the import was refused', async () => {
+      hoisted.api.importCalendar.mockResolvedValueOnce(undefined as never)
+      const wrapper = await mountPage()
+      await wrapper.findAll('[data-testid="calendar-import"]')[0].trigger('click')
+      await choose(wrapper, new File(['x'], 'x.ics'))
+      await flushPromises()
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    })
+
+    it('downloads a calendar under its name', async () => {
+      const wrapper = await mountPage()
+      await wrapper.findAll('[data-testid="calendar-export"]')[1].trigger('click')
+      await flushPromises()
+      expect(hoisted.api.exportCalendar).toHaveBeenCalledWith(calendars.value[1].id)
+      expect(saved.calls.map((c) => c.name)).toEqual(['Work.ics'])
     })
   })
 })
