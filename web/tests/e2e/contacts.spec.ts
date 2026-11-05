@@ -37,7 +37,13 @@ test('the contacts page lists the address books and offers search and sorting', 
   expect(pageErrors).toEqual([])
 })
 
-test('a contact can be created, found, edited and deleted', async ({ page }) => {
+// A valid 1x1 PNG image.
+const png = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64'
+)
+
+test('a contact can be created, found, edited, given a photo and deleted', async ({ page }) => {
   const pageErrors: string[] = []
   page.on('pageerror', (err) => pageErrors.push(err.message))
 
@@ -63,6 +69,14 @@ test('a contact can be created, found, edited and deleted', async ({ page }) => 
   await page.getByTestId('field-jobTitle').fill('Mathematician')
   await page.getByTestId('form-save').click()
   await expect(detail).toContainText('Mathematician')
+
+  await expect(page.getByTestId('photo-initials')).toHaveText('AL')
+  await page
+    .getByTestId('photo-input')
+    .setInputFiles({ name: 'ada.png', mimeType: 'image/png', buffer: png })
+  await expect(page.getByTestId('photo-image')).toBeVisible()
+  await page.getByTestId('photo-remove').click()
+  await expect(page.getByTestId('photo-initials')).toBeVisible()
 
   await page.getByTestId('contact-delete').click()
   await page.getByTestId('contact-delete-confirm').click()
