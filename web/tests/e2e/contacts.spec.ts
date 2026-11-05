@@ -1,11 +1,15 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openApp, signIn } from './helpers'
+import { openApp, pickOption, selectBox, signIn, textField } from './helpers'
+
+// The list pane folds into a drop while the sidebar is open on a window
+// narrower than 1600px, so the tests use a wider one.
+test.use({ viewport: { width: 1680, height: 900 } })
 
 // openContacts goes to the Contacts page through the application menu, since
 // a reload of the page would end the session.
 async function openContacts(page: Page) {
   await openApp(page, 'Contacts')
-  await expect(page.locator('h1')).toHaveText('Contacts')
+  await expect(page.locator('h1')).toHaveText('All contacts')
 }
 
 test('the contacts page lists the address books and offers search and sorting', async ({
@@ -17,11 +21,15 @@ test('the contacts page lists the address books and offers search and sorting', 
   await signIn(page)
   await openContacts(page)
   await expect(page.getByTestId('folder-item').first()).toContainText('Contacts')
-  await expect(page.getByTestId('contact-search')).toBeVisible()
-  await expect(page.getByTestId('contact-sort')).toBeVisible()
+  await expect(textField(page, 'contact-search')).toBeVisible()
+  await expect(selectBox(page, 'contact-sort')).toBeVisible()
 
   // A new account has no contacts.
   await expect(page.getByTestId('no-contacts')).toBeVisible()
+
+  await textField(page, 'contact-search').fill('nobody')
+  await pickOption(page, 'contact-sort', 'Company')
+  await expect(selectBox(page, 'contact-sort')).toContainText('Company')
 
   expect(pageErrors).toEqual([])
 })
@@ -51,7 +59,7 @@ test('a contact can be created, found, edited, given a photo and a group, and de
   await expect(detail).toContainText('ada@example.org')
   await expect(detail).toContainText('London')
 
-  await page.getByTestId('contact-search').fill('lovelace')
+  await textField(page, 'contact-search').fill('lovelace')
   await expect(page.getByTestId('contact-item')).toHaveCount(1)
 
   await page.getByTestId('contact-edit').click()
@@ -74,12 +82,12 @@ test('a contact can be created, found, edited, given a photo and a group, and de
   await page.getByTestId('group-item').filter({ hasText: 'Pioneers' }).click()
   await expect(page.getByTestId('contact-item')).toHaveCount(1)
   await page.getByTestId('group-rename').click()
-  await page.getByTestId('group-rename-input').fill('Founders')
+  await textField(page, 'group-rename-input').fill('Founders')
   await page.getByTestId('group-rename-save').click()
   await expect(page.getByTestId('group-item').filter({ hasText: 'Founders' })).toBeVisible()
   await expect(page.getByTestId('membership-name')).toHaveText('Founders')
   await page.getByTestId('group-delete').click()
-  await page.getByTestId('group-delete-confirm').click()
+  await page.getByTestId('dialog-confirm').click()
   await expect(page.getByTestId('group-item')).toHaveCount(0)
   await expect(page.getByTestId('membership-name')).toHaveCount(0)
 
@@ -98,14 +106,15 @@ test('an address book can be created, renamed, filled from a vCard file, downloa
   await openContacts(page)
 
   await page.getByTestId('book-new').click()
-  await page.getByTestId('book-new-input').fill('Clients')
+  await textField(page, 'book-new-input').fill('Clients')
   await page.getByTestId('book-new-save').click()
   const book = (name: string) => page.getByTestId('folder-item').filter({ hasText: name })
   await expect(book('Clients')).toBeVisible()
 
   // The new address book is chosen, and the owner may rename it.
+  await page.getByTestId('book-actions').click()
   await page.getByTestId('book-rename').click()
-  await page.getByTestId('book-rename-input').fill('Customers')
+  await textField(page, 'book-rename-input').fill('Customers')
   await page.getByTestId('book-rename-save').click()
   await expect(book('Customers')).toBeVisible()
   await expect(book('Clients')).toHaveCount(0)
@@ -123,14 +132,17 @@ test('an address book can be created, renamed, filled from a vCard file, downloa
     buffer: Buffer.from(vcf[0] + vcf[2])
   })
   await expect(page.getByTestId('import-report')).toContainText('2 created')
-  await expect(page.getByTestId('contact-item')).toHaveCount(2)
   await page.getByTestId('import-report-close').click()
+  await expect(page.getByTestId('contact-item')).toHaveCount(2)
   await page.getByTestId('book-import-input').setInputFiles({
     name: 'broken.vcf',
     mimeType: 'text/vcard',
     buffer: Buffer.from(vcf[1])
   })
   await expect(page.getByTestId('import-report')).toContainText('1 failed')
+  await expect(page.getByTestId('import-failure')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('import-report')).toHaveCount(0)
   const download = page.waitForEvent('download')
   await page.getByTestId('book-download').click()
   expect((await download).suggestedFilename()).toBe('Customers.vcf')
@@ -141,8 +153,9 @@ test('an address book can be created, renamed, filled from a vCard file, downloa
   await page.getByTestId('form-save').click()
   await expect(page.getByTestId('contact-item')).toHaveCount(3)
 
+  await page.getByTestId('book-actions').click()
   await page.getByTestId('book-delete').click()
-  await page.getByTestId('book-delete-confirm').click()
+  await page.getByTestId('dialog-confirm').click()
   await expect(book('Customers')).toHaveCount(0)
 
   expect(pageErrors).toEqual([])

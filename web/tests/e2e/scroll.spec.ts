@@ -72,7 +72,11 @@ for (const size of windows) {
 
     test('the contacts page scrolls', async ({ page }) => {
       await openPage(page, 'Contacts', size)
-      await expect(page.locator('h1')).toHaveText('Contacts')
+      await expect(page.locator('h1')).toHaveText('All contacts')
+      // Wait for the contacts: a page that is still loading is too short to scroll.
+      await expect(
+        page.getByTestId('no-contacts').or(page.getByTestId('contact-item').first())
+      ).toBeVisible()
       await expectScrollsToEnd(page, '.gw-body', size.height)
     })
 

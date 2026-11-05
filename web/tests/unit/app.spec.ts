@@ -145,7 +145,7 @@ describe('the application', () => {
     const routes = script.routes as RouteRecordRaw[]
     for (const [path, heading] of [
       ['/calendar/events', 'Calendar'],
-      ['/contacts/list', 'Contacts'],
+      ['/contacts/list', 'All contacts'],
       ['/calendar/devices', 'Devices']
     ]) {
       const route = routes.find((r) => r.path === path)

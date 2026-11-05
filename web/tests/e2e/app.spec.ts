@@ -41,7 +41,7 @@ test('oCIS Web lists Calendar and Contacts as two applications with their own na
   // Contacts has its own navigation, with the same Devices page.
   await openApp(page, 'Contacts')
   await expect(page).toHaveURL(/\/organizer\/contacts\/list$/)
-  await expect(page.locator('h1')).toHaveText('Contacts')
+  await expect(page.locator('h1')).toHaveText('All contacts')
   await expect(nav.getByRole('link')).toHaveText(['Contacts', 'Devices'])
   await expect(page.getByTestId('folder-item').first()).toContainText('Contacts')
   await openNav(page, 'Devices')
@@ -61,7 +61,7 @@ test('reloading an application page shows the application again', async ({ page 
   await page.reload()
   await expect(page.locator('#web-content')).toBeVisible()
   await expect(page).toHaveURL(/\/organizer\/contacts\/list$/)
-  await expect(page.locator('h1')).toHaveText('Contacts')
+  await expect(page.locator('h1')).toHaveText('All contacts')
 })
 
 test('opening oCIS Web renews the sign-in lease without opening the app', async ({ page }) => {
