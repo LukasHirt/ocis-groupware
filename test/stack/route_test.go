@@ -48,8 +48,8 @@ func answeredByService(h http.Header) bool {
 // calendar-query, addressbook-query, multiget or sync-collection, so CalDAV
 // and CardDAV clients cannot work on this route.
 //
-// If the REPORT check fails one day, the proxy has changed: update the
-// README's stack tests section and drop needsReport.
+// If the REPORT check fails one day, the proxy has changed: update
+// docs/routing.md and drop needsReport.
 func TestOCISProxyRoute(t *testing.T) {
 	if route != routeOCISProxy {
 		t.Skipf("STACK_ROUTE is %q, not %q", route, routeOCISProxy)
@@ -117,7 +117,7 @@ func TestOCISProxyRoute(t *testing.T) {
 	headers["Content-Type"] = "application/xml"
 	status, h, resp := do(t, ctx, "REPORT", cal, headers, strings.NewReader(body))
 	if status == http.StatusMultiStatus || answeredByService(h) {
-		t.Fatalf("REPORT %s reached the service (status %d): the oCIS proxy route has changed, update the README and drop needsReport\n%s", cal, status, resp)
+		t.Fatalf("REPORT %s reached the service (status %d): the oCIS proxy route has changed, update docs/routing.md and drop needsReport\n%s", cal, status, resp)
 	}
 	if status != http.StatusUnauthorized {
 		t.Errorf("REPORT %s = %d (WWW-Authenticate %q), want oCIS's 401", cal, status, h.Get("WWW-Authenticate"))

@@ -1,7 +1,7 @@
 # oCIS proxy routes for ocis-groupware, read by the proxy service from
-# /etc/ocis/proxy.yaml. The stack tests section of the README says what this
-# can and cannot do: REPORT requests never get through, so DAV clients do not
-# work on this route.
+# /etc/ocis/proxy.yaml. docs/routing.md says what this can and cannot do:
+# REPORT requests never get through, so DAV clients do not work on this
+# route. It is kept for the record and for CI, not for production.
 #
 # The proxy tries query routes first, then regex routes, then prefix routes,
 # and within each kind the first match wins. Routes from additional_policies

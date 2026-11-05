@@ -1,0 +1,27 @@
+# Caddy in front of oCIS and ocis-groupware on one domain.
+#
+# The two named matchers pick the groupware paths; the last handle takes
+# everything else to oCIS. Caddy keeps handle blocks in the order written
+# when, as here, none of them has a single path matcher to sort by.
+#
+# docs/routing.md lists what each path is for.
+
+ocis.example.com {
+	# CalDAV and CardDAV, client discovery, the service's own API and the
+	# web app.
+	@groupware path /dav /dav/ /dav/calendars/* /dav/addressbooks/* /dav/principals/* /.well-known/caldav /.well-known/carddav /groupware/* /web/*
+
+	# The calendar and contacts part of the Graph API. The rest of /graph/
+	# stays with oCIS.
+	@groupware_graph path_regexp ^/graph/v1\.0/me/(calendar|calendars|events|contact|contacts)
+
+	handle @groupware {
+		reverse_proxy ocis-groupware:8080
+	}
+	handle @groupware_graph {
+		reverse_proxy ocis-groupware:8080
+	}
+	handle {
+		reverse_proxy ocis:9200
+	}
+}

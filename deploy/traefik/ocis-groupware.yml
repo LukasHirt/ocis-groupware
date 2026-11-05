@@ -1,0 +1,41 @@
+# Traefik dynamic configuration (file provider) for oCIS and ocis-groupware
+# on one domain. docker-compose.yml carries the same routes as container
+# labels; use this form when Traefik does not watch Docker.
+#
+# The groupware router wins over the oCIS router by priority. Everything its
+# rule does not list goes to oCIS.
+#
+# docs/routing.md lists what each path is for.
+
+http:
+  routers:
+    ocis:
+      rule: Host(`ocis.example.com`)
+      entryPoints: [websecure]
+      service: ocis
+      priority: 1
+    ocis-groupware:
+      rule: >-
+        Host(`ocis.example.com`) && (
+        Path(`/dav`) ||
+        Path(`/dav/`) ||
+        PathPrefix(`/dav/calendars/`) ||
+        PathPrefix(`/dav/addressbooks/`) ||
+        PathPrefix(`/dav/principals/`) ||
+        Path(`/.well-known/caldav`) ||
+        Path(`/.well-known/carddav`) ||
+        PathRegexp(`^/graph/v1\.0/me/(calendar|calendars|events|contact|contacts)`) ||
+        PathPrefix(`/groupware/`) ||
+        PathPrefix(`/web/`))
+      entryPoints: [websecure]
+      service: ocis-groupware
+      priority: 100
+  services:
+    ocis:
+      loadBalancer:
+        servers:
+          - url: http://ocis:9200
+    ocis-groupware:
+      loadBalancer:
+        servers:
+          - url: http://ocis-groupware:8080
