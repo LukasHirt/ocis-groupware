@@ -6,6 +6,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import CalendarPage from './pages/CalendarPage.vue'
 import ContactsPage from './pages/ContactsPage.vue'
 import AccountPage from './pages/AccountPage.vue'
+import { useLeaseRenewal } from './composables/useLeaseRenewal'
 import icon from './assets/icon.svg?inline'
 import translations from './l10n/translations.json'
 
@@ -20,6 +21,10 @@ const appColor = '#1f6f8b'
 export default defineWebApplication({
   setup() {
     const { $gettext } = useGettext()
+
+    // Confirms the user with the service once per page load, whichever app
+    // of oCIS Web is open. See useLeaseRenewal.
+    useLeaseRenewal()
 
     const routes: RouteRecordRaw[] = [
       {
