@@ -332,6 +332,11 @@ else, so app passwords do not work here. Errors use Graph's body, `{"error": {"c
 implement answers `501` with the code `notImplemented`, so a client can tell an
 unsupported request from a missing item.
 
+[docs/graph.md](docs/graph.md) explains how events and contacts map to Graph fields, what the
+mapping loses and what the query options accept. [docs/graph-openapi.yaml](docs/graph-openapi.yaml)
+is an OpenAPI 3.0 description of every path, kept in step with the routes and the test fixtures by
+the tests of `internal/graphapi`.
+
 Calendars and contact folders have the same id for their owner and for everyone they
 are shared with: the URL-safe base64 form, without padding, of the collection id. List
 answers carry `@odata.nextLink` when more items follow; `$top` (1 to 1000, default 100)

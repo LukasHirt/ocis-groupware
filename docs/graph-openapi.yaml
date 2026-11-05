@@ -1,0 +1,2120 @@
+# SPDX-FileCopyrightText: 2026 ownCloud GmbH - A Kiteworks Company and ownCloud contributors
+# SPDX-License-Identifier: Apache-2.0
+
+openapi: "3.0.3"
+info:
+  title: "Calendar and contacts API"
+  version: "1.0.0"
+  description: "The Graph-shaped calendar and contacts API of the service, with a few endpoints below /groupware/v1. Every request takes the same OIDC bearer token as the rest of the service. Anything not listed answers 501 with the code notImplemented. docs/graph.md has the mapping notes."
+  license:
+    name: Apache-2.0
+    url: "https://www.apache.org/licenses/LICENSE-2.0"
+servers:
+  - url: "/"
+security:
+  - bearer: []
+tags:
+  - name: Calendars
+  - name: Events
+  - name: "Contact folders"
+  - name: Contacts
+  - name: Groupware
+paths:
+  "/graph/v1.0/me/calendars":
+    get:
+      summary: "List calendars"
+      tags: [Calendars]
+      parameters:
+        - {$ref: "#/components/parameters/top"}
+        - {$ref: "#/components/parameters/skip"}
+        - {$ref: "#/components/parameters/select"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CalendarPage"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    post:
+      summary: "Create a calendar"
+      tags: [Calendars]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CalendarInput"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Calendar"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/calendars/{id}":
+    get:
+      summary: "Get a calendar"
+      tags: [Calendars]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/select"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Calendar"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    patch:
+      summary: "Change name or colour"
+      tags: [Calendars]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CalendarInput"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Calendar"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    delete:
+      summary: "Delete a calendar with its events"
+      tags: [Calendars]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+      responses:
+        "204":
+          description: Deleted.
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/calendar":
+    get:
+      summary: "Get the default calendar"
+      tags: [Calendars]
+      parameters:
+        - {$ref: "#/components/parameters/select"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Calendar"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    patch:
+      summary: "Change name or colour"
+      tags: [Calendars]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CalendarInput"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Calendar"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/events":
+    get:
+      summary: "List events"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/top"}
+        - {$ref: "#/components/parameters/skip"}
+        - {$ref: "#/components/parameters/select"}
+        - {$ref: "#/components/parameters/orderby"}
+        - {$ref: "#/components/parameters/filter"}
+        - {$ref: "#/components/parameters/prefer"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/EventPage"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    post:
+      summary: "Create an event"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/prefer"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EventInput"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Event"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/events/{eid}":
+    get:
+      summary: "Get an event or one occurrence"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/eid"}
+        - {$ref: "#/components/parameters/select"}
+        - {$ref: "#/components/parameters/prefer"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Event"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    patch:
+      summary: "Change an event or one occurrence"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/eid"}
+        - {$ref: "#/components/parameters/ifMatch"}
+        - {$ref: "#/components/parameters/prefer"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EventInput"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Event"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "412": {$ref: "#/components/responses/PreconditionFailed"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    delete:
+      summary: "Delete an event, or exclude one occurrence"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/eid"}
+        - {$ref: "#/components/parameters/ifMatch"}
+      responses:
+        "204":
+          description: Deleted.
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "412": {$ref: "#/components/responses/PreconditionFailed"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/calendar/events":
+    get:
+      summary: "List events"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/top"}
+        - {$ref: "#/components/parameters/skip"}
+        - {$ref: "#/components/parameters/select"}
+        - {$ref: "#/components/parameters/orderby"}
+        - {$ref: "#/components/parameters/filter"}
+        - {$ref: "#/components/parameters/prefer"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/EventPage"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    post:
+      summary: "Create an event"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/prefer"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EventInput"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Event"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/calendar/events/{eid}":
+    get:
+      summary: "Get an event or one occurrence"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/eid"}
+        - {$ref: "#/components/parameters/select"}
+        - {$ref: "#/components/parameters/prefer"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Event"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    patch:
+      summary: "Change an event or one occurrence"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/eid"}
+        - {$ref: "#/components/parameters/ifMatch"}
+        - {$ref: "#/components/parameters/prefer"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EventInput"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Event"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "412": {$ref: "#/components/responses/PreconditionFailed"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    delete:
+      summary: "Delete an event, or exclude one occurrence"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/eid"}
+        - {$ref: "#/components/parameters/ifMatch"}
+      responses:
+        "204":
+          description: Deleted.
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "412": {$ref: "#/components/responses/PreconditionFailed"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/calendars/{id}/events":
+    get:
+      summary: "List events"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/top"}
+        - {$ref: "#/components/parameters/skip"}
+        - {$ref: "#/components/parameters/select"}
+        - {$ref: "#/components/parameters/orderby"}
+        - {$ref: "#/components/parameters/filter"}
+        - {$ref: "#/components/parameters/prefer"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/EventPage"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    post:
+      summary: "Create an event"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/prefer"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EventInput"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Event"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/calendars/{id}/events/{eid}":
+    get:
+      summary: "Get an event or one occurrence"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/eid"}
+        - {$ref: "#/components/parameters/select"}
+        - {$ref: "#/components/parameters/prefer"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Event"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    patch:
+      summary: "Change an event or one occurrence"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/eid"}
+        - {$ref: "#/components/parameters/ifMatch"}
+        - {$ref: "#/components/parameters/prefer"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EventInput"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Event"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "412": {$ref: "#/components/responses/PreconditionFailed"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    delete:
+      summary: "Delete an event, or exclude one occurrence"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/eid"}
+        - {$ref: "#/components/parameters/ifMatch"}
+      responses:
+        "204":
+          description: Deleted.
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "412": {$ref: "#/components/responses/PreconditionFailed"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/calendarView":
+    get:
+      summary: "List the occurrences that overlap a window"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/startDateTime"}
+        - {$ref: "#/components/parameters/endDateTime"}
+        - {$ref: "#/components/parameters/top"}
+        - {$ref: "#/components/parameters/skip"}
+        - {$ref: "#/components/parameters/select"}
+        - {$ref: "#/components/parameters/orderby"}
+        - {$ref: "#/components/parameters/filter"}
+        - {$ref: "#/components/parameters/prefer"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/EventPage"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/calendar/calendarView":
+    get:
+      summary: "List the occurrences that overlap a window"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/startDateTime"}
+        - {$ref: "#/components/parameters/endDateTime"}
+        - {$ref: "#/components/parameters/top"}
+        - {$ref: "#/components/parameters/skip"}
+        - {$ref: "#/components/parameters/select"}
+        - {$ref: "#/components/parameters/orderby"}
+        - {$ref: "#/components/parameters/filter"}
+        - {$ref: "#/components/parameters/prefer"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/EventPage"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/calendars/{id}/calendarView":
+    get:
+      summary: "List the occurrences that overlap a window"
+      tags: [Events]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/startDateTime"}
+        - {$ref: "#/components/parameters/endDateTime"}
+        - {$ref: "#/components/parameters/top"}
+        - {$ref: "#/components/parameters/skip"}
+        - {$ref: "#/components/parameters/select"}
+        - {$ref: "#/components/parameters/orderby"}
+        - {$ref: "#/components/parameters/filter"}
+        - {$ref: "#/components/parameters/prefer"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/EventPage"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/calendars/{id}/calendarPermissions":
+    get:
+      summary: "List who the calendar is shared with"
+      tags: [Calendars]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/top"}
+        - {$ref: "#/components/parameters/skip"}
+        - {$ref: "#/components/parameters/select"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PermissionPage"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    post:
+      summary: "Share the calendar"
+      tags: [Calendars]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PermissionInput"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Permission"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/calendars/{id}/calendarPermissions/{pid}":
+    get:
+      summary: "Get a permission"
+      tags: [Calendars]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/pid"}
+        - {$ref: "#/components/parameters/select"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Permission"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    patch:
+      summary: "Change the role"
+      tags: [Calendars]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/pid"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PermissionInput"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Permission"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    delete:
+      summary: "Revoke the permission"
+      tags: [Calendars]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/pid"}
+      responses:
+        "204":
+          description: Revoked.
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/contactFolders/{id}/permissions":
+    get:
+      summary: "List who the contact folder is shared with"
+      tags: ["Contact folders"]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/top"}
+        - {$ref: "#/components/parameters/skip"}
+        - {$ref: "#/components/parameters/select"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PermissionPage"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    post:
+      summary: "Share the contact folder"
+      tags: ["Contact folders"]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PermissionInput"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Permission"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/contactFolders/{id}/permissions/{pid}":
+    get:
+      summary: "Get a permission"
+      tags: ["Contact folders"]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/pid"}
+        - {$ref: "#/components/parameters/select"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Permission"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    patch:
+      summary: "Change the role"
+      tags: ["Contact folders"]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/pid"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PermissionInput"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Permission"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    delete:
+      summary: "Revoke the permission"
+      tags: ["Contact folders"]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/pid"}
+      responses:
+        "204":
+          description: Revoked.
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/contactFolders":
+    get:
+      summary: "List contact folders"
+      tags: ["Contact folders"]
+      parameters:
+        - {$ref: "#/components/parameters/top"}
+        - {$ref: "#/components/parameters/skip"}
+        - {$ref: "#/components/parameters/select"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ContactFolderPage"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    post:
+      summary: "Create a contact folder"
+      tags: ["Contact folders"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ContactFolderInput"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ContactFolder"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/contactFolders/{id}":
+    get:
+      summary: "Get a contact folder"
+      tags: ["Contact folders"]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/select"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ContactFolder"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    patch:
+      summary: "Rename a contact folder"
+      tags: ["Contact folders"]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ContactFolderInput"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ContactFolder"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    delete:
+      summary: "Delete a contact folder with its contacts"
+      tags: ["Contact folders"]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+      responses:
+        "204":
+          description: Deleted.
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/contacts":
+    get:
+      summary: "List contacts"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/top"}
+        - {$ref: "#/components/parameters/skip"}
+        - {$ref: "#/components/parameters/select"}
+        - {$ref: "#/components/parameters/orderby"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ContactPage"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    post:
+      summary: "Create a contact"
+      tags: [Contacts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ContactInput"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Contact"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/contacts/{cid}":
+    get:
+      summary: "Get a contact"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/cid"}
+        - {$ref: "#/components/parameters/select"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Contact"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    patch:
+      summary: "Change a contact"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/cid"}
+        - {$ref: "#/components/parameters/ifMatch"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ContactInput"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Contact"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "412": {$ref: "#/components/responses/PreconditionFailed"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    delete:
+      summary: "Delete a contact"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/cid"}
+        - {$ref: "#/components/parameters/ifMatch"}
+      responses:
+        "204":
+          description: Deleted.
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "412": {$ref: "#/components/responses/PreconditionFailed"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/contacts/{cid}/photo":
+    get:
+      summary: "Describe the contact's photo"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/cid"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Photo"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    delete:
+      summary: "Remove the photo"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/cid"}
+      responses:
+        "204":
+          description: Removed.
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/contacts/{cid}/photo/$value":
+    get:
+      summary: "Download the photo"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/cid"}
+      responses:
+        "200":
+          description: "The image."
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    put:
+      summary: "Set the photo from a JPEG or PNG of up to 1 MB"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/cid"}
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Photo"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    delete:
+      summary: "Remove the photo"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/cid"}
+      responses:
+        "204":
+          description: Removed.
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/contactFolders/{id}/contacts":
+    get:
+      summary: "List contacts"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/top"}
+        - {$ref: "#/components/parameters/skip"}
+        - {$ref: "#/components/parameters/select"}
+        - {$ref: "#/components/parameters/orderby"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ContactPage"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    post:
+      summary: "Create a contact"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ContactInput"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Contact"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/contactFolders/{id}/contacts/{cid}":
+    get:
+      summary: "Get a contact"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/cid"}
+        - {$ref: "#/components/parameters/select"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Contact"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    patch:
+      summary: "Change a contact"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/cid"}
+        - {$ref: "#/components/parameters/ifMatch"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ContactInput"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Contact"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "412": {$ref: "#/components/responses/PreconditionFailed"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    delete:
+      summary: "Delete a contact"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/cid"}
+        - {$ref: "#/components/parameters/ifMatch"}
+      responses:
+        "204":
+          description: Deleted.
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "412": {$ref: "#/components/responses/PreconditionFailed"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/contactFolders/{id}/contacts/{cid}/photo":
+    get:
+      summary: "Describe the contact's photo"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/cid"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Photo"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    delete:
+      summary: "Remove the photo"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/cid"}
+      responses:
+        "204":
+          description: Removed.
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/graph/v1.0/me/contactFolders/{id}/contacts/{cid}/photo/$value":
+    get:
+      summary: "Download the photo"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/cid"}
+      responses:
+        "200":
+          description: "The image."
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    put:
+      summary: "Set the photo from a JPEG or PNG of up to 1 MB"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/cid"}
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Photo"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+    delete:
+      summary: "Remove the photo"
+      tags: [Contacts]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+        - {$ref: "#/components/parameters/cid"}
+      responses:
+        "204":
+          description: Removed.
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/groupware/v1/me":
+    get:
+      summary: "The caller's username and DAV addresses"
+      tags: [Groupware]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Account"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/groupware/v1/calendars/{id}/import":
+    post:
+      summary: "Import a ICS file into the calendar"
+      tags: [Groupware]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+      requestBody:
+        required: true
+        content:
+          text/calendar:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: "The per-object report. Objects that fail do not fail the request."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ImportReport"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+        "413":
+          description: "The file is larger than 20 MB."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  "/groupware/v1/calendars/{id}/export":
+    get:
+      summary: "Export the calendar as one ICS file"
+      tags: [Groupware]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+      responses:
+        "200":
+          description: "The file, sent as an attachment."
+          content:
+            text/calendar:
+              schema:
+                type: string
+                format: binary
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+  "/groupware/v1/addressbooks/{id}/import":
+    post:
+      summary: "Import a VCF file into the address book"
+      tags: [Groupware]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+      requestBody:
+        required: true
+        content:
+          text/vcard:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: "The per-object report. Objects that fail do not fail the request."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ImportReport"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+        "413":
+          description: "The file is larger than 20 MB."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  "/groupware/v1/addressbooks/{id}/export":
+    get:
+      summary: "Export the address book as one VCF file"
+      tags: [Groupware]
+      parameters:
+        - {$ref: "#/components/parameters/id"}
+      responses:
+        "200":
+          description: "The file, sent as an attachment."
+          content:
+            text/vcard:
+              schema:
+                type: string
+                format: binary
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    top:
+      name: "$top"
+      in: query
+      description: "Page size, 1 to 1000. Default 100."
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+    skip:
+      name: "$skip"
+      in: query
+      description: "Items to skip."
+      schema:
+        type: integer
+        minimum: 0
+    select:
+      name: "$select"
+      in: query
+      description: "Comma-separated top-level property names. id and @odata.etag are always included."
+      schema:
+        type: string
+    orderby:
+      name: "$orderby"
+      in: query
+      description: "One property from the list for this resource, with an optional asc or desc."
+      schema:
+        type: string
+    filter:
+      name: "$filter"
+      in: query
+      description: "Conditions joined by and: start/dateTime or end/dateTime with ge, gt, le or lt and a time; subject eq, startswith(subject,'x') or contains(subject,'x')."
+      schema:
+        type: string
+    prefer:
+      name: Prefer
+      in: header
+      description: "outlook.timezone=\"Zone\" shows times in that zone. The answer repeats it in Preference-Applied."
+      schema:
+        type: string
+    ifMatch:
+      name: If-Match
+      in: header
+      description: "The ETag the client read, in weak or bare form, or *."
+      schema:
+        type: string
+    startDateTime:
+      name: startDateTime
+      in: query
+      required: true
+      schema:
+        type: string
+    endDateTime:
+      name: endDateTime
+      in: query
+      required: true
+      schema:
+        type: string
+    id:
+      name: id
+      in: path
+      required: true
+      description: "Calendar or contact folder id."
+      schema:
+        type: string
+    eid:
+      name: eid
+      in: path
+      required: true
+      description: "Event id, or occurrence id."
+      schema:
+        type: string
+    cid:
+      name: cid
+      in: path
+      required: true
+      description: "Contact id."
+      schema:
+        type: string
+    pid:
+      name: pid
+      in: path
+      required: true
+      description: "Permission id."
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: "The request is not valid."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Unauthorized:
+      description: "There is no valid bearer token."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Forbidden:
+      description: "The caller may see the item but not change it."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    NotFound:
+      description: "The item does not exist, or it is not the caller's to see."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Conflict:
+      description: "The item already exists."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    PreconditionFailed:
+      description: "If-Match does not match the stored item."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    NotImplemented:
+      description: "The path or query option is not supported."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - invalidRequest
+                - unauthenticated
+                - accessDenied
+                - notAllowed
+                - notImplemented
+                - itemNotFound
+                - unsupportedMediaType
+                - requestEntityTooLarge
+                - nameAlreadyExists
+                - preconditionFailed
+                - generalException
+            message:
+              type: string
+            innerError:
+              type: object
+              properties:
+                request-id:
+                  type: string
+                date:
+                  type: string
+                  format: date-time
+              required: [request-id, date]
+          required: [code, message, innerError]
+      required: [error]
+    EmailAddress:
+      type: object
+      description: "An address with a display name. Calendar owners and permission holders carry the name only."
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+      required: [name]
+    Body:
+      type: object
+      description: "Bodies are plain text. Writing html answers 400."
+      properties:
+        contentType:
+          type: string
+          enum: [text]
+        content:
+          type: string
+      required: [contentType, content]
+    DateTimeZone:
+      type: object
+      properties:
+        dateTime:
+          type: string
+          description: "Local wall time, 2026-11-05T09:00:00.0000000. On a write the fraction is optional."
+        timeZone:
+          type: string
+          description: "An IANA or Windows zone name. UTC when the request has no Prefer header."
+      required: [dateTime, timeZone]
+    Location:
+      type: object
+      properties:
+        displayName:
+          type: string
+      required: [displayName]
+    ResponseStatus:
+      type: object
+      properties:
+        response:
+          type: string
+          enum:
+            - none
+            - accepted
+            - tentativelyAccepted
+            - declined
+            - notResponded
+            - organizer
+        time:
+          type: string
+      required: [response]
+    Attendee:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [required, optional, resource]
+        status: {$ref: "#/components/schemas/ResponseStatus"}
+        emailAddress: {$ref: "#/components/schemas/EmailAddress"}
+      required: [type, status, emailAddress]
+    Recipient:
+      type: object
+      properties:
+        emailAddress: {$ref: "#/components/schemas/EmailAddress"}
+      required: [emailAddress]
+    RecurrencePattern:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - daily
+            - weekly
+            - absoluteMonthly
+            - relativeMonthly
+            - absoluteYearly
+            - relativeYearly
+        interval:
+          type: integer
+        month:
+          type: integer
+        dayOfMonth:
+          type: integer
+        daysOfWeek:
+          type: array
+          items:
+            type: string
+            enum:
+              - sunday
+              - monday
+              - tuesday
+              - wednesday
+              - thursday
+              - friday
+              - saturday
+        firstDayOfWeek:
+          type: string
+        index:
+          type: string
+          enum: [first, second, third, fourth, last]
+      required:
+        - type
+        - interval
+        - month
+        - dayOfMonth
+        - daysOfWeek
+        - firstDayOfWeek
+        - index
+    RecurrenceRange:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [noEnd, endDate, numbered]
+        startDate:
+          type: string
+        endDate:
+          type: string
+        recurrenceTimeZone:
+          type: string
+        numberOfOccurrences:
+          type: integer
+      required: [type, startDate, numberOfOccurrences]
+    Recurrence:
+      type: object
+      properties:
+        pattern: {$ref: "#/components/schemas/RecurrencePattern"}
+        range: {$ref: "#/components/schemas/RecurrenceRange"}
+      required: [pattern, range]
+    Event:
+      type: object
+      properties:
+        id:
+          type: string
+        "@odata.etag":
+          type: string
+        changeKey:
+          type: string
+        iCalUId:
+          type: string
+        type:
+          type: string
+          enum: [singleInstance, seriesMaster, occurrence, exception]
+        seriesMasterId:
+          type: string
+        subject:
+          type: string
+        body: {$ref: "#/components/schemas/Body"}
+        start: {$ref: "#/components/schemas/DateTimeZone"}
+        end: {$ref: "#/components/schemas/DateTimeZone"}
+        isAllDay:
+          type: boolean
+        isCancelled:
+          type: boolean
+        showAs:
+          type: string
+          enum: [free, tentative, busy]
+        sensitivity:
+          type: string
+          enum: [normal, personal, private, confidential]
+        categories:
+          type: array
+          items:
+            type: string
+        attendees:
+          type: array
+          items: {$ref: "#/components/schemas/Attendee"}
+        organizer: {$ref: "#/components/schemas/Recipient"}
+        recurrence:
+          nullable: true
+          allOf:
+            - {$ref: "#/components/schemas/Recurrence"}
+        groupware.recurrenceEditable:
+          type: boolean
+          description: "Present and false when the stored rule is outside what recurrence can express."
+        location: {$ref: "#/components/schemas/Location"}
+        isReminderOn:
+          type: boolean
+        reminderMinutesBeforeStart:
+          type: integer
+        createdDateTime:
+          type: string
+        lastModifiedDateTime:
+          type: string
+      required:
+        - id
+        - iCalUId
+        - type
+        - subject
+        - body
+        - start
+        - end
+        - isAllDay
+        - isCancelled
+        - showAs
+        - sensitivity
+        - categories
+        - attendees
+        - recurrence
+        - location
+        - isReminderOn
+        - reminderMinutesBeforeStart
+    EventInput:
+      type: object
+      description: "Fields to set. On POST, start and end are required. On PATCH, a field that is absent is left as it is."
+      properties:
+        subject:
+          type: string
+        body: {$ref: "#/components/schemas/Body"}
+        start: {$ref: "#/components/schemas/DateTimeZone"}
+        end: {$ref: "#/components/schemas/DateTimeZone"}
+        isAllDay:
+          type: boolean
+        showAs:
+          type: string
+          enum: [free, tentative, busy]
+        sensitivity:
+          type: string
+          enum: [normal, personal, private, confidential]
+        categories:
+          type: array
+          items:
+            type: string
+        attendees:
+          type: array
+          items: {$ref: "#/components/schemas/Attendee"}
+        recurrence:
+          nullable: true
+          allOf:
+            - {$ref: "#/components/schemas/Recurrence"}
+        location: {$ref: "#/components/schemas/Location"}
+        isReminderOn:
+          type: boolean
+        reminderMinutesBeforeStart:
+          type: integer
+      required: []
+    Calendar:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        color:
+          type: string
+        hexColor:
+          type: string
+        isDefaultCalendar:
+          type: boolean
+        changeKey:
+          type: string
+        canShare:
+          type: boolean
+        canViewPrivateItems:
+          type: boolean
+        canEdit:
+          type: boolean
+        isRemovable:
+          type: boolean
+        owner: {$ref: "#/components/schemas/EmailAddress"}
+      required:
+        - id
+        - name
+        - color
+        - hexColor
+        - isDefaultCalendar
+        - changeKey
+        - canShare
+        - canViewPrivateItems
+        - canEdit
+        - isRemovable
+        - owner
+    CalendarInput:
+      type: object
+      properties:
+        name:
+          type: string
+        hexColor:
+          type: string
+          description: "#rrggbb, or empty to clear."
+      required: []
+    ContactFolder:
+      type: object
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
+        groupware.isDefault:
+          type: boolean
+        groupware.canEdit:
+          type: boolean
+        groupware.canShare:
+          type: boolean
+        groupware.owner: {$ref: "#/components/schemas/EmailAddress"}
+      required:
+        - id
+        - displayName
+        - groupware.isDefault
+        - groupware.canEdit
+        - groupware.canShare
+        - groupware.owner
+    ContactFolderInput:
+      type: object
+      properties:
+        displayName:
+          type: string
+      required: []
+    PhysicalAddress:
+      type: object
+      properties:
+        street:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        countryOrRegion:
+          type: string
+        postalCode:
+          type: string
+      required: [street, city, state, countryOrRegion, postalCode]
+    ContactGroup:
+      type: object
+      description: "A group card that lists the contact. Read only."
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
+      required: [id, displayName]
+    Contact:
+      type: object
+      properties:
+        id:
+          type: string
+        "@odata.etag":
+          type: string
+        changeKey:
+          type: string
+        parentFolderId:
+          type: string
+        lastModifiedDateTime:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string
+        birthday:
+          type: string
+          nullable: true
+        displayName:
+          type: string
+        givenName:
+          type: string
+        middleName:
+          type: string
+        surname:
+          type: string
+        nickName:
+          type: string
+        title:
+          type: string
+        generation:
+          type: string
+        yomiGivenName:
+          type: string
+        yomiSurname:
+          type: string
+        yomiCompany:
+          type: string
+        jobTitle:
+          type: string
+        companyName:
+          type: string
+        department:
+          type: string
+        profession:
+          type: string
+        assistantName:
+          type: string
+        manager:
+          type: string
+        spouseName:
+          type: string
+        children:
+          type: array
+          items:
+            type: string
+        businessPhones:
+          type: array
+          items:
+            type: string
+        homePhones:
+          type: array
+          items:
+            type: string
+        mobilePhone:
+          type: string
+        businessHomePage:
+          type: string
+        personalNotes:
+          type: string
+        emailAddresses:
+          type: array
+          items: {$ref: "#/components/schemas/EmailAddress"}
+        imAddresses:
+          type: array
+          items:
+            type: string
+        homeAddress: {$ref: "#/components/schemas/PhysicalAddress"}
+        businessAddress: {$ref: "#/components/schemas/PhysicalAddress"}
+        otherAddress: {$ref: "#/components/schemas/PhysicalAddress"}
+        groupware.groups:
+          type: array
+          items: {$ref: "#/components/schemas/ContactGroup"}
+        groupware.hasPhoto:
+          type: boolean
+      required:
+        - id
+        - categories
+        - birthday
+        - displayName
+        - givenName
+        - middleName
+        - surname
+        - nickName
+        - title
+        - generation
+        - yomiGivenName
+        - yomiSurname
+        - yomiCompany
+        - jobTitle
+        - companyName
+        - department
+        - profession
+        - assistantName
+        - manager
+        - spouseName
+        - children
+        - businessPhones
+        - homePhones
+        - mobilePhone
+        - businessHomePage
+        - personalNotes
+        - emailAddresses
+        - imAddresses
+        - homeAddress
+        - businessAddress
+        - otherAddress
+        - groupware.groups
+        - groupware.hasPhoto
+    ContactInput:
+      type: object
+      description: "Fields to set. An absent field is left as it is; null or an empty value clears it."
+      properties:
+        categories:
+          type: array
+          items:
+            type: string
+        birthday:
+          type: string
+          nullable: true
+        displayName:
+          type: string
+        givenName:
+          type: string
+        middleName:
+          type: string
+        surname:
+          type: string
+        nickName:
+          type: string
+        title:
+          type: string
+        generation:
+          type: string
+        yomiGivenName:
+          type: string
+        yomiSurname:
+          type: string
+        yomiCompany:
+          type: string
+        jobTitle:
+          type: string
+        companyName:
+          type: string
+        department:
+          type: string
+        profession:
+          type: string
+        assistantName:
+          type: string
+        manager:
+          type: string
+        spouseName:
+          type: string
+        children:
+          type: array
+          items:
+            type: string
+        businessPhones:
+          type: array
+          items:
+            type: string
+        homePhones:
+          type: array
+          items:
+            type: string
+        mobilePhone:
+          type: string
+        businessHomePage:
+          type: string
+        personalNotes:
+          type: string
+        emailAddresses:
+          type: array
+          items: {$ref: "#/components/schemas/EmailAddress"}
+        imAddresses:
+          type: array
+          items:
+            type: string
+        homeAddress: {$ref: "#/components/schemas/PhysicalAddress"}
+        businessAddress: {$ref: "#/components/schemas/PhysicalAddress"}
+        otherAddress: {$ref: "#/components/schemas/PhysicalAddress"}
+      required: []
+    Grantee:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [user, group]
+        id:
+          type: string
+      required: [type, id]
+    Permission:
+      type: object
+      properties:
+        id:
+          type: string
+        emailAddress: {$ref: "#/components/schemas/EmailAddress"}
+        isInsideOrganization:
+          type: boolean
+        isRemovable:
+          type: boolean
+        role:
+          type: string
+          enum: [read, write]
+        allowedRoles:
+          type: array
+          items:
+            type: string
+            enum: [read, write]
+        grantee: {$ref: "#/components/schemas/Grantee"}
+      required:
+        - id
+        - emailAddress
+        - isInsideOrganization
+        - isRemovable
+        - role
+        - allowedRoles
+        - grantee
+    PermissionInput:
+      type: object
+      description: "POST needs role and grantee. PATCH changes the role."
+      properties:
+        role:
+          type: string
+          enum: [read, write]
+        grantee: {$ref: "#/components/schemas/Grantee"}
+      required: []
+    Photo:
+      type: object
+      properties:
+        "@odata.mediaContentType":
+          type: string
+        id:
+          type: string
+        height:
+          type: integer
+        width:
+          type: integer
+      required: ["@odata.mediaContentType", id, height, width]
+    Account:
+      type: object
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+        dav:
+          type: object
+          properties:
+            url:
+              type: string
+            calendarHomeUrl:
+              type: string
+            addressBookHomeUrl:
+              type: string
+          required: [url, calendarHomeUrl, addressBookHomeUrl]
+      required: [username, displayName, dav]
+    ImportResult:
+      type: object
+      properties:
+        index:
+          type: integer
+        uid:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [created, updated, failed]
+        error:
+          type: string
+      required: [index, uid, status]
+    ImportReport:
+      type: object
+      properties:
+        total:
+          type: integer
+        created:
+          type: integer
+        updated:
+          type: integer
+        failed:
+          type: integer
+        results:
+          type: array
+          items: {$ref: "#/components/schemas/ImportResult"}
+      required: [total, created, updated, failed, results]
+    EventPage:
+      type: object
+      description: "A page of events."
+      properties:
+        value:
+          type: array
+          items: {$ref: "#/components/schemas/Event"}
+        "@odata.nextLink":
+          type: string
+      required: [value]
+    CalendarPage:
+      type: object
+      description: "A page of calendars."
+      properties:
+        value:
+          type: array
+          items: {$ref: "#/components/schemas/Calendar"}
+        "@odata.nextLink":
+          type: string
+      required: [value]
+    ContactPage:
+      type: object
+      description: "A page of contacts."
+      properties:
+        value:
+          type: array
+          items: {$ref: "#/components/schemas/Contact"}
+        "@odata.nextLink":
+          type: string
+      required: [value]
+    ContactFolderPage:
+      type: object
+      description: "A page of contact folders."
+      properties:
+        value:
+          type: array
+          items: {$ref: "#/components/schemas/ContactFolder"}
+        "@odata.nextLink":
+          type: string
+      required: [value]
+    PermissionPage:
+      type: object
+      description: "A page of permissions."
+      properties:
+        value:
+          type: array
+          items: {$ref: "#/components/schemas/Permission"}
+        "@odata.nextLink":
+          type: string
+      required: [value]
