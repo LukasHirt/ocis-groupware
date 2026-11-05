@@ -5,6 +5,7 @@ import type { AppMenuItemExtension, AppNavigationItem } from '@ownclouders/web-p
 import type { RouteRecordRaw } from 'vue-router'
 import CalendarPage from './pages/CalendarPage.vue'
 import ContactsPage from './pages/ContactsPage.vue'
+import AccountPage from './pages/AccountPage.vue'
 
 // The application id. oCIS Web mounts every route below /<id> and prefixes
 // route names with it. This module must have no export but the default one:
@@ -31,6 +32,12 @@ export default defineWebApplication({
         name: `${appId}-contacts`,
         component: ContactsPage,
         meta: { authContext: 'user', title: $gettext('Contacts') }
+      },
+      {
+        path: '/account',
+        name: `${appId}-account`,
+        component: AccountPage,
+        meta: { authContext: 'user', title: $gettext('Account') }
       }
     ]
 
@@ -44,6 +51,11 @@ export default defineWebApplication({
         name: $gettext('Contacts'),
         icon: 'contacts-book',
         route: { name: `${appId}-contacts` }
+      },
+      {
+        name: $gettext('Account'),
+        icon: 'user',
+        route: { name: `${appId}-account` }
       }
     ]
 

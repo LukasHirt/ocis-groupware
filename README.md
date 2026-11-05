@@ -143,7 +143,7 @@ the web build answers `404` for every path under `/web/`, and the Go tests do no
 Node. The Docker image always contains the build.
 
 `web/` is a Vue 3 and TypeScript project built with ownCloud's extension SDK. It is an
-application for ownCloud Web, with Calendar and Contacts entries in the sidebar. oCIS
+application for ownCloud Web, with Calendar, Contacts and Account entries in the sidebar. oCIS
 Web loads `/web/groupware.js` when the Web configuration lists the application under
 `external_apps` (`deploy/ocis/web.yaml` is such a configuration, which the compose
 stack mounts as `/etc/ocis/web.yaml`), and provides `vue`, `pinia`, `luxon`, `vue3-gettext`,
@@ -254,6 +254,15 @@ again. The service checks the chosen user or group against the directory when it
 share. Calendars and address books shared with the user show who owns them and whether
 they are read only or can be edited, and only the owner sees the Share button.
 
+The Account page has the details a CalDAV or CardDAV app needs: the server address, the
+username and the calendar and address book home addresses from `GET /groupware/v1/me`,
+each with a copy button, and short setup hints for Thunderbird, Apple's apps and DAVx5.
+Below them it lists the user's app passwords with their creation, expiry and last use,
+and marks the ones that have expired. A new app password takes a name and a lifetime of
+365, 90, 30 or 7 days. The dialog shows the password once, with a button to copy it, and
+cannot be dismissed by accident while it does; once closed, the password cannot be read
+again. Revoking one asks first and then refuses the devices that use it.
+
 Development needs Node 24:
 
 ```sh
@@ -283,9 +292,12 @@ curl -X POST https://ocis.localhost/groupware/v1/app-passwords \
   -d '{"name": "Phone"}'
 ```
 
+Add `"expires_in_days": 30` to the body for a password that expires sooner. The value is a
+whole number from 1 to 365.
+
 The answer has status `201` and carries the `id`, the `name`, `created_at`, `expires_at`
 and the `password`. **The password is shown only once**: it is stored as a hash, and no
-request returns it again. An app password is valid for 365 days. A user can have at most
+request returns it again. An app password is valid for 365 days unless the request asks for less. A user can have at most
 50, and a name has at most 100 bytes.
 
 ```sh

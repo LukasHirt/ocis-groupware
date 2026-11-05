@@ -29,7 +29,9 @@ vi.mock('../../src/composables/useApi', async () => {
     listCalendars: () => Promise.resolve(calendars.value),
     calendarView: () => Promise.resolve([]),
     listContactFolders: () => Promise.resolve(folders.value),
-    listContacts: () => Promise.resolve([])
+    listContacts: () => Promise.resolve([]),
+    getAccount: () => new Promise(() => {}),
+    listAppPasswords: () => new Promise(() => {})
   }
   return { useApi: () => ({ client, run: (_t: string, f: (c: unknown) => unknown) => f(client) }) }
 })
@@ -47,22 +49,24 @@ describe('the application', () => {
   it('has a calendar and a contacts route, and a redirect from its root', () => {
     const routes = script.routes as RouteRecordRaw[]
     const byPath = Object.fromEntries(routes.map((r) => [r.path, r]))
-    expect(Object.keys(byPath).sort()).toEqual(['/', '/calendar', '/contacts'])
+    expect(Object.keys(byPath).sort()).toEqual(['/', '/account', '/calendar', '/contacts'])
     expect(byPath['/'].redirect).toEqual({ name: 'groupware-calendar' })
     expect(byPath['/calendar'].name).toBe('groupware-calendar')
     expect(byPath['/contacts'].name).toBe('groupware-contacts')
-    for (const path of ['/calendar', '/contacts']) {
+    expect(byPath['/account'].name).toBe('groupware-account')
+    for (const path of ['/calendar', '/contacts', '/account']) {
       expect(byPath[path].meta?.authContext).toBe('user')
     }
   })
 
-  it('offers calendar and contacts in the sidebar', () => {
+  it('offers calendar, contacts and the account in the sidebar', () => {
     const items = script.navItems as { name: string | (() => string); route?: unknown }[]
     const names = items.map((i) => (typeof i.name === 'function' ? i.name() : i.name))
-    expect(names).toEqual(['Calendar', 'Contacts'])
+    expect(names).toEqual(['Calendar', 'Contacts', 'Account'])
     expect(items.map((i) => i.route)).toEqual([
       { name: 'groupware-calendar' },
-      { name: 'groupware-contacts' }
+      { name: 'groupware-contacts' },
+      { name: 'groupware-account' }
     ])
   })
 
@@ -79,7 +83,8 @@ describe('the application', () => {
     const routes = script.routes as RouteRecordRaw[]
     for (const [path, heading] of [
       ['/calendar', 'Calendar'],
-      ['/contacts', 'Contacts']
+      ['/contacts', 'Contacts'],
+      ['/account', 'Account']
     ]) {
       const route = routes.find((r) => r.path === path)
       const wrapper = mount(route!.component as never, mountOptions)
