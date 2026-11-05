@@ -35,6 +35,9 @@ export default defineConfig({
     // The SDK's include pattern is merged with this one, so the browser
     // tests, which Playwright runs, must be excluded by name.
     include: ['tests/unit/**/*.spec.ts'],
-    exclude: ['tests/e2e/**']
+    exclude: ['tests/e2e/**'],
+    // Registers stand-ins for the design-system components that oCIS Web
+    // provides, see tests/unit/stubs.
+    setupFiles: ['tests/unit/setup.ts']
   }
 })
