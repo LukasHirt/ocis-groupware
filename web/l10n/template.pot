@@ -44,6 +44,18 @@ msgstr ""
 msgid "Add calendar"
 msgstr ""
 
+msgid "Add child"
+msgstr ""
+
+msgid "Add email"
+msgstr ""
+
+msgid "Add home phone"
+msgstr ""
+
+msgid "Add messaging address"
+msgstr ""
+
 msgid "Add people"
 msgstr ""
 
@@ -53,6 +65,9 @@ msgstr ""
 msgid "Add to group"
 msgstr ""
 
+msgid "Add work phone"
+msgstr ""
+
 msgid "Address book"
 msgstr ""
 
@@ -60,6 +75,9 @@ msgid "Address book home"
 msgstr ""
 
 msgid "Address books"
+msgstr ""
+
+msgid "Addresses"
 msgstr ""
 
 msgid "After a number of times"
@@ -174,6 +192,9 @@ msgid "Connect a calendar or contacts app"
 msgstr ""
 
 msgid "Connection details"
+msgstr ""
+
+msgid "Contact"
 msgstr ""
 
 msgid "Contacts"
@@ -350,6 +371,9 @@ msgstr ""
 msgid "Delete calendar"
 msgstr ""
 
+msgid "Delete contact"
+msgstr ""
+
 msgid "Delete event"
 msgstr ""
 
@@ -524,9 +548,6 @@ msgstr ""
 msgid "Group"
 msgstr ""
 
-msgid "Group cards"
-msgstr ""
-
 msgid "Groups"
 msgstr ""
 
@@ -584,10 +605,16 @@ msgstr ""
 msgid "May"
 msgstr ""
 
+msgid "Member of"
+msgstr ""
+
 msgid "Messaging"
 msgstr ""
 
 msgid "Middle name"
+msgstr ""
+
+msgid "Mobile"
 msgstr ""
 
 msgid "Mobile phone"
@@ -608,7 +635,16 @@ msgstr ""
 msgid "Monthly"
 msgstr ""
 
+msgid "More"
+msgstr ""
+
 msgid "More actions for this address book"
+msgstr ""
+
+msgid "More details"
+msgstr ""
+
+msgid "More name fields"
 msgstr ""
 
 msgid "Name"
@@ -1008,6 +1044,9 @@ msgid "Weekly"
 msgstr ""
 
 msgid "Which one"
+msgstr ""
+
+msgid "Work"
 msgstr ""
 
 msgid "Work address"

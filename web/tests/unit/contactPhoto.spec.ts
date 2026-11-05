@@ -3,7 +3,6 @@ import { flushPromises, mount } from '@vue/test-utils'
 import contact from '../../../internal/graphapi/testdata/contract/contact.json'
 import type { GraphContact } from '../../src/api/types'
 import { checkPhoto, maxPhotoBytes } from '../../src/contacts/photo'
-import { initials } from '../../src/contacts/model'
 
 vi.mock('vue3-gettext', () => ({
   useGettext: () => ({ $gettext: (s: string) => s })
@@ -53,14 +52,6 @@ describe('checkPhoto', () => {
   })
 })
 
-describe('initials', () => {
-  it('takes the first letters of the first and last word', () => {
-    expect(initials('Dr. Marie Salomea Curie')).toBe('DC')
-    expect(initials('madonna')).toBe('M')
-    expect(initials('')).toBe('')
-  })
-})
-
 describe('the photo of a contact', () => {
   beforeEach(() => {
     getContactPhoto.mockReset()
@@ -79,7 +70,8 @@ describe('the photo of a contact', () => {
     const w = mountIt(false)
     await flushPromises()
     expect(getContactPhoto).not.toHaveBeenCalled()
-    expect(w.find('[data-testid="photo-initials"]').text()).toBe('M')
+    expect(w.find('[data-testid="photo-initials"]').attributes('user-name')).toBe('Marie')
+    expect(w.find('[data-testid="photo-image"]').exists()).toBe(false)
     expect(w.find('[data-testid="photo-remove"]').exists()).toBe(false)
   })
 

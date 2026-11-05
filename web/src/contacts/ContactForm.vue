@@ -1,135 +1,205 @@
 <template>
-  <form class="contact-form" data-testid="contact-form" @submit.prevent="submit">
-    <h2 class="oc-h3">{{ contact ? $gettext('Edit contact') : $gettext('New contact') }}</h2>
+  <form class="gw-contact-form" data-testid="contact-form" novalidate @submit.prevent="submit">
+    <oc-select
+      v-if="!contact && folders.length > 1"
+      id="gw-form-folder"
+      v-model="folderId"
+      class="oc-mb-m"
+      :label="$gettext('Address book')"
+      :options="folders"
+      option-label="displayName"
+      :reduce="(f: GraphContactFolder) => f.id"
+      :clearable="false"
+      :searchable="false"
+      data-testid="form-folder"
+    />
 
-    <div v-if="!contact && folders.length > 1" class="oc-mb-m">
-      <label for="cf-folder" class="oc-text-bold">{{ $gettext('Address book') }}</label>
-      <select
-        id="cf-folder"
-        v-model="folderId"
-        class="oc-select oc-width-1-1"
-        data-testid="form-folder"
+    <section class="gw-form-section">
+      <h3 class="gw-form-heading">{{ $gettext('Name') }}</h3>
+      <oc-text-input
+        v-for="f in nameFields"
+        :id="`gw-field-${f.key}`"
+        :key="f.key"
+        v-model="draft[f.key]"
+        :label="f.label"
+        :data-testid="`field-${f.key}`"
+      />
+      <oc-button
+        appearance="raw"
+        class="gw-form-toggle"
+        :aria-expanded="moreName"
+        data-testid="name-more"
+        @click="moreName = !moreName"
       >
-        <option v-for="f in folders" :key="f.id" :value="f.id">{{ f.displayName }}</option>
-      </select>
-    </div>
-
-    <div class="field-grid">
-      <template v-for="f in mainFields" :key="f.key">
-        <div>
-          <label :for="`cf-${f.key}`">{{ f.label }}</label>
-          <input
-            :id="`cf-${f.key}`"
-            v-model="draft[f.key]"
-            class="oc-text-input oc-width-1-1"
-            :data-testid="`field-${f.key}`"
-          />
-        </div>
-      </template>
-    </div>
-
-    <row-list v-model="draft.emails" name="emails" :label="$gettext('Email')" type="email" />
-    <div class="field-grid">
-      <div>
-        <label for="cf-mobilePhone">{{ $gettext('Mobile phone') }}</label>
-        <input
-          id="cf-mobilePhone"
-          v-model="draft.mobilePhone"
-          type="tel"
-          class="oc-text-input oc-width-1-1"
-          data-testid="field-mobilePhone"
-        />
-      </div>
-    </div>
-    <row-list
-      v-model="draft.businessPhones"
-      name="businessPhones"
-      :label="$gettext('Work phone')"
-      type="tel"
-    />
-    <row-list
-      v-model="draft.homePhones"
-      name="homePhones"
-      :label="$gettext('Home phone')"
-      type="tel"
-    />
-    <row-list v-model="draft.imAddresses" name="imAddresses" :label="$gettext('Messaging')" />
-
-    <fieldset
-      v-for="a in addresses"
-      :key="a.key"
-      class="address"
-      :data-testid="`address-${a.key}`"
-    >
-      <legend class="oc-text-bold">{{ a.label }}</legend>
-      <div class="field-grid">
-        <div v-for="p in addressParts" :key="p.key">
-          <label :for="`cf-${a.key}-${p.key}`">{{ p.label }}</label>
-          <input
-            :id="`cf-${a.key}-${p.key}`"
-            v-model="draft[a.key][p.key]"
-            class="oc-text-input oc-width-1-1"
-            :data-testid="`${a.key}-${p.key}`"
-          />
-        </div>
-      </div>
-    </fieldset>
-
-    <div class="field-grid">
-      <div>
-        <label for="cf-birthday">{{ $gettext('Birthday') }}</label>
-        <input
-          id="cf-birthday"
-          v-model="draft.birthday"
-          type="date"
-          class="oc-text-input oc-width-1-1"
-          data-testid="field-birthday"
-        />
-        <p v-if="yearless" class="oc-text-muted oc-text-small">
-          {{ $gettext('This contact has a birthday without a year. Pick a date to replace it.') }}
-        </p>
-      </div>
-      <div v-for="f in moreFields" :key="f.key">
-        <label :for="`cf-${f.key}`">{{ f.label }}</label>
-        <input
-          :id="`cf-${f.key}`"
+        <oc-icon :name="moreName ? 'arrow-down-s' : 'arrow-right-s'" fill-type="line" />
+        {{ $gettext('More name fields') }}
+      </oc-button>
+      <template v-if="moreName">
+        <oc-text-input
+          v-for="f in moreNameFields"
+          :id="`gw-field-${f.key}`"
+          :key="f.key"
           v-model="draft[f.key]"
-          class="oc-text-input oc-width-1-1"
+          :label="f.label"
           :data-testid="`field-${f.key}`"
         />
+      </template>
+    </section>
+
+    <section class="gw-form-section">
+      <h3 class="gw-form-heading">{{ $gettext('Work') }}</h3>
+      <oc-text-input
+        v-for="f in workFields"
+        :id="`gw-field-${f.key}`"
+        :key="f.key"
+        v-model="draft[f.key]"
+        :label="f.label"
+        :data-testid="`field-${f.key}`"
+      />
+    </section>
+
+    <section class="gw-form-section">
+      <h3 class="gw-form-heading">{{ $gettext('Contact') }}</h3>
+      <row-list
+        v-model="draft.emails"
+        name="emails"
+        :label="$gettext('Email')"
+        :add-label="$gettext('Add email')"
+        type="email"
+      />
+      <oc-text-input
+        id="gw-field-mobilePhone"
+        v-model="draft.mobilePhone"
+        type="tel"
+        :label="$gettext('Mobile phone')"
+        class="oc-mb-m"
+        data-testid="field-mobilePhone"
+      />
+      <row-list
+        v-model="draft.businessPhones"
+        name="businessPhones"
+        :label="$gettext('Work phone')"
+        :add-label="$gettext('Add work phone')"
+        type="tel"
+      />
+      <row-list
+        v-model="draft.homePhones"
+        name="homePhones"
+        :label="$gettext('Home phone')"
+        :add-label="$gettext('Add home phone')"
+        type="tel"
+      />
+      <row-list
+        v-model="draft.imAddresses"
+        name="imAddresses"
+        :label="$gettext('Messaging')"
+        :add-label="$gettext('Add messaging address')"
+      />
+    </section>
+
+    <section class="gw-form-section">
+      <h3 class="gw-form-heading">{{ $gettext('Addresses') }}</h3>
+      <div
+        v-for="a in addresses"
+        :key="a.key"
+        class="gw-address"
+        :data-testid="`address-${a.key}`"
+      >
+        <oc-button
+          appearance="raw"
+          class="gw-form-toggle"
+          :aria-expanded="open[a.key]"
+          :data-testid="`${a.key}-toggle`"
+          @click="open[a.key] = !open[a.key]"
+        >
+          <oc-icon :name="open[a.key] ? 'arrow-down-s' : 'arrow-right-s'" fill-type="line" />
+          {{ a.label }}
+        </oc-button>
+        <template v-if="open[a.key]">
+          <oc-text-input
+            v-for="p in addressParts"
+            :id="`gw-${a.key}-${p.key}`"
+            :key="p.key"
+            v-model="draft[a.key][p.key]"
+            :label="p.label"
+            :data-testid="`${a.key}-${p.key}`"
+          />
+        </template>
       </div>
-    </div>
-    <row-list v-model="draft.children" name="children" :label="$gettext('Children')" />
+    </section>
 
-    <label for="cf-personalNotes">{{ $gettext('Notes') }}</label>
-    <textarea
-      id="cf-personalNotes"
-      v-model="draft.personalNotes"
-      rows="4"
-      class="oc-textarea oc-width-1-1"
-      data-testid="field-personalNotes"
-    />
+    <section class="gw-form-section">
+      <h3 class="gw-form-heading">{{ $gettext('More') }}</h3>
+      <oc-text-input
+        id="gw-field-birthday"
+        v-model="draft.birthday"
+        type="date"
+        :label="$gettext('Birthday')"
+        :description-message="
+          yearless
+            ? $gettext('This contact has a birthday without a year. Pick a date to replace it.')
+            : ''
+        "
+        data-testid="field-birthday"
+      />
+      <oc-button
+        appearance="raw"
+        class="gw-form-toggle"
+        :aria-expanded="moreDetails"
+        data-testid="details-more"
+        @click="moreDetails = !moreDetails"
+      >
+        <oc-icon :name="moreDetails ? 'arrow-down-s' : 'arrow-right-s'" fill-type="line" />
+        {{ $gettext('More details') }}
+      </oc-button>
+      <template v-if="moreDetails">
+        <oc-text-input
+          v-for="f in moreFields"
+          :id="`gw-field-${f.key}`"
+          :key="f.key"
+          v-model="draft[f.key]"
+          :label="f.label"
+          :data-testid="`field-${f.key}`"
+        />
+        <row-list
+          v-model="draft.children"
+          name="children"
+          :label="$gettext('Children')"
+          :add-label="$gettext('Add child')"
+        />
+      </template>
+      <oc-textarea
+        id="gw-field-personalNotes"
+        v-model="draft.personalNotes"
+        :label="$gettext('Notes')"
+        rows="4"
+        data-testid="field-personalNotes"
+      />
+    </section>
 
-    <p v-if="!contact && !changed" class="oc-text-muted" data-testid="form-hint">
-      {{ $gettext('Fill in at least one field.') }}
-    </p>
-    <div class="oc-mt-m">
-      <button
-        type="submit"
-        class="oc-button oc-button-m oc-button-primary oc-mr-s"
-        :disabled="!changed"
-        data-testid="form-save"
-      >
-        {{ $gettext('Save') }}
-      </button>
-      <button
-        type="button"
-        class="oc-button oc-button-m oc-button-passive"
-        data-testid="form-cancel"
-        @click="emit('cancel')"
-      >
-        {{ $gettext('Cancel') }}
-      </button>
+    <div class="gw-form-footer">
+      <p v-if="!contact && !changed" class="oc-text-muted oc-text-small oc-mt-rm" data-testid="form-hint">
+        {{ $gettext('Fill in at least one field.') }}
+      </p>
+      <div class="oc-flex oc-flex-right gw-form-actions">
+        <oc-button
+          variation="passive"
+          appearance="outline"
+          data-testid="form-cancel"
+          @click="emit('cancel')"
+        >
+          {{ $gettext('Cancel') }}
+        </oc-button>
+        <oc-button
+          variation="primary"
+          appearance="filled"
+          submit="submit"
+          :disabled="!changed"
+          data-testid="form-save"
+        >
+          {{ $gettext('Save') }}
+        </oc-button>
+      </div>
     </div>
   </form>
 </template>
@@ -159,6 +229,29 @@ const original = props.contact ? toDraft(props.contact) : emptyDraft()
 const draft = reactive<Draft>(structuredClone(original))
 const folderId = ref(props.contact?.parentFolderId ?? props.folders[0]?.id ?? '')
 
+// A group of fields that is closed to begin with opens when the contact has
+// something in it. The home address is open for a new contact.
+const filled = (keys: readonly TextKey[]) => keys.some((k) => draft[k].trim() !== '')
+const addressFilled = (a: PhysicalAddress) => Object.values(a).some((v) => v.trim() !== '')
+const moreName = ref(filled(['middleName', 'generation', 'nickName']))
+const moreDetails = ref(
+  filled([
+    'businessHomePage',
+    'profession',
+    'assistantName',
+    'manager',
+    'spouseName',
+    'yomiGivenName',
+    'yomiSurname',
+    'yomiCompany'
+  ]) || draft.children.some((c) => c.trim() !== '')
+)
+const open = reactive({
+  homeAddress: !props.contact || addressFilled(draft.homeAddress),
+  businessAddress: addressFilled(draft.businessAddress),
+  otherAddress: addressFilled(draft.otherAddress)
+})
+
 const input = computed(() => buildInput(original, draft))
 const changed = computed(() => Object.keys(input.value).length > 0)
 const yearless = computed(
@@ -169,14 +262,21 @@ type TextKey = {
   [K in keyof Draft]: Draft[K] extends string ? K : never
 }[keyof Draft]
 
-const mainFields: { key: TextKey; label: string }[] = [
+const nameFields: { key: TextKey; label: string }[] = [
   { key: 'title', label: $gettext('Title') },
   { key: 'givenName', label: $gettext('First name') },
-  { key: 'middleName', label: $gettext('Middle name') },
   { key: 'surname', label: $gettext('Surname') },
+  { key: 'displayName', label: $gettext('Display name') }
+]
+
+// Rarely used, so they stay behind a button unless the contact has one.
+const moreNameFields: { key: TextKey; label: string }[] = [
+  { key: 'middleName', label: $gettext('Middle name') },
   { key: 'generation', label: $gettext('Suffix') },
-  { key: 'displayName', label: $gettext('Display name') },
-  { key: 'nickName', label: $gettext('Nickname') },
+  { key: 'nickName', label: $gettext('Nickname') }
+]
+
+const workFields: { key: TextKey; label: string }[] = [
   { key: 'companyName', label: $gettext('Company') },
   { key: 'jobTitle', label: $gettext('Job title') },
   { key: 'department', label: $gettext('Department') }
@@ -212,19 +312,43 @@ function submit() {
 }
 </script>
 
-<style scoped>
-.field-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
-  gap: var(--oc-space-small) var(--oc-space-medium);
+<style>
+.gw-contact-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.gw-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oc-space-small);
   margin-bottom: var(--oc-space-medium);
 }
-.address {
-  border: 0;
-  padding: 0;
+.gw-form-heading {
   margin: 0;
+  font-size: var(--oc-font-size-medium);
+  font-weight: var(--oc-font-weight-semibold);
 }
-label {
-  display: block;
+.gw-form-toggle {
+  align-self: flex-start;
+}
+.gw-address {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oc-space-small);
+}
+.gw-contact-form input[type='date'] {
+  color-scheme: light dark;
+}
+/* The buttons stay in view while a long form scrolls. */
+.gw-form-footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--oc-color-background-default);
+  padding: var(--oc-space-small) 0;
+  border-top: 1px solid var(--oc-color-border);
+}
+.gw-form-actions {
+  gap: var(--oc-space-small);
 }
 </style>
