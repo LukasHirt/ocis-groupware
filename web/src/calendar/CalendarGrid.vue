@@ -11,7 +11,13 @@ import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
-import type { CalendarOptions, DatesSetArg, EventInput } from '@fullcalendar/core'
+import type {
+  CalendarOptions,
+  DateSelectArg,
+  DatesSetArg,
+  EventClickArg,
+  EventInput
+} from '@fullcalendar/core'
 
 defineOptions({ name: 'CalendarGrid' })
 
@@ -19,6 +25,10 @@ const props = defineProps<{ events: EventInput[] }>()
 const emit = defineEmits<{
   // The visible range changed; both ends are ISO instants.
   range: [start: string, end: string]
+  // The user marked a span of days or times; both ends are ISO instants.
+  select: [start: string, end: string, allDay: boolean]
+  // The user opened an event, by its id.
+  open: [id: string]
 }>()
 
 const { $gettext } = useGettext()
@@ -46,7 +56,17 @@ const options = computed<CalendarOptions>(() => ({
   height: '100%',
   nowIndicator: true,
   dayMaxEvents: true,
+  selectable: true,
+  unselectAuto: true,
   events: props.events,
+  select: (arg: DateSelectArg) => {
+    emit('select', arg.start.toISOString(), arg.end.toISOString(), arg.allDay)
+    arg.view.calendar.unselect()
+  },
+  eventClick: (arg: EventClickArg) => {
+    arg.jsEvent.preventDefault()
+    emit('open', arg.event.id)
+  },
   datesSet: (arg: DatesSetArg) => emit('range', arg.start.toISOString(), arg.end.toISOString())
 }))
 </script>

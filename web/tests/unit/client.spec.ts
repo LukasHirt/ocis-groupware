@@ -179,6 +179,29 @@ describe('events', () => {
     expect(calls[0].url).toBe(`${graph}/me/calendars/c1/calendarView`)
   })
 
+  it('asks for the times in a zone with the Prefer header, on every page', async () => {
+    const { client, calls } = fake({
+      [`GET ${graph}/me/calendarView`]: {
+        status: 200,
+        data: { value: [], '@odata.nextLink': 'https://host/graph/v1.0/me/calendarView?%24skip=1' }
+      },
+      [`GET ${graph}/me/calendarView?%24skip=1`]: { status: 200, data: { value: [] } },
+      [`GET ${graph}/me/events/e1`]: { status: 200, data: event }
+    })
+    await client.calendarView({ start: 'a', end: 'b', zone: 'Europe/Prague' })
+    await client.getEvent('e1', 'Europe/Prague')
+    const prefer = { Prefer: 'outlook.timezone="Europe/Prague"' }
+    expect(calls.map((c) => c.headers)).toEqual([prefer, prefer, prefer])
+  })
+
+  it('leaves the Prefer header out when no zone is given', async () => {
+    const { client, calls } = fake({
+      [`GET ${graph}/me/calendarView`]: { status: 200, data: { value: [] } }
+    })
+    await client.calendarView({ start: 'a', end: 'b' })
+    expect(calls[0].headers).toBeUndefined()
+  })
+
   it('creates in the default calendar or a given one', async () => {
     const { client, calls } = fake({
       [`POST ${graph}/me/events`]: { status: 201, data: event },
