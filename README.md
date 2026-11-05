@@ -165,6 +165,14 @@ A user adds, renames, recolours and deletes calendars from the list beside the g
 Calendars shared by someone else show no such buttons, because the server marks them as
 not editable. A delete asks for confirmation first.
 
+Marking a day or a span of time in the grid, or the New event button, opens the event
+dialog. It has a title, calendar, all-day switch, start and end, time zone, place,
+status, categories, attendees and notes. Opening an event shows the same dialog with
+its values; saving sends only the fields that changed, with the event's ETag in
+`If-Match`, and delete asks first. The page asks the server for times in the browser's
+time zone with `Prefer: outlook.timezone`, as Graph clients do, so an event is shown and
+edited in that zone whatever zone it was created in. Repeating events open read-only.
+
 The Contacts page (`web/src/contacts` and `web/src/pages/ContactsPage.vue`) shows the
 user's address books next to a list of contacts and the details of the chosen one. The
 list covers one address book or all of them, is searched by name, company, email

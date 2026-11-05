@@ -12,7 +12,7 @@ vi.mock('vue3-gettext', () => ({
 }))
 
 const hoisted = vi.hoisted(() => ({
-  calls: [] as { start: string; end: string }[],
+  calls: [] as { start: string; end: string; zone?: string }[],
   state: { calendars: [] as Record<string, unknown>[] },
   api: {} as Record<string, ReturnType<typeof vi.fn>>
 }))
@@ -21,7 +21,7 @@ const calendarViewCalls = hoisted.calls
 vi.mock('../../../src/composables/useApi', () => {
   const { api, state, calls } = hoisted
   api.listCalendars = vi.fn(() => Promise.resolve(state.calendars))
-  api.calendarView = vi.fn((q: { start: string; end: string }) => {
+  api.calendarView = vi.fn((q: { start: string; end: string; zone?: string }) => {
     calls.push(q)
     return Promise.resolve(calendarview.value)
   })
@@ -38,6 +38,9 @@ vi.mock('../../../src/composables/useApi', () => {
     Promise.resolve({ ...calendars.value.find((c) => c.id === id), ...input })
   )
   api.deleteCalendar = vi.fn(() => Promise.resolve())
+  api.createEvent = vi.fn(() => Promise.resolve({}))
+  api.updateEvent = vi.fn(() => Promise.resolve({}))
+  api.deleteEvent = vi.fn(() => Promise.resolve())
   return { useApi: () => ({ client: api, run: (_t: string, f: (c: unknown) => unknown) => f(api) }) }
 })
 
@@ -76,6 +79,8 @@ describe('the calendar page', () => {
     expect(calendarViewCalls).toHaveLength(1)
     const [{ start, end }] = calendarViewCalls
     expect(new Date(end).getTime()).toBeGreaterThan(new Date(start).getTime())
+    // The times are asked for in the zone the page shows them in.
+    expect(calendarViewCalls[0].zone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone)
   })
 
   it('draws the events of the view', async () => {
@@ -151,5 +156,75 @@ describe('the calendar page', () => {
     const names = wrapper.findAll('[data-testid="calendar-item"] .name').map((n) => n.text())
     expect(names).not.toContain('Personal')
     expect(wrapper.findAll('.fc-event')).toHaveLength(0)
+  })
+
+  describe('events', () => {
+    const planning = calendarview.value[0]
+    const eventByTitle = (wrapper: ReturnType<typeof mount>, title: string) =>
+      wrapper.findAll('.fc-event').find((e) => e.text().includes(title))!
+
+    it('opens an event for editing and saves only what changed', async () => {
+      const wrapper = await mountPage()
+      await eventByTitle(wrapper, 'Planning').trigger('click')
+      const subject = wrapper.get<HTMLInputElement>('[data-testid="event-subject"]')
+      expect(subject.element.value).toBe('Planning')
+      await subject.setValue('Planning v2')
+      calendarViewCalls.length = 0
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
+      expect(hoisted.api.updateEvent).toHaveBeenCalledWith(
+        planning.id,
+        { subject: 'Planning v2' },
+        planning['@odata.etag']
+      )
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+      // The view is read again so the change shows.
+      expect(calendarViewCalls).toHaveLength(1)
+    })
+
+    it('deletes an event after a confirmation', async () => {
+      const wrapper = await mountPage()
+      await eventByTitle(wrapper, 'Planning').trigger('click')
+      await wrapper.get('[data-testid="event-delete"]').trigger('click')
+      expect(hoisted.api.deleteEvent).not.toHaveBeenCalled()
+      await wrapper.get('[data-testid="dialog-confirm"]').trigger('click')
+      await flushPromises()
+      expect(hoisted.api.deleteEvent).toHaveBeenCalledWith(planning.id, planning['@odata.etag'])
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    })
+
+    it('creates an event from the new event button, in the default calendar', async () => {
+      const wrapper = await mountPage()
+      await wrapper.get('[data-testid="event-add"]').trigger('click')
+      expect(wrapper.get<HTMLSelectElement>('[data-testid="event-calendar"]').element.value).toBe(
+        calendars.value[0].id
+      )
+      await wrapper.get('[data-testid="event-subject"]').setValue('Lunch')
+      calendarViewCalls.length = 0
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
+      expect(hoisted.api.createEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ subject: 'Lunch', isAllDay: false }),
+        calendars.value[0].id
+      )
+      expect(calendarViewCalls).toHaveLength(1)
+    })
+
+    it('opens a repeating event for reading only', async () => {
+      const wrapper = await mountPage()
+      await eventByTitle(wrapper, 'Standup').trigger('click')
+      expect(wrapper.get('fieldset').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('[data-testid="dialog-confirm"]').exists()).toBe(false)
+    })
+
+    it('keeps the dialog open when the server refuses the change', async () => {
+      hoisted.api.updateEvent.mockResolvedValueOnce(undefined as never)
+      const wrapper = await mountPage()
+      await eventByTitle(wrapper, 'Planning').trigger('click')
+      await wrapper.get('[data-testid="event-subject"]').setValue('X')
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+    })
   })
 })

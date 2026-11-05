@@ -115,12 +115,15 @@ export type EventInput = Partial<
     | 'showAs'
     | 'sensitivity'
     | 'categories'
-    | 'attendees'
     | 'location'
     | 'isReminderOn'
     | 'reminderMinutesBeforeStart'
   >
-> & { recurrence?: PatternedRecurrence | null }
+> & {
+  recurrence?: PatternedRecurrence | null
+  // An attendee needs no response status; the server keeps the stored one.
+  attendees?: (Pick<Attendee, 'type' | 'emailAddress'> & Partial<Pick<Attendee, 'status'>>)[]
+}
 
 export interface PhysicalAddress {
   street: string

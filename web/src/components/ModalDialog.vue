@@ -3,6 +3,7 @@
     <div
       ref="dialog"
       class="groupware-modal oc-p-m"
+      :class="{ 'groupware-modal-wide': wide }"
       role="dialog"
       aria-modal="true"
       :aria-labelledby="titleId"
@@ -18,7 +19,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 
 defineOptions({ name: 'ModalDialog' })
 
-defineProps<{ title: string }>()
+defineProps<{ title: string; wide?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 
 const titleId = `groupware-modal-title-${useId()}`
@@ -96,6 +97,9 @@ onBeforeUnmount(() => {
   max-height: calc(100vh - 2rem);
   overflow: auto;
   box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.3);
+}
+.groupware-modal-wide {
+  width: min(42rem, calc(100vw - 2rem));
 }
 .groupware-modal-title {
   font-size: 1.25rem;

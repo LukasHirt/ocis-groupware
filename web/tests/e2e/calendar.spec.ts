@@ -3,6 +3,10 @@ import { expect, test, type Page } from '@playwright/test'
 // The demo users that oCIS creates with IDM_CREATE_DEMO_USERS.
 const user = { name: 'einstein', password: 'relativity' }
 
+// The page shows times in the browser's zone, so the zone is fixed for the
+// checks of times below.
+test.use({ timezoneId: 'Europe/Prague' })
+
 async function signIn(page: Page) {
   await page.goto('/')
   await page.locator('#oc-login-username').fill(user.name)
@@ -96,4 +100,84 @@ test('a calendar can be created, renamed, recoloured and deleted', async ({ page
   await renamed.getByTestId('calendar-delete').click()
   await page.getByTestId('dialog-confirm').click()
   await expect(items.filter({ hasText: 'Lab notes' })).toHaveCount(0)
+})
+
+function today(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+test('an event can be created, changed and deleted', async ({ page }) => {
+  await openCalendar(page)
+  const event = (title: string) => page.locator('.fc-event', { hasText: title })
+
+  await page.getByTestId('event-add').click()
+  await page.getByTestId('event-subject').fill('Beam time')
+  await page.getByTestId('event-start-date').fill(today())
+  await page.getByTestId('event-start-time').fill('09:00')
+  await page.getByTestId('event-end-date').fill(today())
+  await page.getByTestId('event-end-time').fill('10:30')
+  await page.getByTestId('event-zone').selectOption('Europe/Prague')
+  await page.getByTestId('event-location').fill('Hall 2')
+  await page.getByTestId('event-status').selectOption('tentative')
+  await page.getByTestId('event-categories').fill('Lab, Beam')
+  await page.getByTestId('attendee-input').fill('marie@example.com')
+  await page.getByTestId('attendee-add').click()
+  await page.getByTestId('event-notes').fill('Bring the detector.')
+  await page.getByTestId('dialog-confirm').click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(event('Beam time')).toHaveCount(1)
+
+  // What was written comes back in the zone it was written in.
+  await event('Beam time').click()
+  await expect(page.getByTestId('event-subject')).toHaveValue('Beam time')
+  await expect(page.getByTestId('event-start-time')).toHaveValue('09:00')
+  await expect(page.getByTestId('event-end-time')).toHaveValue('10:30')
+  await expect(page.getByTestId('event-zone')).toHaveValue('Europe/Prague')
+  await expect(page.getByTestId('event-location')).toHaveValue('Hall 2')
+  await expect(page.getByTestId('event-status')).toHaveValue('tentative')
+  await expect(page.getByTestId('event-categories')).toHaveValue('Lab, Beam')
+  await expect(page.getByTestId('attendee')).toContainText('marie@example.com')
+  await expect(page.getByTestId('event-notes')).toHaveValue('Bring the detector.')
+
+  // An end before the start is refused.
+  await page.getByTestId('event-end-time').fill('08:00')
+  await page.getByTestId('dialog-confirm').click()
+  await expect(page.getByTestId('event-end-error')).toBeVisible()
+
+  await page.getByTestId('event-end-time').fill('11:00')
+  await page.getByTestId('event-subject').fill('Beam time 2')
+  await page.getByTestId('attendee-remove').click()
+  await page.getByTestId('dialog-confirm').click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(event('Beam time 2')).toHaveCount(1)
+  await event('Beam time 2').click()
+  await expect(page.getByTestId('event-end-time')).toHaveValue('11:00')
+  await expect(page.getByTestId('attendee')).toHaveCount(0)
+  await expect(page.getByTestId('event-location')).toHaveValue('Hall 2')
+
+  await page.getByTestId('event-delete').click()
+  await page.getByTestId('dialog-confirm').click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(event('Beam time 2')).toHaveCount(0)
+})
+
+test('an all-day event is made by clicking a day', async ({ page }) => {
+  await openCalendar(page)
+  await page.locator(`.fc-daygrid-day[data-date="${today()}"]`).click()
+  await expect(page.getByTestId('event-all-day')).toBeChecked()
+  await page.getByTestId('event-subject').fill('Conference')
+  await page.getByTestId('dialog-confirm').click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  const event = page.locator('.fc-event', { hasText: 'Conference' })
+  await expect(event).toHaveCount(1)
+
+  await event.click()
+  await expect(page.getByTestId('event-all-day')).toBeChecked()
+  await expect(page.getByTestId('event-start-date')).toHaveValue(today())
+  await expect(page.getByTestId('event-end-date')).toHaveValue(today())
+  await page.getByTestId('event-delete').click()
+  await page.getByTestId('dialog-confirm').click()
+  await expect(event).toHaveCount(0)
 })

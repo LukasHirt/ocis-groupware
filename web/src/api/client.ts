@@ -33,6 +33,12 @@ const graph = '/graph/v1.0/me'
 
 const enc = encodeURIComponent
 
+// inZone asks the server to write times in a zone, the way Graph does. Without
+// it the times are in UTC.
+function inZone(zone?: string): Pick<Request, 'headers'> {
+  return zone ? { headers: { Prefer: `outlook.timezone="${zone}"` } } : {}
+}
+
 // ifMatch gives the headers for a write that must not overwrite a newer
 // version. Without an etag the write is unconditional.
 function ifMatch(etag?: string): Pick<Request, 'headers'> {
@@ -50,16 +56,20 @@ export function createClient(transport: Transport) {
 
   // list reads every page. The server's next link names the host it saw, so
   // only the path and query are followed.
-  async function list<T>(url: string, params?: Record<string, string>): Promise<T[]> {
+  async function list<T>(
+    url: string,
+    params?: Record<string, string>,
+    extra: Pick<Request, 'headers'> = {}
+  ): Promise<T[]> {
     const items: T[] = []
-    let next: Request | undefined = { method: 'GET', url, params }
+    let next: Request | undefined = { method: 'GET', url, params, ...extra }
     while (next) {
       const page: Page<T> = await send<Page<T>>(next)
       items.push(...page.value)
       const link: string | undefined = page['@odata.nextLink']
       if (link) {
         const target = new URL(link, 'http://placeholder.invalid')
-        next = { method: 'GET', url: target.pathname + target.search }
+        next = { method: 'GET', url: target.pathname + target.search, ...extra }
       } else {
         next = undefined
       }
@@ -78,10 +88,12 @@ export function createClient(transport: Transport) {
 
     // calendarView returns the single events and the occurrences of series
     // between two instants, expanded by the server.
-    calendarView: (q: { start: string; end: string; calendarId?: string }) =>
+    // The zone is the one the times are written in.
+    calendarView: (q: { start: string; end: string; calendarId?: string; zone?: string }) =>
       list<GraphEvent>(
         q.calendarId ? `${graph}/calendars/${enc(q.calendarId)}/calendarView` : `${graph}/calendarView`,
-        { startDateTime: q.start, endDateTime: q.end }
+        { startDateTime: q.start, endDateTime: q.end },
+        inZone(q.zone)
       ),
     // createEvent writes into the given calendar, or the default one.
     createEvent: (input: EventInput, calendarId?: string) =>
@@ -90,7 +102,8 @@ export function createClient(transport: Transport) {
         url: calendarId ? `${graph}/calendars/${enc(calendarId)}/events` : `${graph}/events`,
         data: input
       }),
-    getEvent: (id: string) => send<GraphEvent>({ method: 'GET', url: `${graph}/events/${enc(id)}` }),
+    getEvent: (id: string, zone?: string) =>
+      send<GraphEvent>({ method: 'GET', url: `${graph}/events/${enc(id)}`, ...inZone(zone) }),
     // updateEvent and deleteEvent take an occurrence id to change or remove
     // one occurrence of a series.
     updateEvent: (id: string, input: EventInput, etag?: string) =>
