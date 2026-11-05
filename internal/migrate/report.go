@@ -32,8 +32,12 @@ type Report struct {
 	// Unmapped lists the users and groups that oCIS does not know. What
 	// belongs to them is skipped.
 	Unmapped []UnmappedID `json:"unmapped"`
-	Warnings []string     `json:"warnings,omitempty"`
-	Totals   Totals       `json:"totals"`
+	// GroupsByName lists the classic groups mapped to an oCIS group by
+	// display name rather than by the CSV file. Shares to these groups
+	// reach whoever is in the oCIS group with that name, so check them.
+	GroupsByName []string `json:"groups_matched_by_name,omitempty"`
+	Warnings     []string `json:"warnings,omitempty"`
+	Totals       Totals   `json:"totals"`
 
 	index map[string]*UserReport
 }
@@ -325,6 +329,12 @@ func (r *Report) WriteText(w io.Writer) error {
 		b.WriteString("\nWithout an oCIS counterpart\n")
 		for _, u := range r.Unmapped {
 			emit(&b, "  %s %s: %s\n", u.Kind, u.ID, u.Reason)
+		}
+	}
+	if len(r.GroupsByName) > 0 {
+		b.WriteString("\nGroups matched to oCIS by display name\n")
+		for _, g := range r.GroupsByName {
+			fmt.Fprintf(&b, "  %s\n", g)
 		}
 	}
 	if len(r.Warnings) > 0 {

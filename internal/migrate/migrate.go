@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/LukasHirt/groupkit/store"
 
@@ -33,7 +34,6 @@ const OwnerPrefix = "migrated-"
 // Source is what a run reads. *classic.Reader implements it.
 type Source interface {
 	Users(ctx context.Context) ([]classic.User, error)
-	Groups(ctx context.Context) ([]classic.Group, error)
 	Calendars(ctx context.Context) ([]classic.Calendar, error)
 	CalendarObjects(ctx context.Context, calendarID int64, fn func(classic.Object) error) error
 	AddressBooks(ctx context.Context) ([]classic.AddressBook, error)
@@ -64,6 +64,9 @@ type Config struct {
 	// report says so.
 	LegacyTokensEnabled bool
 	Logger              *slog.Logger
+	// Now gives the time recorded as the last confirmation of an imported
+	// user. It defaults to time.Now.
+	Now func() time.Time
 }
 
 type runner struct {
@@ -71,9 +74,8 @@ type runner struct {
 	log    *slog.Logger
 	report *Report
 
-	users  map[string]classic.User
-	groups map[string][]string // user id to the groups they are in
-	ids    idmap.Result
+	users map[string]classic.User
+	ids   idmap.Result
 	// owners maps a classic user id to the owner the data goes to.
 	owners map[string]string
 	// colls remembers, per classic calendar or address book, where it went.
@@ -99,8 +101,11 @@ func Run(ctx context.Context, cfg Config) (*Report, error) {
 	}
 	r := &runner{
 		cfg: cfg, log: cfg.Logger, report: &Report{DryRun: cfg.DryRun},
-		users: map[string]classic.User{}, groups: map[string][]string{},
+		users:  map[string]classic.User{},
 		owners: map[string]string{}, cals: map[int64]target{}, books: map[int64]target{},
+	}
+	if r.cfg.Now == nil {
+		r.cfg.Now = time.Now
 	}
 	if r.log == nil {
 		r.log = slog.New(slog.DiscardHandler)
@@ -117,10 +122,6 @@ func (r *runner) run(ctx context.Context) error {
 	users, err := src.Users(ctx)
 	if err != nil {
 		return fmt.Errorf("migrate: read users: %w", err)
-	}
-	groups, err := src.Groups(ctx)
-	if err != nil {
-		return fmt.Errorf("migrate: read groups: %w", err)
 	}
 	cals, err := src.Calendars(ctx)
 	if err != nil {
@@ -145,11 +146,6 @@ func (r *runner) run(ctx context.Context) error {
 
 	for _, u := range users {
 		r.users[u.ID] = u
-	}
-	for _, g := range groups {
-		for _, m := range g.Members {
-			r.groups[m] = append(r.groups[m], g.ID)
-		}
 	}
 	selected, err := r.selectUsers()
 	if err != nil {
@@ -212,16 +208,13 @@ func (r *runner) selectUsers() ([]string, error) {
 	return out, nil
 }
 
-// mapIDs maps the users in scope, the recipients of their shares and the
-// groups they are in.
+// mapIDs maps the users in scope and the recipients of their shares. The
+// groups a user was in are not mapped: their membership is not imported.
 func (r *runner) mapIDs(ctx context.Context, selected []string, shares []classic.Share, cals []classic.Calendar, books []classic.AddressBook, inScope map[string]bool) error {
 	userIDs := map[string]bool{}
 	groupIDs := map[string]bool{}
 	for _, id := range selected {
 		userIDs[id] = true
-		for _, g := range r.groups[id] {
-			groupIDs[g] = true
-		}
 	}
 	for _, s := range shares {
 		if s.PublicURI != "" || !inScope[ownerOf(s, cals, books)] {
@@ -239,6 +232,7 @@ func (r *runner) mapIDs(ctx context.Context, selected []string, shares []classic
 		return fmt.Errorf("migrate: map users and groups: %w", err)
 	}
 	r.ids = res
+	r.report.GroupsByName = res.GroupsByName
 	for _, u := range res.Unmapped {
 		r.report.Unmapped = append(r.report.Unmapped, UnmappedID{Kind: string(u.Kind), ID: u.ID, Reason: string(u.Reason)})
 	}

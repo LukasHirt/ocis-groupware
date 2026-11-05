@@ -49,6 +49,9 @@ func TestMapUsersAndGroupsFromGraph(t *testing.T) {
 	if want := map[string]string{"team": "o-team"}; !reflect.DeepEqual(res.Groups, want) {
 		t.Errorf("groups = %v, want %v", res.Groups, want)
 	}
+	if want := []string{"team"}; !reflect.DeepEqual(res.GroupsByName, want) {
+		t.Errorf("groups by name = %v, want %v", res.GroupsByName, want)
+	}
 	wantUn := []Unmapped{
 		{Kind: User, ID: "carol", Reason: ReasonNotFound},
 		{Kind: User, ID: "twin", Reason: ReasonAmbiguous},
