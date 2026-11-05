@@ -66,7 +66,11 @@ level, `read` or `readwrite`. A collection has at most 200 members, and the owne
 be one of them. The service reads all of these files at start and keeps a lookup by
 grantee in memory, so a share is stored once, with its owner. A `shares.json` the service
 cannot parse is logged and skipped, which means its owner shares nothing until the file
-is fixed. Deleting the file stops all sharing by that user.
+is fixed. Deleting the file stops all sharing by that user. Shares end with what they
+belong to: deleting a collection through the service drops its shares, a collection that
+disappeared while the service was down is dropped at the next start, and purging a user
+removes the user's shares. Shares that name a purged user as the grantee stay in the
+owners' files and reach nothing.
 
 A recipient sees a shared collection among their own as `shared-<collection id>`, with the
 owner's name for it followed by the owner's display name in brackets. The access level of the
@@ -247,11 +251,11 @@ username is needed.
 alike, and takes effect at once. Nothing is deleted, and `enable` lets the user back in
 with every device still paired. Both are safe to repeat.
 
-`purge` deletes a disabled user's calendars, contacts and app passwords, and the user's
-directory with them. Without `--yes` it only shows what would go and exits with 1:
+`purge` deletes a disabled user's calendars, contacts and app passwords, the shares of
+those collections, and the user's directory with them. Without `--yes` it only shows what would go and exits with 1:
 
 ```
-would purge alice (sub 4c510ada-c86b-4815-8820-42cdf82c3d51): 2 calendars, 1 address book, 3 app passwords
+would purge alice (sub 4c510ada-c86b-4815-8820-42cdf82c3d51): 2 calendars, 1 address book, 3 app passwords, 0 shares
 add --yes to delete this data; it cannot be undone
 ```
 

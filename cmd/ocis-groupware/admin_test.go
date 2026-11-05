@@ -309,7 +309,7 @@ func TestPurgeNeedsYes(t *testing.T) {
 	if code != 1 {
 		t.Errorf("exit %d, want 1", code)
 	}
-	want := "would purge bob (sub sub-2): 2 calendars, 1 address book, 3 app passwords\n" +
+	want := "would purge bob (sub sub-2): 2 calendars, 1 address book, 3 app passwords, 0 shares\n" +
 		"add --yes to delete this data; it cannot be undone\n"
 	if stdout != want {
 		t.Errorf("stdout %q, want %q", stdout, want)
@@ -389,7 +389,7 @@ func TestPurgeOrphanBySub(t *testing.T) {
 	if code != 1 {
 		t.Errorf("dry run: exit %d, want 1", code)
 	}
-	want := "would purge sub-orphan: 1 calendar, 0 address books, 0 app passwords\n" +
+	want := "would purge sub-orphan: 1 calendar, 0 address books, 0 app passwords, 0 shares\n" +
 		"add --yes to delete this data; it cannot be undone\n"
 	if stdout != want {
 		t.Errorf("dry run stdout %q, want %q", stdout, want)

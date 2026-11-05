@@ -13,7 +13,8 @@ import (
 // openSharing loads the shares in the data directory and returns them with
 // the store view that serves them: the file store with the collections shared
 // with each caller added to the caller's own. The oCIS ids and group
-// snapshots come from the principals registry.
+// snapshots come from the principals registry, which also learns to remove a
+// purged user's shares.
 func openSharing(st *filestore.Store, reg *principals.Registry, logger *slog.Logger) (*sharing.Shares, *sharing.View, error) {
 	shares, err := sharing.Open(sharing.Config{
 		OwnerDir: st.OwnerDir,
@@ -37,6 +38,13 @@ func openSharing(st *filestore.Store, reg *principals.Registry, logger *slog.Log
 	if err != nil {
 		return nil, nil, err
 	}
+	// A collection deleted while the service was down leaves its shares
+	// behind; they could not reach anything, but there is no reason to keep
+	// them. A store fault only postpones that to the next start.
+	if _, err := shares.Prune(context.Background(), st); err != nil {
+		logger.Warn("could not check the shares against the collections", "error", err)
+	}
+	reg.SetShares(shares)
 	view, err := sharing.NewView(sharing.ViewConfig{
 		Inner:  st,
 		Shares: shares,
