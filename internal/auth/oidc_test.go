@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -25,6 +26,11 @@ type fakeIdP struct {
 	*httptest.Server
 	key  *rsa.PrivateKey
 	down atomic.Bool
+
+	// discoveryHits and jwksHits count the requests that reached the endpoints.
+	discoveryHits, jwksHits atomic.Int32
+	// gate, when set, holds discovery requests until it is closed.
+	gate atomic.Pointer[chan struct{}]
 }
 
 func newFakeIdP(t *testing.T, tls bool) *fakeIdP {
@@ -37,6 +43,9 @@ func newFakeIdP(t *testing.T, tls bool) *fakeIdP {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		if g := idp.gate.Load(); g != nil {
+			<-*g
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"issuer":                                idp.URL,
 			"jwks_uri":                              idp.URL + "/jwks",
@@ -46,11 +55,15 @@ func newFakeIdP(t *testing.T, tls bool) *fakeIdP {
 		})
 	})
 	mux.HandleFunc("/jwks", func(w http.ResponseWriter, r *http.Request) {
+		idp.jwksHits.Add(1)
 		_ = json.NewEncoder(w).Encode(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{{
 			Key: &key.PublicKey, KeyID: "k1", Algorithm: "RS256", Use: "sig",
 		}}})
 	})
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			idp.discoveryHits.Add(1)
+		}
 		if idp.down.Load() {
 			http.Error(w, "down", http.StatusServiceUnavailable)
 			return
@@ -266,7 +279,9 @@ func TestNewOIDCVerifierRequiresClients(t *testing.T) {
 func TestOIDCVerifierRecoversWhenIdentityProviderComesUp(t *testing.T) {
 	idp := newFakeIdP(t, false)
 	idp.down.Store(true)
+	clk := newFakeClock()
 	v := newVerifier(t, OIDCConfig{Issuer: idp.URL, Clients: anyClient})
+	v.now = clk.now
 	raw := idp.token(t, nil)
 
 	if _, err := v.Verify(context.Background(), raw); !errors.Is(err, ErrUnavailable) {
@@ -274,8 +289,133 @@ func TestOIDCVerifierRecoversWhenIdentityProviderComesUp(t *testing.T) {
 	}
 
 	idp.down.Store(false)
+	clk.advance(time.Hour)
 	if _, err := v.Verify(context.Background(), raw); err != nil {
 		t.Fatalf("after recovery: %v", err)
+	}
+}
+
+// fakeClock is a clock the tests move by hand.
+type fakeClock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func newFakeClock() *fakeClock { return &fakeClock{t: time.Unix(1_800_000_000, 0)} }
+
+func (c *fakeClock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.t
+}
+
+func (c *fakeClock) advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.t = c.t.Add(d)
+}
+
+// forged returns a token with the right issuer and key id that is signed with
+// a key the identity provider does not publish.
+func forged(t *testing.T, issuer string) string {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return signToken(t, key, issuer, nil)
+}
+
+func TestOIDCVerifierForgedTokensDoNotRefetchKeysEveryTime(t *testing.T) {
+	idp := newFakeIdP(t, false)
+	clk := newFakeClock()
+	v := newVerifier(t, OIDCConfig{Issuer: idp.URL, Clients: anyClient})
+	v.now = clk.now
+
+	if _, err := v.Verify(context.Background(), idp.token(t, nil)); err != nil {
+		t.Fatalf("valid token: %v", err)
+	}
+	base := idp.jwksHits.Load()
+
+	bad := forged(t, idp.URL)
+	for i := 0; i < 20; i++ {
+		if _, err := v.Verify(context.Background(), bad); !errors.Is(err, ErrInvalidToken) {
+			t.Fatalf("forged token: err = %v, want ErrInvalidToken", err)
+		}
+	}
+	if n := idp.jwksHits.Load() - base; n > 1 {
+		t.Errorf("20 forged tokens caused %d key set requests, want at most 1", n)
+	}
+
+	// A token signed with a published key keeps working throughout.
+	if _, err := v.Verify(context.Background(), idp.token(t, nil)); err != nil {
+		t.Errorf("valid token after forged ones: %v", err)
+	}
+
+	// After the cooldown a miss may fetch again, so that a rotated key is found.
+	clk.advance(2 * jwksCooldown)
+	before := idp.jwksHits.Load()
+	_, _ = v.Verify(context.Background(), bad)
+	if idp.jwksHits.Load() == before {
+		t.Error("no key set request after the cooldown")
+	}
+}
+
+func TestOIDCVerifierDiscoveryDoesNotBlockOtherRequests(t *testing.T) {
+	idp := newFakeIdP(t, false)
+	gate := make(chan struct{})
+	idp.gate.Store(&gate)
+	v := newVerifier(t, OIDCConfig{Issuer: idp.URL, Clients: anyClient})
+	raw := idp.token(t, nil)
+
+	first := make(chan error, 1)
+	go func() {
+		_, err := v.Verify(context.Background(), raw)
+		first <- err
+	}()
+	for idp.discoveryHits.Load() == 0 {
+		time.Sleep(time.Millisecond)
+	}
+
+	second := make(chan error, 1)
+	go func() {
+		_, err := v.Verify(context.Background(), raw)
+		second <- err
+	}()
+	select {
+	case err := <-second:
+		if !errors.Is(err, ErrUnavailable) {
+			t.Errorf("request during discovery: err = %v, want ErrUnavailable", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("a request waits for the discovery of another")
+	}
+	close(gate)
+	if err := <-first; err != nil {
+		t.Errorf("the request that ran discovery: %v", err)
+	}
+}
+
+func TestOIDCVerifierBacksOffAfterFailedDiscovery(t *testing.T) {
+	idp := newFakeIdP(t, false)
+	idp.down.Store(true)
+	clk := newFakeClock()
+	v := newVerifier(t, OIDCConfig{Issuer: idp.URL, Clients: anyClient})
+	v.now = clk.now
+	raw := idp.token(t, nil)
+
+	for i := 0; i < 10; i++ {
+		if _, err := v.Verify(context.Background(), raw); !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("err = %v, want ErrUnavailable", err)
+		}
+	}
+	if n := idp.discoveryHits.Load(); n != 1 {
+		t.Errorf("10 requests during an outage caused %d discovery requests, want 1", n)
+	}
+	clk.advance(time.Hour)
+	_, _ = v.Verify(context.Background(), raw)
+	if n := idp.discoveryHits.Load(); n != 2 {
+		t.Errorf("discovery requests after the backoff = %d, want 2", n)
 	}
 }
 
