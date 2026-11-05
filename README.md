@@ -988,6 +988,12 @@ docker compose -f docker-compose.yml -f deploy/compose/ocis-proxy.yml up -d --bu
 STACK_ROUTE=ocis-proxy task stack:test
 ```
 
+## Sizing
+
+[docs/sizing.md](docs/sizing.md) lists the sizes the service was measured at (1,000
+principals, calendars of up to 30,000 events, 200 polling clients), what a restart costs
+and how to repeat the measurement with the load generator in `test/load`.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Please also read the
