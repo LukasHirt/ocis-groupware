@@ -1,21 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
-
-const user = { name: 'einstein', password: 'relativity' }
-
-async function signIn(page: Page) {
-  await page.goto('/')
-  await page.locator('#oc-login-username').fill(user.name)
-  await page.locator('#oc-login-password').fill(user.password)
-  await page.locator('button[type="submit"]').click()
-  await expect(page.locator('#web-content')).toBeVisible()
-}
+import { openApp, openNav, signIn } from './helpers'
 
 // openContacts goes to the Contacts page through the application menu, since
 // a reload of the page would end the session.
 async function openContacts(page: Page) {
-  await page.locator('#_appSwitcherButton').click()
-  await page.getByRole('link', { name: 'Calendar and Contacts' }).click()
-  await page.locator('#web-nav-sidebar').getByRole('link', { name: 'Contacts' }).click()
+  await openApp(page, 'Calendar and Contacts')
+  await openNav(page, 'Contacts')
   await expect(page.locator('h1')).toHaveText('Contacts')
 }
 
