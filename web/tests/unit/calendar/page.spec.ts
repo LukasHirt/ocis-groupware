@@ -6,6 +6,9 @@ import importReport from '../../../../internal/graphapi/testdata/contract/import
 import eventSeries from '../../../../internal/graphapi/testdata/contract/event-series.json'
 import calendarview from '../../../../internal/graphapi/testdata/contract/calendarview.json'
 
+// The design system and the host's services are not here; see mocks/webPkg.
+vi.mock('@ownclouders/web-pkg', async () => (await import('../mocks/webPkg')).webPkgMock())
+
 vi.mock('vue3-gettext', () => ({
   useGettext: () => ({
     $gettext: (s: string, vars?: Record<string, string>) =>

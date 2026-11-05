@@ -1,35 +1,33 @@
 <template>
-  <modal-dialog :title="title" @close="dismiss">
+  <gw-modal
+    :title="title"
+    form
+    :persistent="!!issued"
+    initial-focus="[data-testid=app-password-name]"
+    @close="emit('cancel')"
+    @submit="submit"
+  >
     <template v-if="issued">
       <p class="oc-mt-rm">
         {{ $gettext('Enter this password in your app now. It is not shown again.') }}
       </p>
       <div class="oc-flex oc-flex-middle">
         <code class="groupware-secret" data-testid="app-password-secret">{{ issued.password }}</code>
-        <button
-          type="button"
-          class="oc-button oc-button-m oc-button-passive oc-ml-s"
+        <oc-button
+          variation="passive"
+          appearance="outline"
+          class="oc-ml-s"
           data-testid="app-password-copy"
           @click="copy"
         >
           {{ copied ? $gettext('Copied') : $gettext('Copy') }}
-        </button>
+        </oc-button>
       </div>
       <p v-if="copyFailed" class="oc-text-muted oc-mt-s" role="status">
         {{ $gettext('Copying is not possible here. Select the password and copy it by hand.') }}
       </p>
-      <div class="groupware-modal-actions">
-        <button
-          type="button"
-          class="oc-button oc-button-m oc-button-primary oc-button-primary-filled"
-          data-testid="app-password-done"
-          @click="emit('done')"
-        >
-          {{ $gettext('Done') }}
-        </button>
-      </div>
     </template>
-    <form v-else novalidate @submit.prevent="submit">
+    <template v-else>
       <label class="oc-text-bold" for="groupware-app-password-name">{{ $gettext('Name') }}</label>
       <input
         id="groupware-app-password-name"
@@ -64,32 +62,37 @@
           {{ d === defaultDays ? $gettext('%{n} days (default)', { n: String(d) }) : $gettext('%{n} days', { n: String(d) }) }}
         </option>
       </select>
-      <div class="groupware-modal-actions">
-        <button
-          type="button"
-          class="oc-button oc-button-m oc-button-passive"
-          data-testid="dialog-cancel"
-          @click="emit('cancel')"
-        >
-          {{ $gettext('Cancel') }}
-        </button>
-        <button
-          type="submit"
-          class="oc-button oc-button-m oc-button-primary oc-button-primary-filled"
-          :disabled="busy"
-          data-testid="dialog-confirm"
-        >
-          {{ $gettext('Create') }}
-        </button>
-      </div>
-    </form>
-  </modal-dialog>
+    </template>
+    <template #actions>
+      <oc-button
+        v-if="!issued"
+        variation="passive"
+        appearance="outline"
+        data-testid="dialog-cancel"
+        @click="emit('cancel')"
+      >
+        {{ $gettext('Cancel') }}
+      </oc-button>
+      <!-- One button for both steps, so the one the user pressed to create the
+           password stays in place and keeps the focus when it turns into Done. -->
+      <oc-button
+        variation="primary"
+        appearance="filled"
+        :submit="issued ? 'button' : 'submit'"
+        :disabled="busy"
+        :data-testid="issued ? 'app-password-done' : 'dialog-confirm'"
+        @click="issued ? emit('done') : undefined"
+      >
+        {{ issued ? $gettext('Done') : $gettext('Create') }}
+      </oc-button>
+    </template>
+  </gw-modal>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useGettext } from 'vue3-gettext'
-import ModalDialog from '../components/ModalDialog.vue'
+import GwModal from '../components/GwModal.vue'
 import { useApi } from '../composables/useApi'
 import type { AppPasswordInput, IssuedAppPassword } from '../api/types'
 import { copyText } from './clipboard'
@@ -139,6 +142,9 @@ function validate(): string {
 }
 
 async function submit() {
+  if (issued.value) {
+    return
+  }
   nameError.value = validate()
   if (nameError.value || busy.value) {
     return
@@ -160,14 +166,6 @@ async function submit() {
 async function copy() {
   copyFailed.value = !(await copyText(issued.value?.password ?? ''))
   copied.value = !copyFailed.value
-}
-
-// Escape and a click outside close the form. Once the password is shown they
-// do nothing, so it cannot be lost by accident; Done closes it.
-function dismiss() {
-  if (!issued.value) {
-    emit('cancel')
-  }
 }
 
 </script>

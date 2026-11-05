@@ -3,6 +3,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import account from '../../../../internal/graphapi/testdata/contract/account.json'
 import DevicesPage from '../../../src/pages/DevicesPage.vue'
 
+// The design system and the host's services are not here; see mocks/webPkg.
+vi.mock('@ownclouders/web-pkg', async () => (await import('../mocks/webPkg')).webPkgMock())
+
 vi.mock('vue3-gettext', () => ({
   useGettext: () => ({ $gettext: (s: string) => s })
 }))

@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { AppMenuItemExtension } from '@ownclouders/web-pkg'
 import type { RouteRecordRaw } from 'vue-router'
-import PageLayout from '../../src/components/PageLayout.vue'
 import app from '../../src/index'
 import translations from '../../src/l10n/translations.json'
 
@@ -13,11 +12,9 @@ vi.mock('vue3-gettext', () => ({
 
 // web-pkg's module pulls in the whole design system; the application only
 // needs its defineWebApplication wrapper.
-vi.mock('@ownclouders/web-pkg', () => ({
-  defineWebApplication: (args: unknown) => args,
-  useAuthStore: () => ({ userContextReady: false, publicLinkContextReady: false }),
-  useRouter: () => ({ currentRoute })
-}))
+vi.mock('@ownclouders/web-pkg', async () =>
+  (await import('./mocks/webPkg')).webPkgMock({ useRouter: () => ({ currentRoute }) })
+)
 
 // The pages read through the API composable; the host's services are not
 // available here, so it answers from the golden files.
@@ -173,13 +170,5 @@ describe('the application', () => {
     const items = wrapper.findAll('[data-testid="folder-item"]')
     expect(items.map((i) => i.find('.name').text())).toEqual(['Contacts', 'Team'])
     expect(items[1].text()).toContain('Marie Curie')
-  })
-
-  it('says so when there is nothing to list', () => {
-    const wrapper = mount(PageLayout, {
-      ...mountOptions,
-      props: { title: 'Calendar', empty: true, emptyText: 'No calendars yet.' }
-    })
-    expect(wrapper.text()).toContain('No calendars yet.')
   })
 })

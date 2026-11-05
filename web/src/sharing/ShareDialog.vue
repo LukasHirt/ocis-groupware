@@ -1,5 +1,10 @@
 <template>
-  <modal-dialog :title="$gettext('Share %{name}', { name })" wide @close="emit('close')">
+  <gw-modal
+    :title="$gettext('Share %{name}', { name })"
+    wide
+    initial-focus="[data-testid=share-search]"
+    @close="emit('close')"
+  >
     <h3 class="oc-h5 oc-mt-rm">{{ $gettext('Shared with') }}</h3>
     <div v-if="loading" role="status"><oc-spinner :aria-label="$gettext('Loading')" /></div>
     <p v-else-if="permissions.length === 0" class="oc-text-muted" data-testid="share-none">
@@ -104,32 +109,21 @@
       </ul>
     </div>
 
-    <div class="groupware-modal-actions">
-      <button
-        type="button"
-        class="oc-button oc-button-m oc-button-passive"
-        data-testid="dialog-cancel"
-        @click="emit('close')"
-      >
+    <template #actions>
+      <oc-button variation="passive" appearance="outline" data-testid="dialog-cancel" @click="emit('close')">
         {{ $gettext('Close') }}
-      </button>
-      <button
-        type="button"
-        class="oc-button oc-button-m oc-button-primary oc-button-primary-filled"
-        :disabled="!chosen"
-        data-testid="share-add"
-        @click="add"
-      >
+      </oc-button>
+      <oc-button variation="primary" appearance="filled" :disabled="!chosen" data-testid="share-add" @click="add">
         {{ $gettext('Share') }}
-      </button>
-    </div>
-  </modal-dialog>
+      </oc-button>
+    </template>
+  </gw-modal>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useGettext } from 'vue3-gettext'
-import ModalDialog from '../components/ModalDialog.vue'
+import GwModal from '../components/GwModal.vue'
 import { useApi } from '../composables/useApi'
 import type { GraphPermission, Role, ShareKind } from '../api/types'
 import { minSearchLength, searchSharees, type Sharee } from './search'

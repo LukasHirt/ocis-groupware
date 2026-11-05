@@ -1,10 +1,9 @@
 <template>
-  <page-layout
-    :title="$gettext('Contacts')"
-    :loading="loadingFolders"
-    :empty="folders.length === 0"
-    :empty-text="$gettext('You have no address books yet.')"
-  >
+  <app-shell :title="$gettext('Contacts')" :loading="loadingFolders">
+    <p v-if="folders.length === 0" class="oc-text-muted oc-mt-m" data-testid="empty">
+      {{ $gettext('You have no address books yet.') }}
+    </p>
+    <template v-else>
     <div class="contacts-layout oc-mt-m">
       <nav :aria-label="$gettext('Address books')">
         <ul class="oc-list">
@@ -309,13 +308,14 @@
       :name="currentFolder.displayName"
       @close="sharing = false"
     />
-  </page-layout>
+    </template>
+  </app-shell>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useGettext } from 'vue3-gettext'
-import PageLayout from '../components/PageLayout.vue'
+import AppShell from '../components/AppShell.vue'
 import ShareDialog from '../sharing/ShareDialog.vue'
 import ContactDetail from '../contacts/ContactDetail.vue'
 import BookTools from '../contacts/BookTools.vue'
