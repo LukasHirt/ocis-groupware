@@ -29,11 +29,14 @@ var signingAlgs = []string{
 type OIDCConfig struct {
 	// Issuer is the OIDC issuer URL, e.g. the oCIS public URL.
 	Issuer string
-	// Audience, when set, must appear in the token's "aud" claim. oCIS sets
-	// "aud" to the OAuth client ID of the app that requested the token (for
-	// example "web"), so a value here admits only that client. When empty the
-	// audience isn't checked.
-	Audience string
+	// Clients lists the OAuth client ids whose tokens are accepted. A token
+	// passes when its "aud" claim contains one of them or its "azp" claim
+	// equals one of them. oCIS puts the client id of the requesting app in
+	// "aud" (for example "web"). Other identity providers, Keycloak among
+	// them, often put a generic audience there and name the client in "azp".
+	// The single entry "*" accepts tokens of any client. The list must not be
+	// empty.
+	Clients []string
 	// CAFile is an optional PEM bundle of extra CAs to trust when talking to
 	// the issuer, on top of the system roots.
 	CAFile string
@@ -55,6 +58,9 @@ type OIDCVerifier struct {
 func NewOIDCVerifier(cfg OIDCConfig) (*OIDCVerifier, error) {
 	if cfg.Issuer == "" {
 		return nil, errors.New("auth: oidc issuer must not be empty")
+	}
+	if len(cfg.Clients) == 0 {
+		return nil, errors.New(`auth: no oidc clients configured (use "*" to accept any client)`)
 	}
 
 	client, err := NewHTTPClient(cfg.CAFile, discoveryTimeout)
@@ -105,7 +111,8 @@ func (v *OIDCVerifier) Verify(ctx context.Context, rawToken string) (Claims, err
 		return Claims{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 
-	// The verifier checks signature, issuer, expiry and (optionally) audience.
+	// The verifier checks signature, issuer and expiry. The client check is
+	// ours, because go-oidc only knows a single audience and no "azp".
 	token, err := verifier.Verify(oidc.ClientContext(ctx, v.client), rawToken)
 	if err != nil {
 		return Claims{}, fmt.Errorf("%w: %w", ErrInvalidToken, err)
@@ -115,6 +122,7 @@ func (v *OIDCVerifier) Verify(ctx context.Context, rawToken string) (Claims, err
 	}
 
 	var extra struct {
+		AuthorizedParty   string `json:"azp"`
 		PreferredUsername string `json:"preferred_username"`
 		Name              string `json:"name"`
 		// oCIS access tokens carry no preferred_username. The identity is in a
@@ -127,6 +135,9 @@ func (v *OIDCVerifier) Verify(ctx context.Context, rawToken string) (Claims, err
 	}
 	if err := token.Claims(&extra); err != nil {
 		return Claims{}, fmt.Errorf("%w: decoding claims: %w", ErrInvalidToken, err)
+	}
+	if !v.clientAllowed(token.Audience, extra.AuthorizedParty) {
+		return Claims{}, fmt.Errorf("%w: token was not issued to a configured client", ErrInvalidToken)
 	}
 	claims := Claims{
 		Subject:           token.Subject,
@@ -156,9 +167,24 @@ func (v *OIDCVerifier) idTokenVerifier(ctx context.Context) (*oidc.IDTokenVerifi
 		return nil, err
 	}
 	v.verifier = provider.Verifier(&oidc.Config{
-		ClientID:             v.cfg.Audience,
-		SkipClientIDCheck:    v.cfg.Audience == "",
+		SkipClientIDCheck:    true,
 		SupportedSigningAlgs: signingAlgs,
 	})
 	return v.verifier, nil
+}
+
+// clientAllowed reports whether a token with these audiences and authorized
+// party was issued to one of the configured clients.
+func (v *OIDCVerifier) clientAllowed(audience []string, azp string) bool {
+	for _, client := range v.cfg.Clients {
+		if client == "*" || (azp != "" && azp == client) {
+			return true
+		}
+		for _, aud := range audience {
+			if aud == client {
+				return true
+			}
+		}
+	}
+	return false
 }

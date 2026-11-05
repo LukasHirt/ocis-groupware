@@ -21,9 +21,11 @@ type Config struct {
 	HTTPAddr   string `yaml:"http_addr"`
 	LogLevel   string `yaml:"log_level"`
 	OIDCIssuer string `yaml:"oidc_issuer"`
-	// OIDCAudience, when set, must appear in the aud claim of access tokens.
-	// oCIS puts the requesting client's ID there (e.g. "web").
-	OIDCAudience string `yaml:"oidc_audience"`
+	// OIDCAudience lists the OAuth client ids whose tokens are accepted. A
+	// token passes when its aud claim contains one of them or its azp claim
+	// equals one of them. The default is "web", the client of oCIS Web. The
+	// single entry "*" turns the check off.
+	OIDCAudience StringList `yaml:"oidc_audience"`
 	// OIDCCAFile is an optional PEM bundle of extra CAs trusted when
 	// contacting the issuer.
 	OIDCCAFile string `yaml:"oidc_ca_file"`
@@ -64,11 +66,51 @@ type Config struct {
 	AuthFailureWindow time.Duration `yaml:"auth_failure_window"`
 }
 
+// StringList is a list of strings that YAML may spell as a list or as one
+// scalar. A scalar may hold several entries separated by commas, as the
+// environment variable does.
+type StringList []string
+
+// UnmarshalYAML implements yaml.Unmarshaler.
+func (l *StringList) UnmarshalYAML(node *yaml.Node) error {
+	switch node.Kind {
+	case yaml.ScalarNode:
+		*l = splitList(node.Value)
+		return nil
+	case yaml.SequenceNode:
+		var items []string
+		if err := node.Decode(&items); err != nil {
+			return err
+		}
+		*l = splitList(strings.Join(items, ","))
+		return nil
+	}
+	return fmt.Errorf("line %d: want a string or a list of strings", node.Line)
+}
+
+// AllowsAnyClient reports whether the list is the "*" wildcard.
+func (l StringList) AllowsAnyClient() bool {
+	return len(l) == 1 && l[0] == "*"
+}
+
+// splitList splits a comma separated value and drops blanks.
+func splitList(v string) StringList {
+	list := StringList{}
+	for _, entry := range strings.Split(v, ",") {
+		if entry = strings.TrimSpace(entry); entry != "" {
+			list = append(list, entry)
+		}
+	}
+	return list
+}
+
 // Default returns the built-in configuration defaults.
 func Default() Config {
 	return Config{
 		HTTPAddr: ":8080",
 		LogLevel: "info",
+
+		OIDCAudience: StringList{"web"},
 
 		LegacyTokenTTL: 180 * 24 * time.Hour,
 
@@ -104,7 +146,7 @@ func Load(path string) (Config, error) {
 		cfg.OIDCIssuer = v
 	}
 	if v, ok := os.LookupEnv("GROUPWARE_OIDC_AUDIENCE"); ok {
-		cfg.OIDCAudience = v
+		cfg.OIDCAudience = splitList(v)
 	}
 	if v, ok := os.LookupEnv("GROUPWARE_OIDC_CA_FILE"); ok {
 		cfg.OIDCCAFile = v
@@ -139,12 +181,7 @@ func Load(path string) (Config, error) {
 		cfg.CompatPaths = on
 	}
 	if v, ok := os.LookupEnv("GROUPWARE_TRUSTED_PROXIES"); ok {
-		cfg.TrustedProxies = nil
-		for _, entry := range strings.Split(v, ",") {
-			if entry = strings.TrimSpace(entry); entry != "" {
-				cfg.TrustedProxies = append(cfg.TrustedProxies, entry)
-			}
-		}
+		cfg.TrustedProxies = splitList(v)
 	}
 	if v, ok := os.LookupEnv("GROUPWARE_AUTH_MAX_FAILURES"); ok {
 		n, err := strconv.Atoi(v)
@@ -177,6 +214,9 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.OIDCIssuer == "" {
 		return fmt.Errorf("config: oidc_issuer must be set (GROUPWARE_OIDC_ISSUER)")
+	}
+	if len(cfg.OIDCAudience) == 0 {
+		return fmt.Errorf(`config: oidc_audience must list at least one client id (GROUPWARE_OIDC_AUDIENCE); use "*" to accept tokens of any client`)
 	}
 	if cfg.DataDir == "" {
 		return fmt.Errorf("config: data_dir must be set (GROUPWARE_DATA_DIR)")

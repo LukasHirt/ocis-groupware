@@ -48,7 +48,7 @@ repository for what each one does.
 | Value | Key | Default | Notes |
 |---|---|---|---|
 | `config.oidcIssuer` | `GROUPWARE_OIDC_ISSUER` | none | **Required.** The public URL of oCIS |
-| `config.oidcAudience` | `GROUPWARE_OIDC_AUDIENCE` | `""` | Tokens must carry it in `aud` |
+| `config.oidcAudience` | `GROUPWARE_OIDC_AUDIENCE` | `web` | The OAuth client IDs whose tokens are accepted, comma-separated. Set it when oCIS Web uses another client ID. `*` accepts every client |
 | `config.ocisUrl` | `GROUPWARE_OCIS_URL` | `""` | Graph API address; the issuer when empty. Inside the cluster, use the oCIS Service |
 | `config.logLevel` | `GROUPWARE_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `config.httpAddr` | `GROUPWARE_HTTP_ADDR` | `:8080` | The container port is the number at the end |

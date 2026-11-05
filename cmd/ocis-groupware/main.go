@@ -79,10 +79,13 @@ func run(args []string, stderr io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if cfg.OIDCAudience.AllowsAnyClient() {
+		logger.Warn("oidc_audience is \"*\": tokens issued to any client of the identity provider are accepted")
+	}
 	verifier, err := auth.NewOIDCVerifier(auth.OIDCConfig{
-		Issuer:   cfg.OIDCIssuer,
-		Audience: cfg.OIDCAudience,
-		CAFile:   cfg.OIDCCAFile,
+		Issuer:  cfg.OIDCIssuer,
+		Clients: cfg.OIDCAudience,
+		CAFile:  cfg.OIDCCAFile,
 	})
 	if err != nil {
 		return err

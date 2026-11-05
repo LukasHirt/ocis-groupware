@@ -20,8 +20,10 @@ config:
   # GROUPWARE_OIDC_ISSUER. Required. The public URL of oCIS, which is also the
   # OIDC issuer.
   oidcIssuer: ""
-  # GROUPWARE_OIDC_AUDIENCE. If set, tokens must carry it in aud.
-  oidcAudience: ""
+  # GROUPWARE_OIDC_AUDIENCE. The OAuth client IDs whose tokens are accepted,
+  # comma-separated. Set it when oCIS Web uses a client ID other than web.
+  # "*" accepts every client.
+  oidcAudience: web
   # GROUPWARE_OCIS_URL. Where the service reaches the oCIS Graph API. Defaults
   # to the issuer URL. Inside the cluster this can be the oCIS service, for
   # example https://ocis.ocis.svc:9200.
