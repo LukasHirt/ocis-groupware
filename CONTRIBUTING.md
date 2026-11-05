@@ -62,6 +62,8 @@ to set up a signing key, then either pass `-S` per commit or set
 Every PR is automatically checked for:
 
 - `go build`, `go vet`, `go test -race`, `golangci-lint run` and a Docker build
+- The stack tests in `test/stack` against the compose stack with oCIS 8.2.2
+  (`task stack:test` runs them locally, see the README)
 - `govulncheck` for known vulnerabilities in the dependencies
 - `trivy` findings of high or critical severity in the built binary and the container image
 - REUSE compliance (`reuse lint`)

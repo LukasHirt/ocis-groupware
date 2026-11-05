@@ -189,7 +189,8 @@ the refusal of requests without credentials. The Go tests use the
 caldav client check that ships with groupkit, which also exercises occurrence
 expansion.
 
-The tests are behind the `stack` build tag, so `task test` leaves them alone:
+CI boots the stack with `OCIS_VERSION=8.2.2` and runs them on every pull request. The
+tests are behind the `stack` build tag, so `task test` leaves them alone:
 
 ```sh
 task stack:up
