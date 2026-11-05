@@ -1,6 +1,9 @@
 version: "2"
 run:
   timeout: 5m
+  # The stack tests in test/stack are behind a build tag; lint them too.
+  build-tags:
+    - stack
 linters:
   default: standard
   enable:

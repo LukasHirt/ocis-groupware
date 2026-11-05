@@ -178,6 +178,42 @@ trusts it through `GROUPWARE_OIDC_CA_FILE`.
 Set `OCIS_DOMAIN`, `OCIS_VERSION` or `IDM_ADMIN_PASSWORD` in the environment
 or a `.env` file to override the defaults. This stack is for development only.
 
+### Stack tests
+
+`test/stack` holds end-to-end tests that need the running stack. They sign in as the
+demo users through the oCIS identity provider, create app passwords and run CalDAV and
+CardDAV client flows against `https://ocis.localhost/dav`: discovery through the
+well-known paths, calendars and address books with their objects, queries, sync, and
+the refusal of requests without credentials. The Go tests use the
+[go-webdav](https://github.com/emersion/go-webdav) client. One test runs the Python
+caldav client check that ships with groupkit, which also exercises occurrence
+expansion.
+
+The tests are behind the `stack` build tag, so `task test` leaves them alone:
+
+```sh
+task stack:up
+task stack:test
+```
+
+The tests take their settings from the environment. `STACK_URL` is the stack's address
+(default `https://ocis.localhost`). `STACK_CA_FILE` is a PEM file with the stack's
+certificate; without it the Go tests skip certificate verification, which the generated
+development certificate needs. `STACK_PYTHON` names a Python interpreter with the
+caldav client installed; the Python check runs only when it and `STACK_CA_FILE` are set:
+
+```sh
+docker compose cp traefik:/certs/cert.pem cert.pem
+python3 -m venv .venv
+.venv/bin/pip install --require-hashes \
+  -r "$(go list -m -f '{{.Dir}}' github.com/LukasHirt/groupkit)/test/pyclient/requirements.txt"
+STACK_CA_FILE=$PWD/cert.pem STACK_PYTHON=$PWD/.venv/bin/python task stack:test
+```
+
+The Go flows use `einstein` and remove what they create. The Python check uses `marie`
+and expects her to have nothing but the default calendar, which is the case on a fresh
+stack.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Please also read the

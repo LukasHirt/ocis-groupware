@@ -5,6 +5,9 @@ go 1.26.10
 require (
 	github.com/LukasHirt/groupkit v0.1.1
 	github.com/coreos/go-oidc/v3 v3.21.0
+	github.com/emersion/go-ical v0.0.0-20240127095438-fc1c9d8fb2b6
+	github.com/emersion/go-vcard v0.1.0
+	github.com/emersion/go-webdav v0.7.0
 	github.com/go-jose/go-jose/v4 v4.1.6
 	github.com/prometheus/client_golang v1.25.0
 	golang.org/x/crypto v0.58.0

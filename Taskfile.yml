@@ -71,3 +71,8 @@ tasks:
     desc: Stop the compose stack (add -v to drop oCIS data)
     cmds:
       - docker compose down {{.CLI_ARGS}}
+
+  stack:test:
+    desc: Run the client flows in test/stack against the running compose stack
+    cmds:
+      - go test -tags stack -count=1 ./test/stack/ {{.CLI_ARGS}}
