@@ -11,6 +11,7 @@ import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
+import luxonPlugin from '@fullcalendar/luxon3'
 import type {
   CalendarOptions,
   DateSelectArg,
@@ -21,11 +22,19 @@ import type {
 
 defineOptions({ name: 'CalendarGrid' })
 
-const props = defineProps<{ events: EventInput[] }>()
+const props = defineProps<{
+  events: EventInput[]
+  // The zone the grid shows times in; empty for the browser's own.
+  timeZone?: string
+  // 0 for Sunday to 6 for Saturday.
+  firstDay?: number
+  weekNumbers?: boolean
+}>()
 const emit = defineEmits<{
   // The visible range changed; both ends are ISO instants.
   range: [start: string, end: string]
-  // The user marked a span of days or times; both ends are ISO instants.
+  // The user marked a span of days or times. Both ends are ISO strings in the
+  // grid's zone, with an offset, or plain dates for an all-day span.
   select: [start: string, end: string, allDay: boolean]
   // The user opened an event, by its id.
   open: [id: string]
@@ -34,7 +43,8 @@ const emit = defineEmits<{
 const { $gettext } = useGettext()
 
 const options = computed<CalendarOptions>(() => ({
-  plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
+  plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, luxonPlugin],
+  timeZone: props.timeZone || 'local',
   initialView: 'dayGridMonth',
   headerToolbar: {
     left: 'prev,next today',
@@ -52,7 +62,10 @@ const options = computed<CalendarOptions>(() => ({
     next: $gettext('Next'),
     today: $gettext('Today')
   },
-  firstDay: 1,
+  firstDay: props.firstDay ?? 1,
+  weekNumbers: props.weekNumbers ?? false,
+  weekText: $gettext('W'),
+  weekTextLong: $gettext('Week'),
   height: '100%',
   nowIndicator: true,
   dayMaxEvents: true,
@@ -60,14 +73,17 @@ const options = computed<CalendarOptions>(() => ({
   unselectAuto: true,
   events: props.events,
   select: (arg: DateSelectArg) => {
-    emit('select', arg.start.toISOString(), arg.end.toISOString(), arg.allDay)
+    emit('select', arg.startStr, arg.endStr, arg.allDay)
     arg.view.calendar.unselect()
   },
   eventClick: (arg: EventClickArg) => {
     arg.jsEvent.preventDefault()
     emit('open', arg.event.id)
   },
-  datesSet: (arg: DatesSetArg) => emit('range', arg.start.toISOString(), arg.end.toISOString())
+  // The strings carry the offset of the grid's zone; the Date objects of a
+  // named zone do not stand for the same instants.
+  datesSet: (arg: DatesSetArg) =>
+    emit('range', new Date(arg.startStr).toISOString(), new Date(arg.endStr).toISOString())
 }))
 </script>
 

@@ -242,3 +242,32 @@ test('a repeating event can be changed for one day or for all days', async ({ pa
   await page.getByTestId('dialog-confirm').click()
   await expect(events).toHaveCount(0)
 })
+
+test('the settings change the first day, week numbers and time zone, and are kept', async ({ page }) => {
+  await openCalendar(page)
+  await expect(page.locator('.fc-col-header-cell').first()).toContainText('Mon')
+  await expect(page.locator('.fc-daygrid-week-number')).toHaveCount(0)
+
+  await page.getByTestId('settings-open').click()
+  await page.getByTestId('settings-first-day').selectOption('0')
+  await page.getByTestId('settings-week-numbers').check()
+  await page.getByTestId('settings-zone').selectOption('Asia/Tokyo')
+  await page.getByTestId('dialog-confirm').click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(page.locator('.fc-col-header-cell').first()).toContainText('Sun')
+  await expect(page.locator('.fc-daygrid-week-number').first()).toBeVisible()
+
+  // A new event is written in the chosen zone.
+  await page.getByTestId('event-add').click()
+  await expect(page.getByTestId('event-zone')).toHaveValue('Asia/Tokyo')
+  await page.getByTestId('dialog-cancel').click()
+
+  // The settings are still there when the page is opened again.
+  const sidebar = page.locator('#web-nav-sidebar')
+  await sidebar.getByRole('link', { name: 'Contacts' }).click()
+  await sidebar.getByRole('link', { name: 'Calendar' }).click()
+  await expect(page.locator('.fc-col-header-cell').first()).toContainText('Sun')
+  await page.getByTestId('settings-open').click()
+  await expect(page.getByTestId('settings-zone')).toHaveValue('Asia/Tokyo')
+  await page.getByTestId('dialog-cancel').click()
+})
