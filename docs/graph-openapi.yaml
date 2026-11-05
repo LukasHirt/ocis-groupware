@@ -2037,7 +2037,15 @@ components:
             addressBookHomeUrl:
               type: string
           required: [url, calendarHomeUrl, addressBookHomeUrl]
-      required: [username, displayName, dav]
+        app_passwords_valid_until:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            When the user's app passwords stop working unless oCIS confirms the
+            user again, by a sign-in with a token. Null when the identity lease
+            is off or oCIS has not confirmed the user yet.
+      required: [username, displayName, dav, app_passwords_valid_until]
     ImportResult:
       type: object
       properties:

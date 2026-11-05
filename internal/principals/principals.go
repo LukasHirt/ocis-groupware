@@ -52,6 +52,9 @@ type Principal struct {
 	// Disabled means every sign-in of the principal is refused until an
 	// administrator enables it again. Its data and app passwords stay.
 	Disabled bool
+	// IdentityAt is when oCIS last confirmed the user, which is the time of
+	// the identity snapshot. It is the zero time if no snapshot was taken.
+	IdentityAt time.Time
 }
 
 var (
@@ -96,7 +99,7 @@ type record struct {
 func (rec record) principal() Principal {
 	return Principal{
 		Owner: rec.Owner, Sub: rec.Sub, Username: rec.Username, DisplayName: rec.DisplayName,
-		CreatedAt: rec.CreatedAt, Disabled: rec.Disabled,
+		CreatedAt: rec.CreatedAt, Disabled: rec.Disabled, IdentityAt: rec.IdentityAt,
 	}
 }
 
@@ -136,6 +139,8 @@ type Registry struct {
 	// dummyHash is compared against when a check has no stored hash, so
 	// that it costs the same as checking a wrong password.
 	dummyHash []byte
+	// identityMaxAge is the identity lease, see WithIdentityMaxAge.
+	identityMaxAge time.Duration
 	// Legacy tokens, see legacy.go.
 	legacySecret string
 	legacyTTL    time.Duration

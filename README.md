@@ -31,6 +31,7 @@ over file, file wins over defaults.
 | `GROUPWARE_LEGACY_TOKEN_SECRET` | `legacy_token_secret` | Optional. The instance secret of a classic installation whose app tokens were imported. Without it, imported tokens do not work (see below) |
 | `GROUPWARE_COMPAT_PATHS` | `compat_paths` | Optional boolean, default `false`. Also serves the classic DAV layout below `/remote.php/dav`, for devices set up against a classic server. The ingress has to route those paths to the service (see `docs/routing.md`) |
 | `GROUPWARE_LEGACY_TOKEN_TTL` | `legacy_token_ttl` | Optional Go duration, default `4320h` (180 days). How long an imported token stays valid without being used |
+| `GROUPWARE_IDENTITY_MAX_AGE` | `identity_max_age` | Optional Go duration, default `720h` (30 days). How long an app password works after oCIS last confirmed its user. `0` turns the check off and logs a warning at startup. Negative values are refused (see "Signing in with an app password after offboarding") |
 | `GROUPWARE_AUTH_MAX_FAILURES` | `auth_max_failures` | Optional integer, default `10`. How many failed app password sign-ins of one user from one address are allowed within the window (see "Limiting failed sign-ins") |
 | `GROUPWARE_AUTH_FAILURE_WINDOW` | `auth_failure_window` | Optional Go duration, default `15m`. How long failed sign-ins count, and so how long a block lasts |
 | `GROUPWARE_TRUSTED_PROXIES` | `trusted_proxies` | Optional. Comma-separated addresses and networks (`10.0.0.0/8,192.168.1.5`) of the reverse proxies in front of the service. In YAML, a list. Only they are believed when they send `X-Forwarded-For`. Empty by default |
@@ -370,6 +371,60 @@ token that is not used expires 180 days after its last use (or its import), or a
 `GROUPWARE_LEGACY_TOKEN_TTL`. Checks of imported tokens go through the same limiter as app
 passwords (see below).
 
+### The identity lease
+
+The service holds no credential for oCIS and sees a user only through that user's own
+bearer token. When someone is disabled or deleted in oCIS, or removed from a group, nothing
+tells the service. What it can know is when oCIS last confirmed the user: each bearer
+sign-in asks oCIS for the user's id and groups (`GET /me?$expand=memberOf`) with that
+user's token, at most every five minutes, and stores the answer with its time.
+
+A Basic sign-in succeeds only if that time lies within `GROUPWARE_IDENTITY_MAX_AGE` of
+now, 30 days by default. Otherwise the request gets the same `401` with
+`WWW-Authenticate: Basic` as a wrong password. This covers app passwords and imported
+classic tokens on `/dav` and on the classic paths. The check runs after the password has
+been compared, so the answer and the time it takes do not show it, and it does not count
+as a failed guess for the rate limiter: a user whose lease ran out is not locked out, and
+signs in again as soon as it is renewed. A principal that oCIS never confirmed has
+no lease at all and is refused. A refused imported token is not used up.
+
+Opening oCIS Web, or any other request with a bearer token, renews the lease, and the
+device needs no new setup. `GET /groupware/v1/me` returns `app_passwords_valid_until`, the
+end of the current lease, or `null` when the check is off. The service logs a refusal at
+Info once per user and hour and counts them in `groupware_auth_identity_stale_total`.
+`admin principals list` shows the age of each user's last confirmation and marks those that
+are past the lease as stale.
+
+The same time bounds the group memberships the service holds. A Basic request never runs
+with a membership snapshot older than the lease, so a collection shared with a group stops
+being listed to a removed member within that time.
+
+#### Signing in with an app password after offboarding
+
+Disabling or deleting a user in oCIS does not reach this service right away. App
+passwords of a removed user keep working until their identity lease runs out
+(`GROUPWARE_IDENTITY_MAX_AGE`, 30 days by default), and so do their group shares. To cut
+access at once, also run `ocis-groupware admin principals disable <user>`.
+
+The lease does not help against a stolen app password of a user who stays active, because
+that user's own sign-ins keep renewing it. Revoke the password.
+
+#### Upgrading
+
+Before the lease, an app password worked until it expired, whether or not the user ever
+used oCIS again. A user who only uses DAV clients and does not open oCIS (or call the API
+with a token) for 30 days now gets `401` on every device, and one visit to oCIS Web fixes
+it without touching the devices. The time counts from the user's last confirmation, so a user
+whose last sign-in with a token was a month ago is cut off on the day of the upgrade, and
+a principal that never had one is refused until the next sign-in with a token. If you need the old behaviour, set
+`GROUPWARE_IDENTITY_MAX_AGE` to a longer duration, or to `0` to switch the check off.
+
+The check also needs the service to reach the oCIS Graph API (`GROUPWARE_OCIS_URL`). If it
+cannot, no lease is renewed and every user who only uses DAV clients drops off after the
+period. A failed lookup is logged at Warn, and `admin principals list` shows the ages.
+Imported principals count from the time of the import, so classic tokens work for the
+period after a migration unless the user signs in with a token before then.
+
 ### Limiting failed sign-ins
 
 Guessing an app password over HTTP Basic is slowed down. The service counts failed Basic
@@ -687,14 +742,17 @@ takes the bearer token and answers:
     "url": "https://ocis.example/dav/",
     "calendarHomeUrl": "https://ocis.example/dav/calendars/einstein/",
     "addressBookHomeUrl": "https://ocis.example/dav/addressbooks/einstein/"
-  }
+  },
+  "app_passwords_valid_until": "2026-12-05T10:00:00Z"
 }
 ```
 
 The addresses use the scheme and host of the request, taking the scheme from
 `X-Forwarded-Proto` behind a proxy. `username` is the name a DAV client signs in with,
 together with an app password. When another user has taken the name over and this user has
-not signed in since, `username` is empty and so are the two home addresses. The same body is
+not signed in since, `username` is empty and so are the two home addresses.
+`app_passwords_valid_until` is the end of the identity lease (see "The identity lease"), or
+`null` when the lease is off. The same body is
 in `internal/graphapi/testdata/contract/account.json`.
 
 ## Administration
@@ -716,8 +774,10 @@ Outside the container, pass `--config <file>` or set `GROUPWARE_DATA_DIR` (or
 exits with 1 and says so when the service is not running: it has no way to open the
 data directory itself. `migrate classic` is the exception and needs the service stopped.
 
-`list` prints one user per line with the username, display name, state, creation time and
-sub; `--json` prints the admin API's answer as it is. A user whose username was taken
+`list` prints one user per line with the username, display name, state, creation time,
+identity age and sub. The identity age is the time since oCIS last confirmed the user, such
+as `3d`, or `never`. With the identity lease on, a user at or past the lease shows `(stale)`:
+their app passwords are refused until they sign in with a token again. `--json` prints the admin API's answer as it is. A user whose username was taken
 over by a newer account shows `-` as username, and `--sub <sub>` reaches it where a
 username is needed.
 

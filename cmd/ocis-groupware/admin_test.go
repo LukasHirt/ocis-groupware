@@ -88,6 +88,19 @@ func startServiceWith(t *testing.T, prepare func(dir string, st *filestore.Store
 	if _, err := reg.SetDisabled(context.Background(), "sub-2", true); err != nil {
 		t.Fatal(err)
 	}
+	// alice was confirmed by oCIS three days ago, carol (sub-3) 59 days ago.
+	// The others never were. The list is read at adminNow below.
+	for sub, at := range map[string]time.Time{
+		"sub-1": time.Date(2026, 10, 27, 9, 0, 0, 0, time.UTC),
+		"sub-3": time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC),
+	} {
+		if err := reg.SetIdentity(context.Background(), sub, principals.Identity{OCISID: "id-" + sub, At: at}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	oldNow := adminNow
+	adminNow = func() time.Time { return time.Date(2026, 10, 30, 9, 30, 0, 0, time.UTC) }
+	t.Cleanup(func() { adminNow = oldNow })
 
 	path := filepath.Join(dir, "admin.sock")
 	l, err := admin.Listen(path)
@@ -173,11 +186,11 @@ func TestListTableAndJSON(t *testing.T) {
 		t.Fatalf("exit %d, stderr %q", code, stderr)
 	}
 	want := "" +
-		"USERNAME   DISPLAY NAME   STATE      CREATED                SUB\n" +
-		"-          Carol Clark    enabled    2026-10-30 09:14 UTC   sub-3\n" +
-		"alice      Alice Adams    enabled    2026-10-30 09:12 UTC   sub-1\n" +
-		"bob        Bob Brown      disabled   2026-10-30 09:13 UTC   sub-2\n" +
-		"carol      Carol Clark    enabled    2026-10-30 09:15 UTC   sub-4\n"
+		"USERNAME   DISPLAY NAME   STATE      CREATED                IDENTITY AGE    SUB\n" +
+		"-          Carol Clark    enabled    2026-10-30 09:14 UTC   59d (stale)     sub-3\n" +
+		"alice      Alice Adams    enabled    2026-10-30 09:12 UTC   3d              sub-1\n" +
+		"bob        Bob Brown      disabled   2026-10-30 09:13 UTC   never (stale)   sub-2\n" +
+		"carol      Carol Clark    enabled    2026-10-30 09:15 UTC   never (stale)   sub-4\n"
 	if stdout != want {
 		t.Errorf("table:\n%s\nwant:\n%s", stdout, want)
 	}

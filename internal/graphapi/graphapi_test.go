@@ -39,13 +39,19 @@ type fixture struct {
 // service uses. Tokens "einstein" and "marie" sign in as those users.
 func newFixture(t *testing.T, mods ...func(*Config)) *fixture {
 	t.Helper()
+	return newFixtureWith(t, nil, mods...)
+}
+
+// newFixtureWith is newFixture with options for the principal registry.
+func newFixtureWith(t *testing.T, regOpts []principals.Option, mods ...func(*Config)) *fixture {
+	t.Helper()
 	dir := t.TempDir()
 	st, err := filestore.Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	reg, err := principals.NewRegistry(dir, st, st.OwnerDir, testLogger(), principals.WithBcryptCost(bcrypt.MinCost))
+	reg, err := principals.NewRegistry(dir, st, st.OwnerDir, testLogger(), append([]principals.Option{principals.WithBcryptCost(bcrypt.MinCost)}, regOpts...)...)
 	if err != nil {
 		t.Fatal(err)
 	}

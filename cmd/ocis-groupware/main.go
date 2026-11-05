@@ -115,9 +115,21 @@ func run(args []string, stderr io.Writer) error {
 		return err
 	}
 
+	if cfg.IdentityMaxAge == 0 {
+		logger.Warn("identity_max_age is 0: app passwords do not expire with the oCIS account")
+	}
+	identityStale := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "groupware_auth_identity_stale_total",
+		Help: "HTTP Basic sign-ins refused because oCIS has not confirmed the user within the identity lease.",
+	})
+	if err := prometheus.DefaultRegisterer.Register(identityStale); err != nil {
+		return err
+	}
+
 	registry, err := principals.NewRegistry(cfg.DataDir, store, store.OwnerDir, logger,
 		principals.WithLegacyTokens(cfg.LegacyTokenSecret, cfg.LegacyTokenTTL),
-		principals.WithLegacyGate(limiter.Gate))
+		principals.WithLegacyGate(limiter.Gate),
+		principals.WithIdentityMaxAge(cfg.IdentityMaxAge))
 	if err != nil {
 		return err
 	}
@@ -145,7 +157,9 @@ func run(args []string, stderr io.Writer) error {
 		Verifier:   verifier,
 		Identities: identities,
 		Limiter:    limiter,
-		Logger:     logger,
+
+		IdentityStale: identityStale,
+		Logger:        logger,
 	})
 	if err != nil {
 		return err
@@ -176,7 +190,9 @@ func run(args []string, stderr io.Writer) error {
 			Verifier:   verifier,
 			Identities: identities,
 			Limiter:    limiter,
-			Logger:     logger,
+
+			IdentityStale: identityStale,
+			Logger:        logger,
 		})
 		if err != nil {
 			return err

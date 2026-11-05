@@ -32,12 +32,15 @@ type principalJSON struct {
 	DisplayName string    `json:"display_name"`
 	CreatedAt   time.Time `json:"created_at"`
 	Disabled    bool      `json:"disabled"`
+	// IdentityAt is when oCIS last confirmed the user. It is left out until
+	// that has happened once.
+	IdentityAt time.Time `json:"identity_at,omitzero"`
 }
 
 func toJSON(p principals.Principal) principalJSON {
 	return principalJSON{
 		Owner: p.Owner, Sub: p.Sub, Username: p.Username, DisplayName: p.DisplayName,
-		CreatedAt: p.CreatedAt, Disabled: p.Disabled,
+		CreatedAt: p.CreatedAt, Disabled: p.Disabled, IdentityAt: p.IdentityAt.UTC(),
 	}
 }
 

@@ -12,10 +12,12 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/LukasHirt/groupkit"
 	"github.com/LukasHirt/groupkit/store"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/owncloud/ocis-groupware/internal/auth"
 	"github.com/owncloud/ocis-groupware/internal/principals"
@@ -53,6 +55,12 @@ type Config struct {
 	// while a user or an address has failed too often. Nil limits nothing
 	// here, except what a gate set on Registry refuses.
 	Limiter *ratelimit.Limiter
+	// IdentityStale, when not nil, counts the Basic sign-ins that were
+	// refused because oCIS has not confirmed the user within the identity
+	// lease.
+	IdentityStale prometheus.Counter
+	// Now is the clock. Nil means time.Now.
+	Now func() time.Time
 	// Logger receives refusals and faults. Nil discards them.
 	Logger *slog.Logger
 }
@@ -115,7 +123,12 @@ func build(cfg Config, prefix string, usersSegment bool) (*groupkit.Server, *aut
 	if ids == nil {
 		ids = provision.NewIdentities(cfg.Registry, nil, logger)
 	}
-	a := &authenticator{reg: cfg.Registry, ids: ids, verifier: cfg.Verifier, limiter: cfg.Limiter, logger: logger}
+	now := cfg.Now
+	if now == nil {
+		now = time.Now
+	}
+	a := &authenticator{reg: cfg.Registry, ids: ids, verifier: cfg.Verifier, limiter: cfg.Limiter, logger: logger,
+		stale: cfg.IdentityStale, now: now, staleLogged: map[string]time.Time{}}
 	return srv, a, nil
 }
 
@@ -164,7 +177,18 @@ type authenticator struct {
 	verifier auth.Verifier
 	limiter  *ratelimit.Limiter
 	logger   *slog.Logger
+	stale    prometheus.Counter
+	now      func() time.Time
+
+	// staleLogged is when a refusal because of a stale identity lease was
+	// last logged, by owner.
+	staleMu     sync.Mutex
+	staleLogged map[string]time.Time
 }
+
+// staleLogInterval is the least time between two log lines about the same
+// principal's stale lease. A DAV client retries all the time.
+const staleLogInterval = time.Hour
 
 // wrap answers 401 to every request without valid credentials, so that no
 // path below /dav, known or not, answers anything else without them. A
@@ -243,6 +267,13 @@ func (a *authenticator) basic(r *http.Request, username, password string) (ident
 			return identity{retryAfter: limited.RetryAfter}, http.StatusTooManyRequests
 		}
 		return identity{}, http.StatusTooManyRequests
+	case errors.Is(err, principals.ErrIdentityStale):
+		// Not a failed guess: the password was right. The limiter is not
+		// charged, so that the user is not locked out as well.
+		if a.stale != nil {
+			a.stale.Inc()
+		}
+		a.logStale(username)
 	case errors.Is(err, principals.ErrExpired):
 		a.logger.Info("app password expired", "username", username)
 	case errors.Is(err, principals.ErrDisabled):
@@ -253,6 +284,29 @@ func (a *authenticator) basic(r *http.Request, username, password string) (ident
 		a.logger.Error("could not verify app password", "username", username, "error", err)
 	}
 	return identity{}, http.StatusUnauthorized
+}
+
+// logStale logs a refusal because of a stale identity lease, at most once an
+// hour per user.
+func (a *authenticator) logStale(username string) {
+	now := a.now()
+	a.staleMu.Lock()
+	last, seen := a.staleLogged[username]
+	if seen && now.Sub(last) < staleLogInterval {
+		a.staleMu.Unlock()
+		return
+	}
+	a.staleLogged[username] = now
+	if len(a.staleLogged) > 10000 {
+		for name, at := range a.staleLogged {
+			if now.Sub(at) >= staleLogInterval {
+				delete(a.staleLogged, name)
+			}
+		}
+	}
+	a.staleMu.Unlock()
+	a.logger.Info("app password refused: oCIS has not confirmed the user for the identity lease; the user must open the web app",
+		"username", username)
 }
 
 // bearer verifies an OIDC token and provisions its principal, which creates

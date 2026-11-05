@@ -53,6 +53,10 @@ var (
 	ErrInvalidCredentials = errors.New("principals: invalid credentials")
 	// ErrExpired means the password was right but its lifetime is over.
 	ErrExpired = errors.New("principals: app password expired")
+	// ErrIdentityStale means the password was right, but oCIS has not
+	// confirmed the user within the identity lease, see WithIdentityMaxAge.
+	// The user renews the lease by signing in with a token.
+	ErrIdentityStale = errors.New("principals: oCIS has not confirmed the user recently")
 	// ErrInvalidAppPasswordName means the name given to IssueAppPassword is
 	// empty, too long or contains characters that are not allowed.
 	ErrInvalidAppPasswordName = errors.New("principals: invalid app password name")
@@ -142,6 +146,42 @@ func WithBcryptCost(cost int) Option {
 	return func(r *Registry) {
 		r.bcryptCost = cost
 	}
+}
+
+// WithIdentityMaxAge sets the identity lease: a Basic sign-in succeeds only
+// if the principal's identity snapshot is younger than maxAge, otherwise
+// VerifyBasic returns ErrIdentityStale. The service learns about a disabled
+// or deleted oCIS user or a changed group membership only through the user's
+// own sign-ins, so the lease bounds how long a password outlives the user's
+// standing in oCIS. A principal without a snapshot has no lease. A maxAge of
+// 0, the default, turns the check off.
+func WithIdentityMaxAge(maxAge time.Duration) Option {
+	return func(r *Registry) { r.identityMaxAge = maxAge }
+}
+
+// IdentityMaxAge returns the identity lease, 0 if it is off.
+func (r *Registry) IdentityMaxAge() time.Duration { return r.identityMaxAge }
+
+// leaseEnd returns when the principal's identity lease ends. ok is false if
+// the lease is off. A principal without a snapshot has a lease that ended
+// long ago.
+func (r *Registry) leaseEnd(owner string) (end time.Time, ok bool) {
+	if r.identityMaxAge <= 0 {
+		return time.Time{}, false
+	}
+	r.mu.RLock()
+	at := r.principals[owner].IdentityAt
+	r.mu.RUnlock()
+	if at.IsZero() {
+		return time.Time{}, true
+	}
+	return at.Add(r.identityMaxAge), true
+}
+
+// leaseValid reports whether the principal's lease covers now.
+func (r *Registry) leaseValid(owner string, now time.Time) bool {
+	end, ok := r.leaseEnd(owner)
+	return !ok || now.Before(end)
 }
 
 // IssueAppPassword creates an app password for the principal and returns it
@@ -283,14 +323,16 @@ func (r *Registry) removeAppPassword(owner, id string, set *appSet) error {
 // It returns ErrInvalidCredentials for an unknown username and for a wrong
 // password alike, and both cost one bcrypt compare. ErrExpired means the
 // password was right but has expired, ErrDisabled that it was right but the
-// principal is disabled; both are found out after the compare, so they cost
-// the same as a wrong password. Other errors mean the app passwords could
+// principal is disabled, and ErrIdentityStale that it was right but oCIS has
+// not confirmed the user within the identity lease. All three are found out
+// after the compare, in that order, so they cost the same as a wrong
+// password. Other errors mean the app passwords could
 // not be read. No error contains the password.
 //
 // A credential that was verified in the last five minutes is accepted
 // without a bcrypt compare, unless its app password expired or was revoked
 // since, the username moved to another principal or the principal was
-// disabled.
+// disabled, or its identity lease ran out.
 func (r *Registry) VerifyBasic(ctx context.Context, username, password string) (Principal, error) {
 	if err := ctx.Err(); err != nil {
 		return Principal{}, err
@@ -298,7 +340,7 @@ func (r *Registry) VerifyBasic(ctx context.Context, username, password string) (
 	now := r.now()
 	key := r.cache.key(basicHeader(username, password))
 	if e, ok := r.cache.get(key, now); ok {
-		if p, ok := r.principalByName(e.sub, username); ok && !p.Disabled && r.touch(e.sub, e.id, now) {
+		if p, ok := r.principalByName(e.sub, username); ok && !p.Disabled && r.leaseValid(e.sub, now) && r.touch(e.sub, e.id, now) {
 			return p, nil
 		}
 	}
@@ -360,6 +402,11 @@ func (r *Registry) VerifyBasic(ctx context.Context, username, password string) (
 		} else if p.Disabled {
 			return Principal{}, ErrDisabled
 		}
+		// The lease is checked before the token is used up, so that a
+		// refused token still works once the user is back.
+		if !r.leaseValid(owner, now) {
+			return Principal{}, ErrIdentityStale
+		}
 		swapped, err := r.swapLegacy(owner, id, password, now)
 		if err != nil {
 			return Principal{}, err
@@ -383,13 +430,22 @@ func (r *Registry) VerifyBasic(ctx context.Context, username, password string) (
 	if p.Disabled {
 		return Principal{}, ErrDisabled
 	}
+	expires := match.ExpiresAt
+	if end, ok := r.leaseEnd(owner); ok {
+		if !now.Before(end) {
+			return Principal{}, ErrIdentityStale
+		}
+		if end.Before(expires) {
+			expires = end
+		}
+	}
 	if !r.touch(owner, match.ID, now) {
 		return Principal{}, ErrInvalidCredentials
 	}
 	if r.beforeCachePut != nil {
 		r.beforeCachePut()
 	}
-	r.cache.put(key, cacheEntry{sub: owner, id: match.ID, gen: gen, expires: match.ExpiresAt}, now)
+	r.cache.put(key, cacheEntry{sub: owner, id: match.ID, gen: gen, expires: expires}, now)
 	return p, nil
 }
 
