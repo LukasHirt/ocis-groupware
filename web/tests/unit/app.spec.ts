@@ -14,7 +14,8 @@ vi.mock('vue3-gettext', () => ({
 // web-pkg's module pulls in the whole design system; the application only
 // needs its defineWebApplication wrapper.
 vi.mock('@ownclouders/web-pkg', () => ({
-  defineWebApplication: (args: unknown) => args
+  defineWebApplication: (args: unknown) => args,
+  useAuthStore: () => ({ userContextReady: false, publicLinkContextReady: false })
 }))
 
 // The pages read through the API composable; the host's services are not

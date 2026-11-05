@@ -426,7 +426,10 @@ signs in again as soon as it is renewed. A principal that oCIS never confirmed h
 no lease at all and is refused. A refused imported token is not used up.
 
 Opening oCIS Web, or any other request with a bearer token, renews the lease, and the
-device needs no new setup. `GET /groupware/v1/me` returns `app_passwords_valid_until`, the
+device needs no new setup. The web application does this by itself: once per page load, as
+soon as oCIS Web knows the user, it calls `GET /groupware/v1/me` with the user's token,
+whichever app of oCIS Web is open, so a user who only works in Files keeps their devices
+signed in. The call is skipped in public link pages, and a failure is ignored. `GET /groupware/v1/me` returns `app_passwords_valid_until`, the
 end of the current lease, or `null` when the check is off. The service logs a refusal at
 Info once per user and hour and counts them in `groupware_auth_identity_stale_total`.
 `admin principals list` shows the age of each user's last confirmation and marks those that

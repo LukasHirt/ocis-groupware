@@ -43,3 +43,21 @@ test('oCIS Web loads the application', async ({ page }) => {
 
   expect(pageErrors).toEqual([])
 })
+
+test('opening oCIS Web renews the sign-in lease without opening the app', async ({ page }) => {
+  // The page records what the service answers to the call that oCIS Web
+  // makes on its own after sign-in. The Files app is the landing page, so
+  // neither Calendar nor Contacts is ever opened.
+  const confirmed = page.waitForResponse(
+    (r) => r.url().endsWith('/groupware/v1/me') && r.request().method() === 'GET'
+  )
+  await signIn(page)
+  const res = await confirmed
+  expect(res.status()).toBe(200)
+  const body = await res.json()
+  // With the lease check on, the answer carries the end of the lease, which
+  // lies in the future after the renewal. It is null when the check is off.
+  if (body.app_passwords_valid_until !== null) {
+    expect(new Date(body.app_passwords_valid_until).getTime()).toBeGreaterThan(Date.now())
+  }
+})
