@@ -204,9 +204,13 @@ const options = computed<CalendarOptions>(() => ({
   color: var(--oc-color-swatch-primary-contrast);
   font-weight: var(--oc-font-weight-bold);
 }
+/* The library fades the whole top of a day of another month, which leaves its
+   number below the contrast that text needs; the muted colour is enough. */
+.gw-calendar-grid .fc-day-other .fc-daygrid-day-top {
+  opacity: 1;
+}
 .gw-calendar-grid .fc-day-other .fc-daygrid-day-number {
   color: var(--oc-color-text-muted);
-  opacity: 0.6;
 }
 .gw-calendar-grid .fc-day-sat,
 .gw-calendar-grid .fc-day-sun {
