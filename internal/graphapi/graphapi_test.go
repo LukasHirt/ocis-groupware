@@ -63,6 +63,7 @@ func newFixture(t *testing.T, mods ...func(*Config)) *fixture {
 	}
 	mux := http.NewServeMux()
 	mux.Handle(Prefix+"/", h)
+	mux.Handle(GroupwarePrefix+"/", h.Groupware())
 	return &fixture{st: st, reg: reg, handler: auth.Middleware(v, testLogger())(mux)}
 }
 

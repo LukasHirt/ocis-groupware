@@ -142,6 +142,7 @@ func run(args []string, stderr io.Writer) error {
 		server.WithDAV(dav, wellKnown),
 		server.WithAppPasswords(api.AppPasswords(registry, identities, logger)),
 		server.WithGraph(facade),
+		server.WithGroupware(facade.Groupware()),
 		server.WithWeb(web.Handler()))
 
 	// On shutdown the public server drains first, then the admin server,
