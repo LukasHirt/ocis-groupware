@@ -165,6 +165,12 @@ A user adds, renames, recolours and deletes calendars from the list beside the g
 Calendars shared by someone else show no such buttons, because the server marks them as
 not editable. A delete asks for confirmation first.
 
+The Contacts page (`web/src/contacts` and `web/src/pages/ContactsPage.vue`) shows the
+user's address books next to a list of contacts and the details of the chosen one. The
+list covers one address book or all of them, is searched by name, company, email
+address, phone number and category as you type, and can be sorted by name, surname or
+company. Searching and sorting happen in the browser on the contacts that were loaded.
+
 Development needs Node 24:
 
 ```sh

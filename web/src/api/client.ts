@@ -115,8 +115,8 @@ export function createClient(transport: Transport) {
     deleteContactFolder: (id: string) =>
       send<void>({ method: 'DELETE', url: `${graph}/contactFolders/${enc(id)}` }),
 
-    // listContacts reads one folder, or the contacts of every folder when
-    // no folder is given.
+    // listContacts reads one folder, or the default folder when no folder
+    // is given.
     listContacts: (folderId?: string) =>
       list<GraphContact>(
         folderId ? `${graph}/contactFolders/${enc(folderId)}/contacts` : `${graph}/contacts`
