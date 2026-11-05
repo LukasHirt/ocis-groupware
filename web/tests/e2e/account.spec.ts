@@ -1,17 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
+import { openApp, openNav, signIn, user } from './helpers'
 
-// The demo users that oCIS creates with IDM_CREATE_DEMO_USERS.
-const user = { name: 'einstein', password: 'relativity' }
-
-async function signIn(page: Page) {
-  await page.goto('/')
-  await page.locator('#oc-login-username').fill(user.name)
-  await page.locator('#oc-login-password').fill(user.password)
-  await page.locator('button[type="submit"]').click()
-  await expect(page.locator('#web-content')).toBeVisible()
-  await page.locator('#_appSwitcherButton').click()
-  await page.getByRole('link', { name: 'Calendar and Contacts' }).click()
-  await page.locator('#web-nav-sidebar').getByRole('link', { name: 'Account' }).click()
+async function openAccount(page: Page) {
+  await signIn(page)
+  await openApp(page, 'Calendar and Contacts')
+  await openNav(page, 'Account')
 }
 
 // A DAV client's first request: the calendars of the user, with the app
@@ -31,7 +24,7 @@ test('an app password is created, works for a DAV client and is revoked', async 
   const pageErrors: string[] = []
   page.on('pageerror', (err) => pageErrors.push(err.message))
   const me = page.waitForResponse((r) => r.url().endsWith('/groupware/v1/me') && r.request().method() === 'GET')
-  await signIn(page)
+  await openAccount(page)
   await expect(page.locator('h1')).toHaveText('Account')
   const { app_passwords_valid_until: validUntil } = await (await me).json()
 

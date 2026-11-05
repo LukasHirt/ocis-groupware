@@ -1,22 +1,21 @@
 import { expect, test, type Browser, type Page } from '@playwright/test'
+import { openApp, openNav, signIn, user, type TestUser } from './helpers'
 
 // Demo users that oCIS creates with IDM_CREATE_DEMO_USERS. Both are members
 // of the group physics-lovers.
-const einstein = { name: 'einstein', password: 'relativity' }
+const einstein = user
 const marie = { name: 'marie', password: 'radioactivity' }
 
 // A user gets a browser context of their own, so the two stay signed in side
 // by side.
-async function signIn(browser: Browser, user: { name: string; password: string }): Promise<Page> {
-  const context = await browser.newContext({ ignoreHTTPSErrors: true })
+async function signInAs(browser: Browser, who: TestUser): Promise<Page> {
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    baseURL: process.env.STACK_URL ?? 'https://ocis.localhost'
+  })
   const page = await context.newPage()
-  await page.goto(process.env.STACK_URL ?? 'https://ocis.localhost')
-  await page.locator('#oc-login-username').fill(user.name)
-  await page.locator('#oc-login-password').fill(user.password)
-  await page.locator('button[type="submit"]').click()
-  await expect(page.locator('#web-content')).toBeVisible()
-  await page.locator('#_appSwitcherButton').click()
-  await page.getByRole('link', { name: 'Calendar and Contacts' }).click()
+  await signIn(page, who)
+  await openApp(page, 'Calendar and Contacts')
   return page
 }
 
@@ -24,9 +23,8 @@ async function signIn(browser: Browser, user: { name: string; password: string }
 // it. Going to the other page and back reads the lists again.
 async function reload(page: Page, name: 'Calendar' | 'Contacts') {
   const other = name === 'Calendar' ? 'Contacts' : 'Calendar'
-  const sidebar = page.locator('#web-nav-sidebar')
-  await sidebar.getByRole('link', { name: other }).click()
-  await sidebar.getByRole('link', { name }).click()
+  await openNav(page, other)
+  await openNav(page, name)
 }
 
 // share searches the directory and adds the first match with a role.
@@ -41,8 +39,8 @@ async function share(page: Page, search: string, label: string, role: 'read' | '
 test('a calendar is shared with a user and with a group, and the role and revoking take effect', async ({
   browser
 }) => {
-  const owner = await signIn(browser, einstein)
-  const guest = await signIn(browser, marie)
+  const owner = await signInAs(browser, einstein)
+  const guest = await signInAs(browser, marie)
   const items = (p: Page) => p.getByTestId('calendar-item').filter({ hasText: 'Shared notes' })
 
   await expect(owner).toHaveURL(/\/groupware\/calendar$/)
@@ -114,11 +112,11 @@ test('a calendar is shared with a user and with a group, and the role and revoki
 test('an address book is shared with a user and shows as read only and then editable', async ({
   browser
 }) => {
-  const owner = await signIn(browser, einstein)
-  const guest = await signIn(browser, marie)
+  const owner = await signInAs(browser, einstein)
+  const guest = await signInAs(browser, marie)
   const folders = (p: Page) => p.getByTestId('folder-item').filter({ hasText: 'Lab contacts' })
   for (const p of [owner, guest]) {
-    await p.locator('#web-nav-sidebar').getByRole('link', { name: 'Contacts' }).click()
+    await openNav(p, 'Contacts')
     await expect(p.locator('h1')).toHaveText('Contacts')
   }
 

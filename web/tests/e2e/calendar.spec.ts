@@ -1,24 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
-
-// The demo users that oCIS creates with IDM_CREATE_DEMO_USERS.
-const user = { name: 'einstein', password: 'relativity' }
+import { openApp, openNav, signIn } from './helpers'
 
 // The page shows times in the browser's zone, so the zone is fixed for the
 // checks of times below.
 test.use({ timezoneId: 'Europe/Prague' })
 
-async function signIn(page: Page) {
-  await page.goto('/')
-  await page.locator('#oc-login-username').fill(user.name)
-  await page.locator('#oc-login-password').fill(user.password)
-  await page.locator('button[type="submit"]').click()
-  await expect(page.locator('#web-content')).toBeVisible()
-}
-
 async function openCalendar(page: Page) {
   await signIn(page)
-  await page.locator('#_appSwitcherButton').click()
-  await page.getByRole('link', { name: 'Calendar and Contacts' }).click()
+  await openApp(page, 'Calendar and Contacts')
   await expect(page).toHaveURL(/\/groupware\/calendar$/)
 }
 
@@ -48,10 +37,9 @@ test('the calendar page shows month, week and day views and hides a calendar', a
 
   // The choice stays when the page is opened again. A reload would go to the
   // service itself, since the application's paths are not served by Web.
-  const sidebar = page.locator('#web-nav-sidebar')
-  await sidebar.getByRole('link', { name: 'Contacts' }).click()
+  await openNav(page, 'Contacts')
   await expect(page).toHaveURL(/\/groupware\/contacts$/)
-  await sidebar.getByRole('link', { name: 'Calendar' }).click()
+  await openNav(page, 'Calendar')
   await expect(page.getByTestId('calendar-item').first().getByTestId('calendar-toggle')).not.toBeChecked()
   await page.getByTestId('calendar-item').first().getByTestId('calendar-toggle').check()
 
@@ -89,9 +77,8 @@ test('a calendar can be created, renamed, recoloured and deleted', async ({ page
   await expect(page.getByRole('dialog')).toBeHidden()
 
   // The server has it: it is still there when the page is opened again.
-  const sidebar = page.locator('#web-nav-sidebar')
-  await sidebar.getByRole('link', { name: 'Contacts' }).click()
-  await sidebar.getByRole('link', { name: 'Calendar' }).click()
+  await openNav(page, 'Contacts')
+  await openNav(page, 'Calendar')
   await expect(items.filter({ hasText: 'Lab notes' })).toHaveCount(1)
 
   await renamed.getByTestId('calendar-delete').click()
@@ -263,9 +250,8 @@ test('the settings change the first day, week numbers and time zone, and are kep
   await page.getByTestId('dialog-cancel').click()
 
   // The settings are still there when the page is opened again.
-  const sidebar = page.locator('#web-nav-sidebar')
-  await sidebar.getByRole('link', { name: 'Contacts' }).click()
-  await sidebar.getByRole('link', { name: 'Calendar' }).click()
+  await openNav(page, 'Contacts')
+  await openNav(page, 'Calendar')
   await expect(page.locator('.fc-col-header-cell').first()).toContainText('Sun')
   await page.getByTestId('settings-open').click()
   await expect(page.getByTestId('settings-zone')).toHaveValue('Asia/Tokyo')
