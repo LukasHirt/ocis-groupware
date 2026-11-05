@@ -739,6 +739,11 @@ shared read-only answers `403`, and an id that is not one of the user's answers 
 needs only read access. The export carries a `Content-Disposition` header with the
 collection's name as file name.
 
+An import holds the whole file in memory while it is parsed, so the service runs at most one
+import per user and four at once. Another import answers `429` with `Retry-After: 5`; the
+client can send the file again after that. Reads, exports and DAV requests are not limited
+by this. The limits are fixed and not configurable.
+
 The file is cut into objects: one event per UID in an iCalendar file, with a series and
 its overrides together, and one card per `BEGIN:VCARD` block in a vCard file. Each object is
 stored on its own, so a bad one never costs the file's good ones. An object whose UID the

@@ -99,6 +99,14 @@ func (a *Handler) importFile(kind store.Kind) func(http.ResponseWriter, *http.Re
 			writeError(w, forbidden("the collection is read-only for the user"))
 			return
 		}
+		// The file is read whole and parsed, so only a few imports may run at
+		// once, and one per user.
+		release, ok := a.imports.acquire(c.caller.Owner)
+		if !ok {
+			writeError(w, tooManyImports())
+			return
+		}
+		defer release()
 		data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxImportBytes))
 		if err != nil {
 			var tooLarge *http.MaxBytesError
