@@ -470,6 +470,8 @@ seeding script regenerate them. See [test/classic/README.md](test/classic/README
 `internal/migrate/classic` reads such a database (MariaDB, MySQL or PostgreSQL) and its
 tests load the dumps into real databases. The schema it assumes is in
 [docs/classic-database.md](docs/classic-database.md).
+`internal/migrate/idmap` maps the classic user and group ids it finds to oCIS ids, from CSV
+files or the Graph API; see [docs/classic-user-mapping.md](docs/classic-user-mapping.md).
 
 ### Stack tests
 
