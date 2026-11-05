@@ -1,5 +1,9 @@
 import { toApiError } from './errors'
 import type {
+  Account,
+  AppPassword,
+  AppPasswordInput,
+  IssuedAppPassword,
   CalendarInput,
   ContactFolderInput,
   ContactInput,
@@ -40,6 +44,8 @@ export type Transport = (request: Request) => Promise<Response>
 const graph = '/graph/v1.0/me'
 
 const enc = encodeURIComponent
+
+const appPasswords = '/groupware/v1/app-passwords'
 
 const permissionsOf = (kind: ShareKind, id: string) =>
   kind === 'calendar'
@@ -219,6 +225,17 @@ export function createClient(transport: Transport) {
       }),
     deletePermission: (kind: ShareKind, id: string, permissionId: string) =>
       send<void>({ method: 'DELETE', url: `${permissionsOf(kind, id)}/${enc(permissionId)}` }),
+
+    getAccount: () => send<Account>({ method: 'GET', url: '/groupware/v1/me' }),
+
+    // The list never carries a secret. createAppPassword answers with the
+    // secret once; revokeAppPassword refuses the clients that use it.
+    listAppPasswords: async () =>
+      (await send<{ app_passwords: AppPassword[] }>({ method: 'GET', url: appPasswords })).app_passwords,
+    createAppPassword: (input: AppPasswordInput) =>
+      send<IssuedAppPassword>({ method: 'POST', url: appPasswords, data: input }),
+    revokeAppPassword: (id: string) =>
+      send<void>({ method: 'DELETE', url: `${appPasswords}/${enc(id)}` }),
 
     searchUsers: (term: string) => search('users', term),
     searchGroups: (term: string) => search('groups', term),

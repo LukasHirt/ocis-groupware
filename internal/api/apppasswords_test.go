@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/LukasHirt/groupkit/store"
 	"github.com/LukasHirt/groupkit/store/filestore"
@@ -204,6 +205,40 @@ func TestCreateReturnsSecretOnce(t *testing.T) {
 	}
 }
 
+func TestCreateWithShorterLifetime(t *testing.T) {
+	f := newFixture(t)
+	rec := f.do(http.MethodPost, base, "tok-alice", `{"name":"Trip","expires_in_days":7}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status %d, body %q", rec.Code, rec.Body.String())
+	}
+	var c created
+	if err := json.Unmarshal(rec.Body.Bytes(), &c); err != nil {
+		t.Fatal(err)
+	}
+	created, err := time.Parse(time.RFC3339, c.CreatedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expires, err := time.Parse(time.RFC3339, c.ExpiresAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := expires.Sub(created); got != 7*24*time.Hour {
+		t.Errorf("lifetime = %v, want 7 days", got)
+	}
+
+	// Without the field the lifetime stays 365 days.
+	rec = f.do(http.MethodPost, base, "tok-alice", `{"name":"Phone"}`)
+	if err := json.Unmarshal(rec.Body.Bytes(), &c); err != nil {
+		t.Fatal(err)
+	}
+	created, _ = time.Parse(time.RFC3339, c.CreatedAt)
+	expires, _ = time.Parse(time.RFC3339, c.ExpiresAt)
+	if got := expires.Sub(created); got != 365*24*time.Hour {
+		t.Errorf("default lifetime = %v, want 365 days", got)
+	}
+}
+
 func TestListHidesSecretAndHash(t *testing.T) {
 	f := newFixture(t)
 	c := f.create(t, "tok-alice", "Phone")
@@ -334,6 +369,11 @@ func TestBadRequests(t *testing.T) {
 		"control name":  `{"name":"a\u0000b"}`,
 		"name not text": `{"name":5}`,
 		"unknown field": `{"name":"x","ttl":5}`,
+		"zero days":     `{"name":"x","expires_in_days":0}`,
+		"negative days": `{"name":"x","expires_in_days":-1}`,
+		"too many days": `{"name":"x","expires_in_days":366}`,
+		"days not int":  `{"name":"x","expires_in_days":1.5}`,
+		"days as text":  `{"name":"x","expires_in_days":"7"}`,
 		"two values":    `{"name":"x"}{"name":"y"}`,
 		"trailing junk": `{"name":"x"} x`,
 	} {

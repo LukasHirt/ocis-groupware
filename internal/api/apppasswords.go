@@ -4,6 +4,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime"
@@ -18,8 +19,12 @@ import (
 )
 
 // maxBody is the largest request body, in bytes. A request names an app
-// password and nothing else.
+// password and may shorten its lifetime.
 const maxBody = 4 << 10
+
+// maxLifetimeDays is the longest lifetime a request can ask for, which is also
+// the default.
+const maxLifetimeDays = 365
 
 // appPasswordJSON is an app password as the API shows it. The hash is never
 // part of it.
@@ -141,12 +146,22 @@ func (h *appPasswords) create(w http.ResponseWriter, r *http.Request, p principa
 	}
 	var req struct {
 		Name string `json:"name"`
+		// ExpiresInDays shortens the lifetime. Absent means 365 days.
+		ExpiresInDays *int `json:"expires_in_days"`
 	}
 	if status, msg := decodeBody(w, r, &req); status != 0 {
 		writeError(w, status, msg)
 		return
 	}
-	ap, secret, err := h.reg.IssueAppPassword(r.Context(), p.Owner, req.Name, 0)
+	var ttl time.Duration
+	if d := req.ExpiresInDays; d != nil {
+		if *d < 1 || *d > maxLifetimeDays {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid expires_in_days: use 1 to %d", maxLifetimeDays))
+			return
+		}
+		ttl = time.Duration(*d) * 24 * time.Hour
+	}
+	ap, secret, err := h.reg.IssueAppPassword(r.Context(), p.Owner, req.Name, ttl)
 	switch {
 	case err == nil:
 	case errors.Is(err, principals.ErrInvalidAppPasswordName):

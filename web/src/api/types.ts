@@ -262,3 +262,37 @@ export interface DirectoryEntry {
   id: string
   displayName: string
 }
+
+// An app password as the list shows it. The secret is never part of it.
+// last_used_at is null until a client signs in with it.
+export interface AppPassword {
+  id: string
+  name: string
+  created_at: string
+  expires_at: string
+  last_used_at: string | null
+}
+
+// The answer to a creation: the only time the secret is returned.
+export interface IssuedAppPassword extends AppPassword {
+  password: string
+}
+
+export interface AppPasswordInput {
+  name: string
+  // Shortens the lifetime, 1 to 365. The server's default is 365.
+  expires_in_days?: number
+}
+
+// The signed-in user's DAV address, as GET /groupware/v1/me answers it.
+// username and the two home addresses are empty when the user's name is not
+// available to DAV clients.
+export interface Account {
+  username: string
+  displayName: string
+  dav: {
+    url: string
+    calendarHomeUrl: string
+    addressBookHomeUrl: string
+  }
+}
