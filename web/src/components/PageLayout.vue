@@ -22,3 +22,12 @@ withDefaults(
   { loading: false, empty: false, emptyText: '' }
 )
 </script>
+
+<style>
+/* oCIS Web fits its content area to the window and hides what overflows it,
+   so the page has to scroll itself. */
+.groupware-page {
+  min-height: 0;
+  overflow-y: auto;
+}
+</style>
