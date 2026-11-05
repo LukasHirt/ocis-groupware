@@ -29,6 +29,7 @@ merge, but should still follow the same conventions for reviewability.
 
 Commit messages and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/).
 [COMMIT_CONVENTION.md](COMMIT_CONVENTION.md) has the details and the release notes rules.
+Maintainers make releases with `scripts/release`, described in [docs/releasing.md](docs/releasing.md).
 
 ```
 <type>: <short summary>
