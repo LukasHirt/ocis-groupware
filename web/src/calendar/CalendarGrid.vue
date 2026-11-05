@@ -271,6 +271,39 @@ const options = computed<CalendarOptions>(() => ({
 .gw-calendar-grid .fc-daygrid-dot-event .fc-event-title {
   font-weight: var(--oc-font-weight-normal);
 }
+/* A title that does not fit ends in an ellipsis, so it is never cut in the
+   middle of a letter, and the time before it stays whole. The tooltip of the
+   event has the full text. */
+.gw-calendar-grid .fc-daygrid-dot-event {
+  min-width: 0;
+}
+.gw-calendar-grid .fc-daygrid-dot-event .fc-event-time {
+  flex: 0 0 auto;
+}
+.gw-calendar-grid .fc-daygrid-dot-event .fc-event-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The link to the events that do not fit is a link: readable, underlined on
+   hover and with a focus ring. */
+.gw-calendar-grid .fc-daygrid-more-link {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 1px var(--oc-space-xsmall);
+  border-radius: 4px;
+  font-size: var(--oc-font-size-small);
+  font-weight: var(--oc-font-weight-semibold);
+  color: var(--oc-color-swatch-primary-default);
+}
+.gw-calendar-grid .fc-daygrid-more-link:hover {
+  text-decoration: underline;
+}
+.gw-calendar-grid .fc-daygrid-more-link:focus-visible {
+  outline: 2px solid var(--oc-color-swatch-primary-default);
+  outline-offset: 2px;
+}
 .gw-calendar-grid .fc-daygrid-dot-event:hover,
 .gw-calendar-grid .fc-daygrid-dot-event:focus {
   background: var(--oc-color-background-hover);
