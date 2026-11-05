@@ -277,6 +277,34 @@ cannot express, such as one with `BYHOUR`, comes back as `recurrence: null` with
 it alone. A `PATCH` changes only the fields it sends and keeps every other property, alarm
 and attendee parameter.
 
+### Contact mapping
+
+Contacts are stored as vCard 3.0 or 4.0 and shown as Graph contacts. The mapping loses
+some detail, and what it does not map is kept as it is: a change touches only the
+fields it sends, and a field that already has the value sent is not rewritten. Cards
+made through the API are vCard 3.0.
+
+| Graph | vCard |
+|---|---|
+| `displayName`, `surname`, `givenName`, `middleName`, `title`, `generation` | `FN`, and the five parts of `N`: family, given, additional, prefix, suffix. A display name that was built from the name parts follows them when a part changes; a new contact without one gets the name parts, the first e-mail address or the company |
+| `nickName`, `jobTitle`, `profession`, `personalNotes` | `NICKNAME`, `TITLE`, `ROLE`, `NOTE` |
+| `companyName`, `department` | the first two parts of `ORG` |
+| `yomiGivenName`, `yomiSurname`, `yomiCompany` | `X-PHONETIC-FIRST-NAME`, `X-PHONETIC-LAST-NAME`, `X-PHONETIC-ORG` |
+| `emailAddresses` | `EMAIL`. `name` is the address; a name sent in a request is ignored |
+| `mobilePhone`, `businessPhones`, `homePhones` | `TEL`. `TYPE=CELL` is the mobile phone (the first one), `WORK` a business phone, and `HOME`, an unknown type or a custom label a home phone. Fax, pager and video numbers are not shown. A `tel:` value is shown without the prefix |
+| `homeAddress`, `businessAddress`, `otherAddress` | `ADR` by `TYPE`; an address without a type is the other address. Only the first one of each place is shown. The post office box and the extended address stay as they are |
+| `businessHomePage` | the first `URL` |
+| `imAddresses` | `IMPP` and `X-SOCIALPROFILE`. New entries are written as `IMPP` |
+| `categories` | `CATEGORIES` |
+| `birthday` | `BDAY`, as `YYYY-MM-DDT00:00:00Z`. A birthday without a year has the year `0001`; it is stored as `--MMDD` in vCard 4 and with `X-APPLE-OMIT-YEAR` in vCard 3. A time of day is dropped |
+| `spouseName`, `children`, `assistantName`, `manager` | `X-ABRELATEDNAMES` with the label Spouse, Child, Assistant or Manager, `RELATED` with `TYPE=spouse` or `child` and a name, and the `X-SPOUSE`, `X-MANAGER`, `X-ASSISTANT` forms of other clients. A `RELATED` that points at a card by URI is not a name |
+| `groupware.groups` | read only: the group cards (`KIND:group`, or Apple's `X-ADDRESSBOOKSERVER-KIND`) that list the contact as a member, each with the `id` (the UID of the group card) and a `displayName` |
+
+Labels that Apple clients write in `X-ABLabel` (`_$!<Work>!$_`, `_$!<Mobile>!$_`, `_$!<Home>!$_` and
+custom text) decide the place of a phone number or address that has no `TYPE`. When a change
+removes a property, its label goes with it. `fileAs`, `initials`, `officeLocation`, `photo`
+and the other Graph fields are not mapped; a request that sends them leaves them out.
+
 
 ## Administration
 

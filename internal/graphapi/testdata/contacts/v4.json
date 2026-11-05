@@ -1,0 +1,66 @@
+{
+  "id": "",
+  "categories": [
+    "Mathematicians",
+    "Programmers"
+  ],
+  "birthday": "0001-12-10T00:00:00Z",
+  "displayName": "Ada Lovelace",
+  "givenName": "Ada",
+  "middleName": "Augusta",
+  "surname": "Lovelace",
+  "nickName": "Enchantress of Number",
+  "title": "Countess of",
+  "generation": "",
+  "yomiGivenName": "",
+  "yomiSurname": "",
+  "yomiCompany": "",
+  "jobTitle": "",
+  "companyName": "Analytical Engine Co.",
+  "department": "",
+  "profession": "",
+  "assistantName": "",
+  "manager": "Charles Babbage",
+  "spouseName": "",
+  "children": [
+    "Byron"
+  ],
+  "businessPhones": [
+    "+44-20-7946-0001"
+  ],
+  "homePhones": [],
+  "mobilePhone": "+44-20-7946-0000",
+  "businessHomePage": "https://ada.example",
+  "personalNotes": "",
+  "emailAddresses": [
+    {
+      "name": "ada@example.org",
+      "address": "ada@example.org"
+    }
+  ],
+  "imAddresses": [
+    "xmpp:ada@chat.example"
+  ],
+  "homeAddress": {
+    "street": "12 St James's Square",
+    "city": "London",
+    "state": "",
+    "countryOrRegion": "United Kingdom",
+    "postalCode": "SW1Y 4JH"
+  },
+  "businessAddress": {
+    "street": "",
+    "city": "",
+    "state": "",
+    "countryOrRegion": "",
+    "postalCode": ""
+  },
+  "otherAddress": {
+    "street": "",
+    "city": "",
+    "state": "",
+    "countryOrRegion": "",
+    "postalCode": ""
+  },
+  "groupware.groups": []
+}

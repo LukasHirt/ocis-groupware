@@ -1,0 +1,67 @@
+{
+  "id": "",
+  "categories": [
+    "Friends"
+  ],
+  "birthday": "1879-03-14T00:00:00Z",
+  "displayName": "Albert Einstein",
+  "givenName": "Albert",
+  "middleName": "",
+  "surname": "Einstein",
+  "nickName": "",
+  "title": "",
+  "generation": "",
+  "yomiGivenName": "",
+  "yomiSurname": "",
+  "yomiCompany": "",
+  "jobTitle": "Technical Expert, Class III",
+  "companyName": "Patent Office",
+  "department": "Examination",
+  "profession": "Physicist",
+  "assistantName": "",
+  "manager": "",
+  "spouseName": "",
+  "children": [],
+  "businessPhones": [
+    "+41 31 000 00 01"
+  ],
+  "homePhones": [
+    "+41 31 000 00 02"
+  ],
+  "mobilePhone": "+41 79 000 00 03",
+  "businessHomePage": "https://einstein.example",
+  "personalNotes": "Line one\nLine two; with semicolon",
+  "emailAddresses": [
+    {
+      "name": "albert@example.org",
+      "address": "albert@example.org"
+    },
+    {
+      "name": "a.einstein@patent.example",
+      "address": "a.einstein@patent.example"
+    }
+  ],
+  "imAddresses": [],
+  "homeAddress": {
+    "street": "",
+    "city": "",
+    "state": "",
+    "countryOrRegion": "",
+    "postalCode": ""
+  },
+  "businessAddress": {
+    "street": "Kramgasse 49",
+    "city": "Bern",
+    "state": "BE",
+    "countryOrRegion": "Switzerland",
+    "postalCode": "3011"
+  },
+  "otherAddress": {
+    "street": "Mercer Street 112",
+    "city": "Princeton",
+    "state": "NJ",
+    "countryOrRegion": "USA",
+    "postalCode": "08540"
+  },
+  "groupware.groups": []
+}

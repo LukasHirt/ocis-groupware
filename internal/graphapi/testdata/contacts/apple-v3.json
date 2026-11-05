@@ -1,0 +1,72 @@
+{
+  "id": "",
+  "categories": [
+    "Physicists",
+    "Nobel, laureates"
+  ],
+  "birthday": "0001-11-07T00:00:00Z",
+  "displayName": "Dr. Marie Salomea Curie",
+  "givenName": "Marie",
+  "middleName": "Salomea",
+  "surname": "Curie",
+  "nickName": "Manya",
+  "title": "Dr.",
+  "generation": "",
+  "yomiGivenName": "Mari",
+  "yomiSurname": "Kyuri",
+  "yomiCompany": "",
+  "jobTitle": "Professor",
+  "companyName": "Sorbonne",
+  "department": "Physics",
+  "profession": "",
+  "assistantName": "Bronia Dluska",
+  "manager": "",
+  "spouseName": "Pierre Curie",
+  "children": [
+    "Irene"
+  ],
+  "businessPhones": [],
+  "homePhones": [
+    "+33 1 55 55 02 02",
+    "+33 1 55 55 03 03"
+  ],
+  "mobilePhone": "+33 1 55 55 01 01",
+  "businessHomePage": "https://curie.example",
+  "personalNotes": "Two Nobel prizes\nRadium, polonium",
+  "emailAddresses": [
+    {
+      "name": "marie@example.org",
+      "address": "marie@example.org"
+    },
+    {
+      "name": "m.curie@home.example",
+      "address": "m.curie@home.example"
+    }
+  ],
+  "imAddresses": [
+    "https://twitter.com/mariecurie",
+    "skype:marie.curie"
+  ],
+  "homeAddress": {
+    "street": "1 Rue du Four",
+    "city": "Sceaux",
+    "state": "IDF",
+    "countryOrRegion": "France",
+    "postalCode": "92330"
+  },
+  "businessAddress": {
+    "street": "12 Rue Pierre et Marie Curie",
+    "city": "Paris",
+    "state": "",
+    "countryOrRegion": "France",
+    "postalCode": "75005"
+  },
+  "otherAddress": {
+    "street": "",
+    "city": "",
+    "state": "",
+    "countryOrRegion": "",
+    "postalCode": ""
+  },
+  "groupware.groups": []
+}

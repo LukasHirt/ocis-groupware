@@ -1,0 +1,20 @@
+BEGIN:VCARD
+VERSION:4.0
+UID:urn:uuid:4b8a0c1e-5c2c-4f7e-9a3d-2f1c1c1c0001
+FN:Ada Lovelace
+N:Lovelace;Ada;Augusta;Countess of;
+NICKNAME:Enchantress of Number
+EMAIL;PREF=1:ada@example.org
+TEL;VALUE=uri;TYPE=cell:tel:+44-20-7946-0000
+TEL;TYPE="work,voice";VALUE=uri:tel:+44-20-7946-0001
+ADR;TYPE=home:;;12 St James's Square;London;;SW1Y 4JH;United Kingdom
+BDAY:--1210
+IMPP:xmpp:ada@chat.example
+RELATED;TYPE=spouse:urn:uuid:11111111-1111-1111-1111-111111111111
+RELATED;TYPE=child:Byron
+URL:https://ada.example
+CATEGORIES:Mathematicians,Programmers
+ORG:Analytical Engine Co.
+X-EVOLUTION-MANAGER:Charles Babbage
+REV:20260102T030405Z
+END:VCARD
