@@ -215,6 +215,18 @@ The Go flows use `einstein` and remove what they create. The Python check uses `
 and expects her to have nothing but the default calendar, which is the case on a fresh
 stack.
 
+CI runs the tests a second time with the groupware paths routed through the proxy
+inside oCIS instead of Traefik. `deploy/compose/ocis-proxy.yml` sets that up with the
+routes in `deploy/ocis/proxy.yaml`, and `STACK_ROUTE=ocis-proxy` tells the tests which
+route they are on. On that route the proxy keeps every REPORT request for itself, so
+the CalDAV and CardDAV flows skip and `TestOCISProxyRoute` records what does and does
+not get through:
+
+```sh
+docker compose -f docker-compose.yml -f deploy/compose/ocis-proxy.yml up -d --build
+STACK_ROUTE=ocis-proxy task stack:test
+```
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Please also read the

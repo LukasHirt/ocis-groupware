@@ -1,0 +1,17 @@
+# Routes ocis-groupware through the oCIS proxy instead of the ingress.
+#
+#   docker compose -f docker-compose.yml -f deploy/compose/ocis-proxy.yml up --build
+#
+# Traefik then only knows oCIS. The proxy inside oCIS forwards the groupware
+# paths to the service with the routes in deploy/ocis/proxy.yaml. The stack
+# tests run through this in CI (STACK_ROUTE=ocis-proxy) to record what it can
+# and cannot do.
+
+services:
+  ocis:
+    volumes:
+      - ./deploy/ocis/proxy.yaml:/etc/ocis/proxy.yaml:ro
+
+  ocis-groupware:
+    labels:
+      traefik.enable: "false"

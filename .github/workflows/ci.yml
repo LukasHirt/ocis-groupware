@@ -52,11 +52,26 @@ jobs:
           persist-credentials: false
       - run: docker build -t ocis-groupware:ci .
 
+  # Boots oCIS and the service twice: once with the ingress routing the
+  # groupware paths (docker-compose.yml as it is) and once with the oCIS
+  # proxy forwarding them (deploy/compose/ocis-proxy.yml on top). The tests
+  # know which route they are on through STACK_ROUTE.
   stack:
+    name: stack (${{ matrix.route }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - route: ingress
+            compose_file: docker-compose.yml
+          - route: ocis-proxy
+            compose_file: docker-compose.yml:deploy/compose/ocis-proxy.yml
     env:
       OCIS_VERSION: 8.2.2
+      COMPOSE_FILE: ${{ matrix.compose_file }}
+      STACK_ROUTE: ${{ matrix.route }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -66,7 +81,9 @@ jobs:
           go-version-file: go.mod
       - name: Resolve the stack's domain
         run: echo "127.0.0.1 ocis.localhost" | sudo tee -a /etc/hosts
+      # The Python check needs REPORT, which the oCIS proxy route lacks.
       - name: Install the Python client that ships with groupkit
+        if: matrix.route == 'ingress'
         run: |
           go mod download github.com/LukasHirt/groupkit
           python3 -m venv "$RUNNER_TEMP/venv"

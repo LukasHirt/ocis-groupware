@@ -15,6 +15,10 @@
 //	STACK_PYTHON   a python interpreter with the caldav package installed,
 //	               used for the Python client check; unset skips that test
 //	STACK_WAIT     how long to wait for the stack to come up, default 3m
+//	STACK_ROUTE    how requests reach the service: "ingress" (default) when
+//	               the ingress sends the groupware paths to the service, or
+//	               "ocis-proxy" when the proxy inside oCIS forwards them
+//	               (docker-compose.yml with deploy/compose/ocis-proxy.yml)
 package stack
 
 import (
@@ -42,11 +46,17 @@ const (
 
 var (
 	baseURL   string
+	route     string
 	transport *http.Transport
 )
 
 func TestMain(m *testing.M) {
 	baseURL = strings.TrimSuffix(env("STACK_URL", "https://ocis.localhost"), "/")
+	route = env("STACK_ROUTE", routeIngress)
+	if route != routeIngress && route != routeOCISProxy {
+		fmt.Fprintf(os.Stderr, "STACK_ROUTE: %q is neither %q nor %q\n", route, routeIngress, routeOCISProxy)
+		os.Exit(1)
+	}
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 	if ca := os.Getenv("STACK_CA_FILE"); ca != "" {
 		pem, err := os.ReadFile(ca)

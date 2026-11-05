@@ -1,0 +1,50 @@
+# oCIS proxy routes for ocis-groupware, read by the proxy service from
+# /etc/ocis/proxy.yaml. The stack tests section of the README says what this
+# can and cannot do: REPORT requests never get through, so DAV clients do not
+# work on this route.
+#
+# The proxy tries query routes first, then regex routes, then prefix routes,
+# and within each kind the first match wins. Routes from additional_policies
+# come after oCIS's own, so a prefix below /dav/, /graph/ or /remote.php/ is
+# never reached: oCIS's shorter prefix matches first. Regex routes get around
+# that because they are tried before any prefix. Prefixes are used only where
+# no oCIS route starts the same way.
+#
+# unprotected: true makes the proxy pass the request on without checking the
+# credentials, so Basic app passwords and bearer tokens reach the service as
+# the client sent them.
+additional_policies:
+  - name: ocis
+    routes:
+      - type: regex
+        endpoint: ^/dav/?($|\?)
+        backend: http://ocis-groupware:8080
+        unprotected: true
+      - type: regex
+        endpoint: ^/dav/(calendars|addressbooks|principals)/
+        backend: http://ocis-groupware:8080
+        unprotected: true
+      - type: regex
+        endpoint: ^/graph/v1\.0/me/(calendar|calendars|events|contact|contacts)
+        backend: http://ocis-groupware:8080
+        unprotected: true
+      - endpoint: /.well-known/caldav
+        backend: http://ocis-groupware:8080
+        unprotected: true
+      - endpoint: /.well-known/carddav
+        backend: http://ocis-groupware:8080
+        unprotected: true
+      - endpoint: /groupware/
+        backend: http://ocis-groupware:8080
+        unprotected: true
+      - endpoint: /web/
+        backend: http://ocis-groupware:8080
+        unprotected: true
+      # Ops paths, so the stack tests can wait for the service. Do not expose
+      # them this way in production.
+      - endpoint: /healthz
+        backend: http://ocis-groupware:8080
+        unprotected: true
+      - endpoint: /metrics
+        backend: http://ocis-groupware:8080
+        unprotected: true
