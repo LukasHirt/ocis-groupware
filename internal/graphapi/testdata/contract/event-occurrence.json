@@ -1,0 +1,34 @@
+{
+  "id": "cGVyc29uYWwtY2Fs.c2VyaWVzLmljcw.20261120T090000Z",
+  "@odata.etag": "W/\"5a01e917a157be5fd06e0109285bbe73\"",
+  "changeKey": "5a01e917a157be5fd06e0109285bbe73",
+  "iCalUId": "series-1@example.com",
+  "type": "occurrence",
+  "seriesMasterId": "cGVyc29uYWwtY2Fs.c2VyaWVzLmljcw",
+  "subject": "Standup",
+  "body": {
+    "contentType": "text",
+    "content": ""
+  },
+  "start": {
+    "dateTime": "2026-11-20T09:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "end": {
+    "dateTime": "2026-11-20T10:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "isAllDay": false,
+  "isCancelled": false,
+  "showAs": "busy",
+  "sensitivity": "normal",
+  "categories": [],
+  "attendees": [],
+  "recurrence": null,
+  "location": {
+    "displayName": ""
+  },
+  "isReminderOn": false,
+  "reminderMinutesBeforeStart": 0
+}
+

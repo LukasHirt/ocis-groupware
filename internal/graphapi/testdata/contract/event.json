@@ -1,0 +1,54 @@
+{
+  "id": "cGVyc29uYWwtY2Fs.bWVldGluZy5pY3M",
+  "@odata.etag": "W/\"506139e00a7d4b2bf9baed2779816dc7\"",
+  "changeKey": "506139e00a7d4b2bf9baed2779816dc7",
+  "iCalUId": "meeting-1@example.com",
+  "type": "singleInstance",
+  "subject": "Planning",
+  "body": {
+    "contentType": "text",
+    "content": "Agenda"
+  },
+  "start": {
+    "dateTime": "2026-11-05T09:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "end": {
+    "dateTime": "2026-11-05T10:30:00.0000000",
+    "timeZone": "UTC"
+  },
+  "isAllDay": false,
+  "isCancelled": false,
+  "showAs": "busy",
+  "sensitivity": "normal",
+  "categories": [
+    "Work"
+  ],
+  "attendees": [
+    {
+      "type": "required",
+      "status": {
+        "response": "accepted"
+      },
+      "emailAddress": {
+        "name": "Marie Curie",
+        "address": "marie@example.com"
+      }
+    }
+  ],
+  "organizer": {
+    "emailAddress": {
+      "name": "Albert Einstein",
+      "address": "einstein@example.com"
+    }
+  },
+  "recurrence": null,
+  "location": {
+    "displayName": "Room 4"
+  },
+  "isReminderOn": true,
+  "reminderMinutesBeforeStart": 15,
+  "createdDateTime": "2026-11-01T08:00:00.0000000Z",
+  "lastModifiedDateTime": "2026-11-02T09:00:00.0000000Z"
+}
+

@@ -1,0 +1,108 @@
+{
+  "value": [
+    {
+      "id": "cGVyc29uYWwtY2Fs.bWVldGluZy5pY3M",
+      "@odata.etag": "W/\"506139e00a7d4b2bf9baed2779816dc7\"",
+      "changeKey": "506139e00a7d4b2bf9baed2779816dc7",
+      "iCalUId": "meeting-1@example.com",
+      "type": "singleInstance",
+      "subject": "Planning",
+      "body": {
+        "contentType": "text",
+        "content": "Agenda"
+      },
+      "start": {
+        "dateTime": "2026-11-05T09:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2026-11-05T10:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "isAllDay": false,
+      "isCancelled": false,
+      "showAs": "busy",
+      "sensitivity": "normal",
+      "categories": [
+        "Work"
+      ],
+      "attendees": [
+        {
+          "type": "required",
+          "status": {
+            "response": "accepted"
+          },
+          "emailAddress": {
+            "name": "Marie Curie",
+            "address": "marie@example.com"
+          }
+        }
+      ],
+      "organizer": {
+        "emailAddress": {
+          "name": "Albert Einstein",
+          "address": "einstein@example.com"
+        }
+      },
+      "recurrence": null,
+      "location": {
+        "displayName": "Room 4"
+      },
+      "isReminderOn": true,
+      "reminderMinutesBeforeStart": 15,
+      "createdDateTime": "2026-11-01T08:00:00.0000000Z",
+      "lastModifiedDateTime": "2026-11-02T09:00:00.0000000Z"
+    },
+    {
+      "id": "cGVyc29uYWwtY2Fs.c2VyaWVzLmljcw",
+      "@odata.etag": "W/\"5a01e917a157be5fd06e0109285bbe73\"",
+      "changeKey": "5a01e917a157be5fd06e0109285bbe73",
+      "iCalUId": "series-1@example.com",
+      "type": "seriesMaster",
+      "subject": "Standup",
+      "body": {
+        "contentType": "text",
+        "content": ""
+      },
+      "start": {
+        "dateTime": "2026-11-06T09:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2026-11-06T10:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "isAllDay": false,
+      "isCancelled": false,
+      "showAs": "busy",
+      "sensitivity": "normal",
+      "categories": [],
+      "attendees": [],
+      "recurrence": {
+        "pattern": {
+          "type": "weekly",
+          "interval": 1,
+          "month": 0,
+          "dayOfMonth": 0,
+          "daysOfWeek": [
+            "friday"
+          ],
+          "firstDayOfWeek": "monday",
+          "index": "first"
+        },
+        "range": {
+          "type": "numbered",
+          "startDate": "2026-11-06",
+          "recurrenceTimeZone": "UTC",
+          "numberOfOccurrences": 3
+        }
+      },
+      "location": {
+        "displayName": ""
+      },
+      "isReminderOn": false,
+      "reminderMinutesBeforeStart": 0
+    }
+  ]
+}
+
