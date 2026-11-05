@@ -194,6 +194,15 @@ PNG images of at most 1 MB, and the browser refuses anything else before it uplo
 The image is read through the authenticated client and shown from a local object URL,
 so the photo needs no extra route and no token in a URL.
 
+Contact groups are categories on the contacts. The sidebar lists the groups of the
+contacts that are shown, with the number of members, and choosing one narrows the list.
+A contact is added to or taken out of a group in its details, with the existing names
+offered while typing. A group can be renamed or deleted, which rewrites the category on
+each of its contacts in the shown address books that the user may write to, one request
+per contact; contacts in read-only address books keep it. Group cards, which some
+clients write, are listed as read-only groups: they can be chosen to filter the list,
+and the UI never writes them.
+
 Development needs Node 24:
 
 ```sh
