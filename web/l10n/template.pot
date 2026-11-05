@@ -65,6 +65,9 @@ msgstr ""
 msgid "All contacts"
 msgstr ""
 
+msgid "All day"
+msgstr ""
+
 msgid "All events"
 msgstr ""
 
@@ -449,6 +452,9 @@ msgstr ""
 msgid "February"
 msgstr ""
 
+msgid "Fill in at least one field."
+msgstr ""
+
 msgid "First"
 msgstr ""
 
@@ -768,6 +774,9 @@ msgid "Show %{name}"
 msgstr ""
 
 msgid "Show as"
+msgstr ""
+
+msgid "Show week numbers"
 msgstr ""
 
 msgid "Sort by"
