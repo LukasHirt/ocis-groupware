@@ -15,6 +15,10 @@ const (
 	codeAccessDenied    = "accessDenied"
 	codeNotAllowed      = "notAllowed"
 	codeNotImplemented  = "notImplemented"
+	codeItemNotFound    = "itemNotFound"
+	codeUnsupported     = "unsupportedMediaType"
+	codeTooLarge        = "requestEntityTooLarge"
+	codeNameExists      = "nameAlreadyExists"
 	codeGeneral         = "generalException"
 )
 
@@ -33,6 +37,18 @@ func newError(status int, code, message string) *apiError {
 
 func badRequest(message string) *apiError {
 	return newError(http.StatusBadRequest, codeInvalidRequest, message)
+}
+
+func notFound(message string) *apiError {
+	return newError(http.StatusNotFound, codeItemNotFound, message)
+}
+
+func forbidden(message string) *apiError {
+	return newError(http.StatusForbidden, codeAccessDenied, message)
+}
+
+func internalError() *apiError {
+	return newError(http.StatusInternalServerError, codeGeneral, "internal error")
 }
 
 type errorEnvelope struct {
@@ -78,5 +94,7 @@ func requestID() string {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(v)
 }

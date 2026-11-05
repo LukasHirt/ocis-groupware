@@ -32,6 +32,9 @@ type Config struct {
 	// Identities signs the caller in and keeps its oCIS identity snapshot
 	// current. Nil provisions the caller without the snapshot.
 	Identities *provision.Identities
+	// Calendars decides which calendars a user sees. Nil shows each user
+	// their own calendars only.
+	Calendars CalendarSource
 	// Logger receives faults. Nil discards them.
 	Logger *slog.Logger
 }
@@ -41,10 +44,11 @@ type Option func(*Handler)
 
 // Handler is the facade.
 type Handler struct {
-	cfg    Config
-	logger *slog.Logger
-	ids    *provision.Identities
-	routes []route
+	cfg       Config
+	logger    *slog.Logger
+	ids       *provision.Identities
+	calendars CalendarSource
+	routes    []route
 }
 
 // call is what a route handler works with: the signed-in caller and the
@@ -83,6 +87,19 @@ func New(cfg Config, opts ...Option) (*Handler, error) {
 	a.ids = cfg.Identities
 	if a.ids == nil {
 		a.ids = provision.NewIdentities(cfg.Registry, nil, a.logger)
+	}
+	a.calendars = cfg.Calendars
+	if a.calendars == nil {
+		a.calendars = ownCalendars{st: cfg.Store}
+	}
+	a.routes = []route{
+		{http.MethodGet, strings.Split("me/calendar", "/"), a.getDefaultCalendar},
+		{http.MethodPatch, strings.Split("me/calendar", "/"), a.patchDefaultCalendar},
+		{http.MethodGet, strings.Split("me/calendars", "/"), a.listCalendars},
+		{http.MethodPost, strings.Split("me/calendars", "/"), a.createCalendar},
+		{http.MethodGet, strings.Split("me/calendars/{id}", "/"), a.getCalendar},
+		{http.MethodPatch, strings.Split("me/calendars/{id}", "/"), a.patchCalendar},
+		{http.MethodDelete, strings.Split("me/calendars/{id}", "/"), a.deleteCalendar},
 	}
 	for _, opt := range opts {
 		opt(a)

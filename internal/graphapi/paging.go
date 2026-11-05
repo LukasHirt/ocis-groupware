@@ -13,6 +13,26 @@ const (
 	maxPageSize = 1000
 )
 
+// collectionBody is the Graph shape of a list.
+type collectionBody[T any] struct {
+	Value    []T    `json:"value"`
+	NextLink string `json:"@odata.nextLink,omitempty"`
+}
+
+// writeCollection answers with one page of items and a nextLink when more
+// follow.
+func writeCollection[T any](w http.ResponseWriter, r *http.Request, items []T) {
+	page, next, aerr := paginate(r, items)
+	if aerr != nil {
+		writeError(w, aerr)
+		return
+	}
+	if page == nil {
+		page = []T{}
+	}
+	writeJSON(w, http.StatusOK, collectionBody[T]{Value: page, NextLink: next})
+}
+
 // paginate returns the page of items that $top and $skip select, and the
 // link to the next page, or "" on the last one.
 func paginate[T any](r *http.Request, items []T) ([]T, string, *apiError) {

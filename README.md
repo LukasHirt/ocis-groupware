@@ -198,6 +198,22 @@ are shared with: the URL-safe base64 form, without padding, of the collection id
 answers carry `@odata.nextLink` when more items follow; `$top` (1 to 1000, default 100)
 and `$skip` select the page.
 
+### Calendars
+
+| Request | Answer |
+|---|---|
+| `GET /graph/v1.0/me/calendars` | The calendars the user sees, paged |
+| `POST /graph/v1.0/me/calendars` | Creates a calendar from `name` and an optional `hexColor` (`#rrggbb`); `201` |
+| `GET`, `PATCH /graph/v1.0/me/calendars/{id}` | One calendar; `PATCH` changes `name` and `hexColor` |
+| `DELETE /graph/v1.0/me/calendars/{id}` | Deletes the calendar and its events; `204` |
+| `GET`, `PATCH /graph/v1.0/me/calendar` | The default calendar, the oldest one the user owns |
+
+A calendar carries `canEdit` (may change events), `canShare` (owner only) and
+`owner.name`. A user who is not the owner gets `403` from `PATCH` and `DELETE`. An id
+that is not one of the user's calendars answers `404`, whether it does not exist or
+belongs to someone else. Calendars made here hold events, and the DAV URL of a new one
+carries a generated name.
+
 ## Administration
 
 The same binary administers a running service through the admin socket. It reads the

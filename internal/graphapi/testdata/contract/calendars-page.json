@@ -1,0 +1,21 @@
+{
+  "value": [
+    {
+      "id": "cGVyc29uYWwtY2Fs",
+      "name": "Personal",
+      "color": "auto",
+      "hexColor": "",
+      "isDefaultCalendar": true,
+      "changeKey": "1",
+      "canShare": true,
+      "canViewPrivateItems": true,
+      "canEdit": true,
+      "isRemovable": true,
+      "owner": {
+        "name": "Albert Einstein"
+      }
+    }
+  ],
+  "@odata.nextLink": "http://example.com/graph/v1.0/me/calendars?%24skip=1&%24top=1"
+}
+
