@@ -1,11 +1,11 @@
 <template>
-  <div class="gw-calendar-grid" :class="{ 'gw-compact': compact }" data-testid="calendar-grid">
+  <div ref="root" class="gw-calendar-grid" :class="{ 'gw-compact': compact }" data-testid="calendar-grid">
     <full-calendar ref="calendar" :options="options" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useGettext } from 'vue3-gettext'
 import { DateTime } from 'luxon'
 import FullCalendar from '@fullcalendar/vue3'
@@ -63,6 +63,27 @@ defineExpose({
   next: () => api()?.next(),
   today: () => api()?.today(),
   changeView: (type: ViewType) => api()?.changeView(type)
+})
+
+// The library lays the grid out for the size it had and listens to the window
+// only. The box changes when the sidebar opens or closes, with no window
+// resize, so the grid is told to measure again whenever its box changes.
+const root = ref<HTMLElement>()
+let observer: ResizeObserver | undefined
+let frame = 0
+onMounted(() => {
+  if (!root.value || typeof ResizeObserver === 'undefined') {
+    return
+  }
+  observer = new ResizeObserver(() => {
+    cancelAnimationFrame(frame)
+    frame = requestAnimationFrame(() => api()?.updateSize())
+  })
+  observer.observe(root.value)
+})
+onBeforeUnmount(() => {
+  cancelAnimationFrame(frame)
+  observer?.disconnect()
 })
 
 const timeFormat = { hour: 'numeric', minute: '2-digit' } as const
