@@ -40,6 +40,7 @@ type contactJSON struct {
 	BusinessAddress      physicalAddress `json:"businessAddress"`
 	OtherAddress         physicalAddress `json:"otherAddress"`
 	Groups               []contactGroup  `json:"groupware.groups"`
+	HasPhoto             bool            `json:"groupware.hasPhoto"`
 }
 
 // physicalAddress is a Graph physicalAddress.

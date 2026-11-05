@@ -74,7 +74,8 @@
           "id": "group-1",
           "displayName": "Physicists"
         }
-      ]
+      ],
+      "groupware.hasPhoto": false
     },
     {
       "id": "cGVyc29uYWwtYm9vaw.bWFyaWUudmNm",
@@ -155,7 +156,8 @@
           "id": "group-1",
           "displayName": "Physicists"
         }
-      ]
+      ],
+      "groupware.hasPhoto": false
     }
   ]
 }

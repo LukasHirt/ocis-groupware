@@ -314,6 +314,23 @@ itself, gets `403`. Contacts made here show up for CardDAV clients at the next s
 write. `$filter`, `$select`, `$orderby`, `$expand`, `$count`, `$search`, `delta` and child folders
 answer `501`.
 
+### Contact photos
+
+| Request | Answer |
+|---|---|
+| `GET /graph/v1.0/me/contacts/{id}/photo` | The photo's `@odata.mediaContentType`, `width` and `height`, or `404` without a photo |
+| `GET /graph/v1.0/me/contacts/{id}/photo/$value` | The image itself with its content type, or `404` |
+| `PUT /graph/v1.0/me/contacts/{id}/photo/$value` | Sets the photo from the request body; answers `200` with the photo's description |
+| `DELETE /graph/v1.0/me/contacts/{id}/photo` | Removes the photo; `204`, or `404` without one |
+
+The same paths exist below `/me/contactFolders/{id}/contacts/{id}`. The type of an upload is
+taken from the image itself, not from `Content-Type`. Only JPEG and PNG are accepted (`415`
+otherwise), the body may be at most 1 MB (`413`), and a body that claims to be an image but does
+not decode is `400`. `If-Match` is honoured and a user with read-only access gets `403`. A photo
+is stored in the card, as `PHOTO;ENCODING=b` in a vCard 3.0 card and as a `data:` URI in a vCard
+4.0 card. A card whose photo is only a link has no photo here. A contact shows
+`groupware.hasPhoto` so a client can skip the request.
+
 ### Contact mapping
 
 Contacts are stored as vCard 3.0 or 4.0 and shown as Graph contacts. The mapping loses
@@ -339,7 +356,7 @@ made through the API are vCard 3.0.
 
 Labels that Apple clients write in `X-ABLabel` (`_$!<Work>!$_`, `_$!<Mobile>!$_`, `_$!<Home>!$_` and
 custom text) decide the place of a phone number or address that has no `TYPE`. When a change
-removes a property, its label goes with it. `fileAs`, `initials`, `officeLocation`, `photo`
+removes a property, its label goes with it. `fileAs`, `initials`, `officeLocation`
 and the other Graph fields are not mapped; a request that sends them leaves them out.
 
 

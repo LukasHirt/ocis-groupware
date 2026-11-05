@@ -63,5 +63,6 @@
     "countryOrRegion": "USA",
     "postalCode": "08540"
   },
-  "groupware.groups": []
+  "groupware.groups": [],
+  "groupware.hasPhoto": false
 }

@@ -289,6 +289,7 @@ func (s storedContact) view(groups []groupCard) contactJSON {
 	out.ParentFolderID = CalendarID(s.entry.Collection.ID)
 	out.LastModifiedDateTime = lastModified(s.card, s.obj.ModTime)
 	out.Groups = memberships(s.card.UID(), groups)
+	out.HasPhoto = hasCardPhoto(s.card)
 	return out
 }
 
@@ -535,17 +536,10 @@ func (a *Handler) patchContact(scoped bool) func(http.ResponseWriter, *http.Requ
 			return
 		}
 		if changed {
-			data := encodeCard(s.card)
-			if _, err := vcard.Validate(data); err != nil {
-				writeError(w, badRequest("the resulting contact is not valid"))
+			if aerr := a.saveContact(r, &s, c); aerr != nil {
+				writeError(w, aerr)
 				return
 			}
-			obj, err := a.cfg.Store.PutObject(r.Context(), s.entry.Collection.Ref, s.obj.Name, data, store.PutOptions{IfMatch: s.obj.ETag})
-			if err != nil {
-				writeError(w, a.storeError("change a contact", c.caller, err))
-				return
-			}
-			s.obj = obj
 		}
 		writeJSON(w, http.StatusOK, s.view(a.groupsOf(r.Context(), c.caller, s.entry)))
 	}
