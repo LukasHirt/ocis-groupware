@@ -666,3 +666,35 @@ func TestGraphRequiresBearerToken(t *testing.T) {
 		t.Fatalf("with a token: %d, reached %v", code, reached)
 	}
 }
+
+// TestGroupwareEndpointsRequireBearerToken mounts the import and export
+// handler next to the app password handler.
+func TestGroupwareEndpointsRequireBearerToken(t *testing.T) {
+	var reached []string
+	gw := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reached = append(reached, r.URL.Path)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	s := New(":0", testLogger(), auth.Middleware(stubVerifier{}, testLogger()),
+		WithAppPasswords(http.NotFoundHandler()), WithGroupware(gw))
+	do := func(method, target, authz string) int {
+		req := httptest.NewRequest(method, target, nil)
+		if authz != "" {
+			req.Header.Set("Authorization", authz)
+		}
+		rec := httptest.NewRecorder()
+		s.httpServer.Handler.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	for _, target := range []string{"/groupware/v1/calendars/abc/import", "/groupware/v1/calendars/abc/export", "/groupware/v1/addressbooks/abc/import", "/groupware/v1/addressbooks/abc/export"} {
+		if code := do(http.MethodGet, target, ""); code != http.StatusUnauthorized {
+			t.Errorf("%s without a token: %d, want 401", target, code)
+		}
+		if code := do(http.MethodGet, target, "Bearer x"); code != http.StatusNoContent {
+			t.Errorf("%s with a token: %d, want 204", target, code)
+		}
+	}
+	if len(reached) != 4 {
+		t.Errorf("handler reached for %v", reached)
+	}
+}

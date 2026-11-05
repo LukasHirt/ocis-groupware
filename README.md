@@ -424,6 +424,63 @@ removes a property, its label goes with it. `fileAs`, `initials`, `officeLocatio
 and the other Graph fields are not mapped; a request that sends them leaves them out.
 
 
+## Import and export
+
+Two endpoint pairs move whole calendars and address books in and out as files. They sit
+below `/groupware/v1/`, take the same OIDC bearer token as the Graph API, and use the
+Graph id of the calendar or contact folder (the same one for its owner and for
+everyone it is shared with). Errors have the Graph error body.
+
+| Request | Answer |
+|---|---|
+| `POST /groupware/v1/calendars/{id}/import` | Reads an iCalendar file from the request body and stores its events |
+| `GET /groupware/v1/calendars/{id}/export` | Downloads the calendar as one `.ics` file (`text/calendar`) |
+| `POST /groupware/v1/addressbooks/{id}/import` | Reads a vCard file from the request body and stores its cards |
+| `GET /groupware/v1/addressbooks/{id}/export` | Downloads the address book as one `.vcf` file (`text/vcard`) |
+
+An import takes the file itself as the body, whatever its content type, up to 20 MB;
+a larger body is `413`. Writing needs write access: a calendar or address book that is
+shared read-only answers `403`, and an id that is not one of the user's answers `404`. Export
+needs only read access. The export carries a `Content-Disposition` header with the
+collection's name as file name.
+
+The file is cut into objects: one event per UID in an iCalendar file, with a series and
+its overrides together, and one card per `BEGIN:VCARD` block in a vCard file. Each object is
+stored on its own, so a bad one never costs the file's good ones. An object whose UID the
+collection already holds replaces that object under its existing name; any other object
+is created, named after its UID. An event or card without a UID gets a new one. Time
+zone definitions travel with the events that use them and a `METHOD` line is dropped.
+Only `VEVENT` components are stored. A single object larger than 10 MB fails.
+
+The answer is `200` with a report of every object, in file order:
+
+```json
+{
+  "total": 3,
+  "created": 2,
+  "updated": 0,
+  "failed": 1,
+  "results": [
+    {"index": 0, "uid": "ada", "name": "ada.vcf", "status": "created"},
+    {"index": 1, "uid": "", "status": "failed", "error": "not a valid card: ..."},
+    {"index": 2, "uid": "grace", "name": "grace.vcf", "status": "created"}
+  ]
+}
+```
+
+`status` is `created`, `updated` or `failed`. `name` is absent and `error` is set for a
+failed object, and `uid` is empty when the object could not be read far enough to tell.
+A file that cannot be cut into objects at all, such as an iCalendar file with unbalanced
+`BEGIN` and `END` lines or a vCard file with text between cards, is `400` and nothing
+is stored. A file without any object is `200` with `total` 0. Examples of both reports are
+in `internal/graphapi/testdata/contract/import-report.json` and
+`import-report-contacts.json`.
+
+An export merges the stored objects into one file. A calendar export has the top-level
+properties of the first event, each time zone once and every event in the order of the
+object names. A stored object that does not parse is left out of the export. Importing
+an export into an empty calendar or address book gives back the same UIDs.
+
 ## Administration
 
 The same binary administers a running service through the admin socket. It reads the

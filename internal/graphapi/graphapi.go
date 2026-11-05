@@ -24,6 +24,10 @@ import (
 // Prefix is the URL path the facade is mounted at, without a trailing slash.
 const Prefix = "/graph/v1.0"
 
+// GroupwarePrefix is the URL path of the endpoints that are not part of Graph:
+// import, export and account information. Groupware returns their handler.
+const GroupwarePrefix = "/groupware/v1"
+
 // Config holds what New needs.
 type Config struct {
 	// Store holds the calendars and address books.
@@ -61,6 +65,7 @@ type Handler struct {
 	calendars      CalendarSource
 	contactFolders ContactFolderSource
 	routes         []route
+	extRoutes      []route
 }
 
 // call is what a route handler works with: the signed-in caller and the
@@ -145,6 +150,7 @@ func New(cfg Config, opts ...Option) (*Handler, error) {
 	}
 	a.routes = append(a.routes, a.contactRoutes()...)
 	a.routes = append(a.routes, a.photoRoutes()...)
+	a.extRoutes = a.importExportRoutes()
 	for _, opt := range opts {
 		opt(a)
 	}
@@ -158,6 +164,19 @@ func New(cfg Config, opts ...Option) (*Handler, error) {
 // ServeHTTP routes the request. The route is found before the caller is
 // provisioned, so a request that cannot succeed creates nothing.
 func (a *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	a.serve(w, r, Prefix, a.routes, newError(http.StatusNotImplemented, codeNotImplemented,
+		"this part of the Graph API is not supported"))
+}
+
+// Groupware returns the handler of the endpoints below GroupwarePrefix. It
+// authenticates and answers errors like the Graph handler does.
+func (a *Handler) Groupware() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		a.serve(w, r, GroupwarePrefix, a.extRoutes, notFound("there is no such endpoint"))
+	})
+}
+
+func (a *Handler) serve(w http.ResponseWriter, r *http.Request, prefix string, routes []route, fallback *apiError) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 
@@ -168,13 +187,13 @@ func (a *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	segs, ok := splitPath(r.URL.EscapedPath())
+	segs, ok := splitPath(prefix, r.URL.EscapedPath())
 	if !ok {
-		writeError(w, newError(http.StatusNotImplemented, codeNotImplemented, "this request is not supported"))
+		writeError(w, fallback)
 		return
 	}
 	var allowed []string
-	for _, rt := range a.routes {
+	for _, rt := range routes {
 		params, ok := rt.match(segs)
 		if !ok {
 			continue
@@ -203,13 +222,12 @@ func (a *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, e)
 		return
 	}
-	writeError(w, newError(http.StatusNotImplemented, codeNotImplemented,
-		"this part of the Graph API is not supported"))
+	writeError(w, fallback)
 }
 
-// splitPath returns the unescaped segments of the path below Prefix.
-func splitPath(escaped string) ([]string, bool) {
-	rest, ok := strings.CutPrefix(escaped, Prefix)
+// splitPath returns the unescaped segments of the path below prefix.
+func splitPath(prefix, escaped string) ([]string, bool) {
+	rest, ok := strings.CutPrefix(escaped, prefix)
 	if !ok {
 		return nil, false
 	}

@@ -26,6 +26,7 @@ type options struct {
 	dav, wellKnown http.Handler
 	appPasswords   http.Handler
 	graph          http.Handler
+	groupware      http.Handler
 	web            http.Handler
 }
 
@@ -55,6 +56,14 @@ func WithAppPasswords(h http.Handler) Option {
 // behind the authn middleware, which requires a bearer token.
 func WithGraph(h http.Handler) Option {
 	return func(o *options) { o.graph = h }
+}
+
+// WithGroupware serves the endpoints that are not part of Graph: the import and
+// export of calendars and address books below /groupware/v1/calendars/ and
+// /groupware/v1/addressbooks/. The handler runs behind the authn middleware,
+// which requires a bearer token.
+func WithGroupware(h http.Handler) Option {
+	return func(o *options) { o.groupware = h }
 }
 
 // WithWeb serves the web application's files below /web/. The authn
@@ -98,6 +107,11 @@ func New(addr string, logger *slog.Logger, authn func(http.Handler) http.Handler
 
 	if o.graph != nil {
 		mux.Handle("/graph/v1.0/", o.graph)
+	}
+
+	if o.groupware != nil {
+		mux.Handle("/groupware/v1/calendars/", o.groupware)
+		mux.Handle("/groupware/v1/addressbooks/", o.groupware)
 	}
 
 	if o.web != nil {
