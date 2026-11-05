@@ -200,6 +200,7 @@ func objPaths(objs []carddav.AddressObject) []string {
 // TestCardDAV runs a CardDAV client through discovery, an address book's
 // life cycle, contact CRUD, a query and sync-collection.
 func TestCardDAV(t *testing.T) {
+	needsReport(t)
 	ctx := ctxTimeout(t)
 	a := signInWithAppPassword(t, goUser, goPassword)
 	c := cardClient(t, a.basic())
@@ -429,6 +430,7 @@ func calSync(t *testing.T, ctx context.Context, a account, href, token string) s
 // TestCalDAV runs a CalDAV client through discovery, a calendar's life
 // cycle, event CRUD, time-range queries and sync-collection.
 func TestCalDAV(t *testing.T) {
+	needsReport(t)
 	ctx := ctxTimeout(t)
 	a := signInWithAppPassword(t, goUser, goPassword)
 	c := calClient(t, a.basic())

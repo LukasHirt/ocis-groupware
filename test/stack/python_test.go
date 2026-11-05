@@ -17,6 +17,7 @@ import (
 // check expects a user with nothing but the default calendar, so it signs in
 // as marie, whom the Go flows leave alone.
 func TestPythonClient(t *testing.T) {
+	needsReport(t)
 	python := os.Getenv("STACK_PYTHON")
 	if python == "" {
 		t.Skip("STACK_PYTHON is not set")
