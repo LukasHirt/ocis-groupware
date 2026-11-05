@@ -1,0 +1,30 @@
+{
+  "id": "",
+  "iCalUId": "iana-1@example.com",
+  "type": "singleInstance",
+  "subject": "Standup",
+  "body": {
+    "contentType": "text",
+    "content": ""
+  },
+  "start": {
+    "dateTime": "2026-11-05T09:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "end": {
+    "dateTime": "2026-11-05T10:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "isAllDay": false,
+  "isCancelled": false,
+  "showAs": "busy",
+  "sensitivity": "normal",
+  "categories": [],
+  "attendees": [],
+  "recurrence": null,
+  "location": {
+    "displayName": ""
+  },
+  "isReminderOn": false,
+  "reminderMinutesBeforeStart": 0
+}

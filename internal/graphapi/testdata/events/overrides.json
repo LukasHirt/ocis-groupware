@@ -1,0 +1,48 @@
+{
+  "id": "",
+  "iCalUId": "series-1@example.com",
+  "type": "seriesMaster",
+  "subject": "Series",
+  "body": {
+    "contentType": "text",
+    "content": ""
+  },
+  "start": {
+    "dateTime": "2026-11-05T09:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "end": {
+    "dateTime": "2026-11-05T10:00:00.0000000",
+    "timeZone": "UTC"
+  },
+  "isAllDay": false,
+  "isCancelled": false,
+  "showAs": "busy",
+  "sensitivity": "normal",
+  "categories": [],
+  "attendees": [],
+  "recurrence": {
+    "pattern": {
+      "type": "weekly",
+      "interval": 1,
+      "month": 0,
+      "dayOfMonth": 0,
+      "daysOfWeek": [
+        "thursday"
+      ],
+      "firstDayOfWeek": "monday",
+      "index": "first"
+    },
+    "range": {
+      "type": "numbered",
+      "startDate": "2026-11-05",
+      "recurrenceTimeZone": "UTC",
+      "numberOfOccurrences": 4
+    }
+  },
+  "location": {
+    "displayName": ""
+  },
+  "isReminderOn": false,
+  "reminderMinutesBeforeStart": 0
+}
