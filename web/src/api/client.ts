@@ -8,8 +8,13 @@ import type {
   GraphContact,
   GraphContactFolder,
   GraphEvent,
+  GraphPermission,
+  Grantee,
   ImportReport,
-  Page
+  DirectoryEntry,
+  Page,
+  Role,
+  ShareKind
 } from './types'
 
 export interface Request {
@@ -35,6 +40,16 @@ export type Transport = (request: Request) => Promise<Response>
 const graph = '/graph/v1.0/me'
 
 const enc = encodeURIComponent
+
+const permissionsOf = (kind: ShareKind, id: string) =>
+  kind === 'calendar'
+    ? `${graph}/calendars/${enc(id)}/calendarPermissions`
+    : `${graph}/contactFolders/${enc(id)}/permissions`
+
+// The directory is the oCIS Graph API, which the signed-in user's own token
+// may search. It answers only from three characters on.
+const directory = '/graph/v1.0'
+const searchLimit = '10'
 
 // inZone asks the server to write times in a zone, the way Graph does. Without
 // it the times are in UTC.
@@ -78,6 +93,15 @@ export function createClient(transport: Transport) {
       }
     }
     return items
+  }
+
+  async function search(what: 'users' | 'groups', term: string): Promise<DirectoryEntry[]> {
+    const page = await send<Page<DirectoryEntry>>({
+      method: 'GET',
+      url: `${directory}/${what}`,
+      params: { $search: term, $top: searchLimit }
+    })
+    return page.value.map((e) => ({ id: e.id, displayName: e.displayName }))
   }
 
   return {
@@ -178,6 +202,26 @@ export function createClient(transport: Transport) {
         data: file,
         headers: { 'Content-Type': 'text/vcard' }
       }),
+
+    listPermissions: (kind: ShareKind, id: string) =>
+      list<GraphPermission>(permissionsOf(kind, id)),
+    createPermission: (kind: ShareKind, id: string, grantee: Grantee, role: Role) =>
+      send<GraphPermission>({
+        method: 'POST',
+        url: permissionsOf(kind, id),
+        data: { role, grantee }
+      }),
+    updatePermission: (kind: ShareKind, id: string, permissionId: string, role: Role) =>
+      send<GraphPermission>({
+        method: 'PATCH',
+        url: `${permissionsOf(kind, id)}/${enc(permissionId)}`,
+        data: { role }
+      }),
+    deletePermission: (kind: ShareKind, id: string, permissionId: string) =>
+      send<void>({ method: 'DELETE', url: `${permissionsOf(kind, id)}/${enc(permissionId)}` }),
+
+    searchUsers: (term: string) => search('users', term),
+    searchGroups: (term: string) => search('groups', term),
 
     // A photo is read as a blob and written as the raw image, JPEG or PNG
     // of at most 1 MB, with the image's own content type.

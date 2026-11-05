@@ -13,6 +13,7 @@
           @toggle="toggle"
           @add="dialog = { kind: 'create' }"
           @edit="(calendar: GraphCalendar) => (dialog = { kind: 'edit', calendar })"
+          @share="(calendar: GraphCalendar) => (dialog = { kind: 'share', calendar })"
           @remove="(calendar: GraphCalendar) => (dialog = { kind: 'delete', calendar })"
         />
         <button
@@ -65,6 +66,13 @@
       :calendar="dialog.calendar"
       @close="dialog = undefined"
       @save="update"
+    />
+    <share-dialog
+      v-else-if="dialog?.kind === 'share'"
+      kind="calendar"
+      :collection-id="dialog.calendar.id"
+      :name="dialog.calendar.name"
+      @close="dialog = undefined"
     />
     <event-dialog
       v-else-if="dialog?.kind === 'event-create'"
@@ -125,6 +133,7 @@ import CalendarList from '../calendar/CalendarList.vue'
 import SettingsDialog from '../calendar/SettingsDialog.vue'
 import ScopeDialog from '../calendar/ScopeDialog.vue'
 import EventDialog from '../calendar/EventDialog.vue'
+import ShareDialog from '../sharing/ShareDialog.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { useApi } from '../composables/useApi'
 import { calendarIdOf, toCalendarEvent } from '../calendar/mapping'
@@ -151,6 +160,7 @@ const dialog = ref<
   | { kind: 'create' }
   | { kind: 'edit'; calendar: GraphCalendar }
   | { kind: 'delete'; calendar: GraphCalendar }
+  | { kind: 'share'; calendar: GraphCalendar }
   | { kind: 'event-create'; form: EventForm }
   | { kind: 'event-scope'; occurrence: GraphEvent; series: GraphEvent }
   | {
