@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/owncloud/ocis-groupware/internal/config"
+	"github.com/owncloud/ocis-groupware/internal/termsafe"
 )
 
 const adminUsage = `usage: ocis-groupware admin [--config <file>] [--socket <path>] principals <command>
@@ -320,13 +321,13 @@ func (cmd adminCommand) notFound() error {
 // another name than the sub, or who has no sub yet, is shown by owner.
 func label(p principal) string {
 	if p.Username == "" {
-		return p.Owner
+		return termsafe.Clean(p.Owner)
 	}
 	kind := "owner"
 	if p.Sub == p.Owner {
 		kind = "sub"
 	}
-	return fmt.Sprintf("%s (%s %s)", p.Username, kind, p.Owner)
+	return fmt.Sprintf("%s (%s %s)", termsafe.Clean(p.Username), kind, termsafe.Clean(p.Owner))
 }
 
 func (cmd adminCommand) setDisabled(c *adminClient, stdout io.Writer, disabled bool) error {
@@ -352,9 +353,9 @@ func (cmd adminCommand) setDisabled(c *adminClient, stdout io.Writer, disabled b
 // nameOf is the username, or the owner for a user without one.
 func nameOf(p principal) string {
 	if p.Username == "" {
-		return p.Owner
+		return termsafe.Clean(p.Owner)
 	}
-	return p.Username
+	return termsafe.Clean(p.Username)
 }
 
 func (cmd adminCommand) list(c *adminClient, stdout io.Writer) error {
@@ -366,6 +367,12 @@ func (cmd adminCommand) list(c *adminClient, stdout io.Writer) error {
 		_, err := stdout.Write(raw)
 		return err
 	}
+	return cmd.printTable(stdout, list)
+}
+
+// printTable writes the list as a table. Names come from identity provider
+// claims, so control characters are escaped.
+func (cmd adminCommand) printTable(stdout io.Writer, list []principal) error {
 	tw := tabwriter.NewWriter(stdout, 0, 0, 3, ' ', 0)
 	// The owner has a column of its own only when it differs from the sub
 	// for someone: for users who signed in on their own, it is the same value.
@@ -376,7 +383,7 @@ func (cmd adminCommand) list(c *adminClient, stdout io.Writer) error {
 	}
 	_, _ = fmt.Fprintln(tw, header+"\tSUB")
 	for _, p := range list {
-		name := p.Username
+		name := termsafe.Clean(p.Username)
 		if name == "" {
 			name = "-"
 		}
@@ -384,14 +391,14 @@ func (cmd adminCommand) list(c *adminClient, stdout io.Writer) error {
 		if p.Disabled {
 			state = "disabled"
 		}
-		sub := p.Sub
+		sub := termsafe.Clean(p.Sub)
 		if sub == "" {
 			sub = "-"
 		}
-		row := fmt.Sprintf("%s\t%s\t%s\t%s\t%s", name, p.DisplayName, state, p.CreatedAt.UTC().Format("2006-01-02 15:04 UTC"),
+		row := fmt.Sprintf("%s\t%s\t%s\t%s\t%s", name, termsafe.Clean(p.DisplayName), state, p.CreatedAt.UTC().Format("2006-01-02 15:04 UTC"),
 			identityAge(p.IdentityAt, adminNow(), cmd.leaseMaxAge))
 		if withOwner {
-			row += "\t" + p.Owner
+			row += "\t" + termsafe.Clean(p.Owner)
 		}
 		_, _ = fmt.Fprintln(tw, row+"\t"+sub)
 	}
