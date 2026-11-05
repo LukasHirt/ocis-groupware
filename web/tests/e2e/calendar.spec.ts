@@ -97,10 +97,11 @@ test('a calendar can be created, renamed, recoloured and deleted', async ({ page
   await expect(items.filter({ hasText: 'Lab notes' })).toHaveCount(0)
 })
 
+// The day the page shows as today. The page runs in the zone fixed above, which
+// is not the zone of the machine that runs the test, so the machine's own date
+// is a day off for part of each day.
 function today(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Prague' })
 }
 
 test('an event can be created, shown in the sidebar, changed and deleted', async ({ page }) => {
@@ -210,6 +211,61 @@ test('an event opens in the editor when it is clicked twice', async ({ page }) =
   await page.getByTestId('event-delete').click()
   await page.getByTestId('dialog-confirm').click()
   await expect(event('Quick one')).toHaveCount(0)
+})
+
+test('the grid follows the width of its container when the sidebar opens and closes', async ({ page }) => {
+  await openCalendar(page)
+  const event = (title: string) => page.locator('.fc-event', { hasText: title })
+  await page.getByTestId('event-add').click()
+  await textField(page, 'event-subject').fill('Width check')
+  await textField(page, 'event-start-date').fill(today())
+  await textField(page, 'event-start-time').fill('09:00')
+  await textField(page, 'event-end-date').fill(today())
+  await textField(page, 'event-end-time').fill('10:00')
+  await page.getByTestId('dialog-confirm').click()
+  await page.getByRole('button', { name: 'Day', exact: true }).click()
+  await expect(page.locator('.fc-timeGridDay-view')).toBeVisible()
+  await expect(event('Width check')).toHaveCount(1)
+  await settled(page)
+
+  // The widths of the time grid the library draws and of the box that holds
+  // it. The library sets sizes of its own when it lays out and does not look
+  // again when the box changes, so a stale layout shows as a different width.
+  const widths = () =>
+    page.evaluate(() => ({
+      box: document.querySelector('.gw-calendar-grid')!.getBoundingClientRect().width,
+      table: document.querySelector('.fc-timegrid-body')!.getBoundingClientRect().width
+    }))
+  const expectFilled = async () => {
+    await expect
+      .poll(async () => {
+        const w = await widths()
+        return Math.abs(w.box - w.table)
+      })
+      .toBeLessThanOrEqual(2)
+  }
+
+  await expectFilled()
+  const wide = (await widths()).box
+  await event('Width check').click()
+  await expect(page.getByTestId('event-details')).toBeVisible()
+  await expectFilled()
+  expect((await widths()).box).toBeLessThan(wide - 100)
+
+  // Closing the sidebar gives the room back to the grid.
+  await page.locator('#app-sidebar, .sidebar-panel').first().locator('button').first().click()
+  await expect(page.locator('.gw-sidebar')).toHaveCount(0)
+  await expectFilled()
+  expect((await widths()).box).toBeGreaterThan(wide - 2)
+
+  // A click within half a second of the last one counts as a double click.
+  await page.waitForTimeout(600)
+  await settled(page)
+  await event('Width check').click()
+  await expect(page.getByTestId('event-details')).toBeVisible()
+  await page.getByTestId('event-delete').click()
+  await page.getByTestId('dialog-confirm').click()
+  await expect(event('Width check')).toHaveCount(0)
 })
 
 test('an all-day event is made by clicking a day', async ({ page }) => {
