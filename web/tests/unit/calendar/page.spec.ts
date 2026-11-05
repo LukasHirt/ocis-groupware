@@ -11,16 +11,34 @@ vi.mock('vue3-gettext', () => ({
   })
 }))
 
-const calendarViewCalls: { start: string; end: string }[] = []
+const hoisted = vi.hoisted(() => ({
+  calls: [] as { start: string; end: string }[],
+  state: { calendars: [] as Record<string, unknown>[] },
+  api: {} as Record<string, ReturnType<typeof vi.fn>>
+}))
+const calendarViewCalls = hoisted.calls
+
 vi.mock('../../../src/composables/useApi', () => {
-  const client = {
-    listCalendars: () => Promise.resolve(calendars.value),
-    calendarView: (q: { start: string; end: string }) => {
-      calendarViewCalls.push(q)
-      return Promise.resolve(calendarview.value)
-    }
-  }
-  return { useApi: () => ({ client, run: (_t: string, f: (c: unknown) => unknown) => f(client) }) }
+  const { api, state, calls } = hoisted
+  api.listCalendars = vi.fn(() => Promise.resolve(state.calendars))
+  api.calendarView = vi.fn((q: { start: string; end: string }) => {
+    calls.push(q)
+    return Promise.resolve(calendarview.value)
+  })
+  api.createCalendar = vi.fn((input: { name: string; hexColor?: string }) =>
+    Promise.resolve({
+      ...calendars.value[0],
+      id: 'bmV3',
+      name: input.name,
+      hexColor: input.hexColor ?? '',
+      isDefaultCalendar: false
+    })
+  )
+  api.updateCalendar = vi.fn((id: string, input: object) =>
+    Promise.resolve({ ...calendars.value.find((c) => c.id === id), ...input })
+  )
+  api.deleteCalendar = vi.fn(() => Promise.resolve())
+  return { useApi: () => ({ client: api, run: (_t: string, f: (c: unknown) => unknown) => f(api) }) }
 })
 
 const mountOptions = { global: { mocks: { $gettext: (s: string) => s } } }
@@ -37,6 +55,8 @@ describe('the calendar page', () => {
     vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-05T12:00:00Z') })
     localStorage.clear()
     calendarViewCalls.length = 0
+    hoisted.state.calendars = structuredClone(calendars.value)
+    for (const f of Object.values(hoisted.api)) f.mockClear()
     document.body.innerHTML = ''
   })
 
@@ -78,5 +98,58 @@ describe('the calendar page', () => {
     wrapper.unmount()
     const again = await mountPage()
     expect(again.find<HTMLInputElement>('[data-testid="calendar-toggle"]').element.checked).toBe(false)
+  })
+
+  it('offers edit and delete for calendars the user may change, and nothing for others', async () => {
+    const wrapper = await mountPage()
+    const [personal, work, team] = wrapper.findAll('[data-testid="calendar-item"]')
+    expect(personal.find('[data-testid="calendar-edit"]').exists()).toBe(true)
+    expect(work.find('[data-testid="calendar-delete"]').exists()).toBe(true)
+    expect(team.find('[data-testid="calendar-edit"]').exists()).toBe(false)
+    expect(team.find('[data-testid="calendar-delete"]').exists()).toBe(false)
+  })
+
+  it('creates a calendar and lists it', async () => {
+    const wrapper = await mountPage()
+    await wrapper.get('[data-testid="calendar-add"]').trigger('click')
+    await wrapper.get('[data-testid="calendar-name"]').setValue('Holidays')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(hoisted.api.createCalendar).toHaveBeenCalledWith({ name: 'Holidays', hexColor: expect.stringMatching(/^#[0-9a-f]{6}$/) })
+    const names = wrapper.findAll('[data-testid="calendar-item"] .name').map((n) => n.text())
+    expect(names).toContain('Holidays')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+  })
+
+  it('renames and recolours a calendar', async () => {
+    const wrapper = await mountPage()
+    await wrapper.findAll('[data-testid="calendar-edit"]')[1].trigger('click')
+    await wrapper.get('[data-testid="calendar-name"]').setValue('Office')
+    await wrapper.get('[data-testid="calendar-color-#c2415d"]').trigger('click')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(hoisted.api.updateCalendar).toHaveBeenCalledWith(calendars.value[1].id, {
+      name: 'Office',
+      hexColor: '#c2415d'
+    })
+    expect(wrapper.findAll('[data-testid="calendar-item"] .name')[1].text()).toBe('Office')
+  })
+
+  it('deletes a calendar only after a confirmation, and drops its events', async () => {
+    const wrapper = await mountPage()
+    expect(wrapper.findAll('.fc-event').length).toBeGreaterThan(0)
+    await wrapper.findAll('[data-testid="calendar-delete"]')[0].trigger('click')
+    expect(hoisted.api.deleteCalendar).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid="dialog-cancel"]').trigger('click')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(hoisted.api.deleteCalendar).not.toHaveBeenCalled()
+
+    await wrapper.findAll('[data-testid="calendar-delete"]')[0].trigger('click')
+    await wrapper.get('[data-testid="dialog-confirm"]').trigger('click')
+    await flushPromises()
+    expect(hoisted.api.deleteCalendar).toHaveBeenCalledWith(calendars.value[0].id)
+    const names = wrapper.findAll('[data-testid="calendar-item"] .name').map((n) => n.text())
+    expect(names).not.toContain('Personal')
+    expect(wrapper.findAll('.fc-event')).toHaveLength(0)
   })
 })
