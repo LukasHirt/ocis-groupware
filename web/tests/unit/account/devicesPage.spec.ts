@@ -2,12 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import account from '../../../../internal/graphapi/testdata/contract/account.json'
 import DevicesPage from '../../../src/pages/DevicesPage.vue'
+import { formatDay } from '../../../src/account/format'
 
 // The design system and the host's services are not here; see mocks/webPkg.
 vi.mock('@ownclouders/web-pkg', async () => (await import('../mocks/webPkg')).webPkgMock())
 
 vi.mock('vue3-gettext', () => ({
-  useGettext: () => ({ $gettext: (s: string) => s })
+  useGettext: () => ({
+    $gettext: (s: string, params: Record<string, string> = {}) =>
+      s.replace(/%\{(\w+)\}/g, (_, k: string) => params[k] ?? '')
+  })
 }))
 
 const api = {
@@ -80,6 +84,40 @@ describe('DAV address', () => {
     expect(writeText).toHaveBeenCalledWith('https://ocis.example/dav/')
   })
 
+  it('names each copy button for what it copies', async () => {
+    const wrapper = await page()
+    expect(wrapper.get('[data-testid="copy-dav-calendar"]').attributes('aria-label')).toBe(
+      'Copy Calendar home'
+    )
+  })
+
+  it('shows the copy icon, then a check mark for two seconds, and says Copied', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const wrapper = await page()
+    const button = wrapper.get('[data-testid="copy-dav-url"]')
+    expect(button.get('.oc-icon').attributes('data-name')).toBe('file-copy')
+    await button.trigger('click')
+    await flushPromises()
+    expect(button.get('.oc-icon').attributes('data-name')).toBe('check')
+    expect(wrapper.get('[data-testid="dav-url-value"]').element.closest('tr')?.textContent).toContain(
+      'Copied'
+    )
+    vi.advanceTimersByTime(2000)
+    await flushPromises()
+    expect(button.get('.oc-icon').attributes('data-name')).toBe('file-copy')
+  })
+
+  it('lines the details up in one table, a row for each', async () => {
+    const wrapper = await page()
+    const rows = wrapper.findAll('[data-testid="dav-account"] tr')
+    expect(rows.map((r) => r.get('th').text())).toEqual([
+      'Username',
+      'Server address',
+      'Calendar home',
+      'Address book home'
+    ])
+  })
+
   it('has a setup hint for Thunderbird, Apple and DAVx5', async () => {
     const wrapper = await page()
     const hints = wrapper.get('[data-testid="dav-setup"]').text()
@@ -134,7 +172,7 @@ describe('app password validity', () => {
   it('says until when app passwords work and that opening oCIS Web renews it', async () => {
     const wrapper = await withValidUntil('2026-12-05T10:00:00Z')
     const text = wrapper.get('[data-testid="dav-valid-until"]').text()
-    expect(text).toContain(new Date('2026-12-05T10:00:00Z').toLocaleDateString())
+    expect(text).toContain(formatDay('2026-12-05T10:00:00Z'))
     expect(text).toContain('open oCIS Web again')
     expect(wrapper.find('[data-testid="dav-valid-until-warning"]').exists()).toBe(false)
   })
@@ -159,10 +197,15 @@ describe('app password list', () => {
   it('lists each password with its expiry and last use', async () => {
     const wrapper = await page()
     const [first, second] = wrapper.findAll('[data-testid="app-password-item"]')
+    const cells = (row: typeof first) => row.findAll('td').map((c) => c.text())
+    expect(cells(first).slice(1, 4)).toEqual([
+      formatDay(phone.created_at),
+      formatDay(phone.expires_at),
+      formatDay(phone.last_used_at)
+    ])
     expect(first.text()).toContain('Phone')
-    expect(first.text()).toContain('Last used')
     expect(second.text()).toContain('Laptop')
-    expect(second.text()).toContain('Never used')
+    expect(cells(second)[3]).toBe('Never used')
   })
 
   it('marks one that has expired', async () => {
@@ -177,7 +220,10 @@ describe('app password list', () => {
   it('says so when there are none', async () => {
     api.listAppPasswords.mockResolvedValue({ appPasswords: [], maxLifetimeDays: 365 })
     const wrapper = await page()
-    expect(wrapper.find('[data-testid="app-password-none"]').exists()).toBe(true)
+    const none = wrapper.get('[data-testid="app-password-none"]')
+    expect(none.text()).toContain('You have no app passwords yet')
+    expect(none.get('[data-icon]').attributes('data-icon')).toBe('lock')
+    expect(wrapper.find('[data-testid="app-password-item"]').exists()).toBe(false)
   })
 })
 
@@ -192,7 +238,9 @@ describe('creating an app password', () => {
     const wrapper = await open()
     await wrapper.get('[data-testid="dialog-confirm"]').trigger('click')
     expect(api.createAppPassword).not.toHaveBeenCalled()
-    expect(wrapper.find('[data-testid="app-password-name-error"]').exists()).toBe(true)
+    const field = wrapper.get('[data-testid="app-password-name"]')
+    expect(field.attributes('aria-invalid')).toBe('true')
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Enter a name')
   })
 
   it('sends the name and the default lifetime, then shows the password once', async () => {
@@ -202,9 +250,9 @@ describe('creating an app password', () => {
     await wrapper.get('[data-testid="dialog-confirm"]').trigger('click')
     await flushPromises()
     expect(api.createAppPassword).toHaveBeenCalledWith({ name: 'Tablet' })
-    expect(wrapper.get('[data-testid="app-password-secret"]').text()).toContain(
-      'mfrggzdfmztwq2lknnwg23tpobyxe43u'
-    )
+    const secret = wrapper.get('[data-testid="app-password-secret"]').element as HTMLInputElement
+    expect(secret.value).toBe('mfrggzdfmztwq2lknnwg23tpobyxe43u')
+    expect(wrapper.get('[role="dialog"]').text()).toContain('It will not be shown again')
 
     await wrapper.get('[data-testid="app-password-copy"]').trigger('click')
     expect(writeText).toHaveBeenCalledWith('mfrggzdfmztwq2lknnwg23tpobyxe43u')
@@ -221,7 +269,7 @@ describe('creating an app password', () => {
     api.createAppPassword.mockResolvedValue({ ...phone, password: 'x' })
     const wrapper = await open()
     await wrapper.get('[data-testid="app-password-name"]').setValue('Guest phone')
-    await wrapper.get('[data-testid="app-password-expiry"]').setValue('30')
+    await wrapper.get('[data-testid="app-password-expiry"]').setValue('2')
     await wrapper.get('[data-testid="dialog-confirm"]').trigger('click')
     await flushPromises()
     expect(api.createAppPassword).toHaveBeenCalledWith({ name: 'Guest phone', expires_in_days: 30 })
@@ -234,7 +282,8 @@ describe('creating an app password', () => {
     const select = wrapper.get('[data-testid="app-password-expiry"]')
     const options = select.findAll('option').map((o) => o.text())
     expect(options).toEqual(['180 days (default)', '90 days', '30 days', '7 days'])
-    expect((select.element as HTMLSelectElement).value).toBe('180')
+    // The stub numbers its options, and the first one is chosen.
+    expect((select.element as HTMLSelectElement).value).toBe('0')
 
     // The default is not sent, so the server applies its own maximum.
     await wrapper.get('[data-testid="app-password-name"]').setValue('Laptop')

@@ -26,6 +26,9 @@ msgstr ""
 msgid "Access of %{name}"
 msgstr ""
 
+msgid "Actions"
+msgstr ""
+
 msgid "Add"
 msgstr ""
 
@@ -66,6 +69,9 @@ msgid "All day"
 msgstr ""
 
 msgid "All events"
+msgstr ""
+
+msgid "App password"
 msgstr ""
 
 msgid "App passwords"
@@ -152,6 +158,9 @@ msgstr ""
 msgid "Connect a calendar or contacts app"
 msgstr ""
 
+msgid "Connection details"
+msgstr ""
+
 msgid "Contact details"
 msgstr ""
 
@@ -168,6 +177,9 @@ msgid "Copy"
 msgstr ""
 
 msgid "Copy %{what}"
+msgstr ""
+
+msgid "Copy it now. It will not be shown again."
 msgstr ""
 
 msgid "Copying is not possible here. Select the password and copy it by hand."
@@ -282,6 +294,9 @@ msgid "Country or region"
 msgstr ""
 
 msgid "Create"
+msgstr ""
+
+msgid "Created"
 msgstr ""
 
 msgid "Created %{date}"
@@ -419,7 +434,7 @@ msgstr ""
 msgid "Enter a whole number between 1 and 99 for how often it repeats."
 msgstr ""
 
-msgid "Enter this password in your app now. It is not shown again."
+msgid "Enter this password in your app. Each app needs its own."
 msgstr ""
 
 msgid "Event"
@@ -435,6 +450,9 @@ msgid "Expired"
 msgstr ""
 
 msgid "expired %{date}"
+msgstr ""
+
+msgid "Expires"
 msgstr ""
 
 msgid "expires %{date}"
@@ -536,7 +554,7 @@ msgstr ""
 msgid "Last"
 msgstr ""
 
-msgid "Last used %{date}"
+msgid "Last used"
 msgstr ""
 
 msgid "Loading"
@@ -755,10 +773,10 @@ msgstr ""
 msgid "Server address"
 msgstr ""
 
-msgid "Settings"
+msgid "Set up a device"
 msgstr ""
 
-msgid "Setup hints"
+msgid "Settings"
 msgstr ""
 
 msgid "Share"
@@ -953,7 +971,7 @@ msgstr ""
 msgid "You have no address books yet."
 msgstr ""
 
-msgid "You have no app passwords yet."
+msgid "You have no app passwords yet"
 msgstr ""
 
 msgid "You have no calendars yet."

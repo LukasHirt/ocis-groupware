@@ -5,3 +5,6 @@ import { designSystemStubs } from './stubs/designSystem'
 // register stand-ins with the same contract, so a component can use <oc-*>
 // without the design system being part of the tests.
 config.global.components = { ...config.global.components, ...designSystemStubs }
+
+// The tooltip directive of the design system; the tests have no use for it.
+config.global.directives = { ...config.global.directives, OcTooltip: {} }

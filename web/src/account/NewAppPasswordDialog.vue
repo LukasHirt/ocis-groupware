@@ -9,59 +9,52 @@
   >
     <template v-if="issued">
       <p class="oc-mt-rm">
-        {{ $gettext('Enter this password in your app now. It is not shown again.') }}
+        {{ $gettext('Enter this password in your app. Each app needs its own.') }}
       </p>
-      <div class="oc-flex oc-flex-middle">
-        <code class="groupware-secret" data-testid="app-password-secret">{{ issued.password }}</code>
+      <div class="oc-flex oc-flex-bottom gw-secret-row">
+        <oc-text-input
+          :model-value="issued.password"
+          :label="$gettext('App password')"
+          read-only
+          class="oc-width-expand"
+          data-testid="app-password-secret"
+        />
         <oc-button
           variation="passive"
           appearance="outline"
-          class="oc-ml-s"
           data-testid="app-password-copy"
           @click="copy"
         >
+          <oc-icon :name="copied ? 'check' : 'file-copy'" fill-type="line" size="small" />
           {{ copied ? $gettext('Copied') : $gettext('Copy') }}
         </oc-button>
       </div>
+      <inline-notice variation="warning" class="oc-mt-s">
+        {{ $gettext('Copy it now. It will not be shown again.') }}
+      </inline-notice>
       <p v-if="copyFailed" class="oc-text-muted oc-mt-s" role="status">
         {{ $gettext('Copying is not possible here. Select the password and copy it by hand.') }}
       </p>
     </template>
     <template v-else>
-      <label class="oc-text-bold" for="groupware-app-password-name">{{ $gettext('Name') }}</label>
-      <input
-        id="groupware-app-password-name"
+      <oc-text-input
         v-model="name"
-        class="oc-text-input oc-width-1-1 oc-mb-xs"
-        :class="{ 'oc-text-input-danger': nameError }"
-        type="text"
-        autocomplete="off"
+        :label="$gettext('Name')"
         :placeholder="$gettext('For example, Phone')"
-        :aria-invalid="nameError ? 'true' : 'false'"
-        :aria-describedby="nameError ? 'groupware-app-password-name-error' : undefined"
+        :error-message="nameError"
+        :fix-message-line="true"
+        autocomplete="off"
         data-testid="app-password-name"
       />
-      <p
-        v-if="nameError"
-        id="groupware-app-password-name-error"
-        class="oc-text-input-danger oc-mt-rm"
-        data-testid="app-password-name-error"
-      >
-        {{ nameError }}
-      </p>
-      <label class="oc-text-bold oc-mt-s oc-display-block" for="groupware-app-password-expiry">
-        {{ $gettext('Expires after') }}
-      </label>
-      <select
-        id="groupware-app-password-expiry"
-        v-model="days"
-        class="oc-select oc-width-1-1"
+      <oc-select
+        v-model="chosen"
+        :label="$gettext('Expires after')"
+        :options="lifetimes"
+        :searchable="false"
+        :clearable="false"
+        class="oc-mt-s"
         data-testid="app-password-expiry"
-      >
-        <option v-for="d in lifetimes" :key="d" :value="String(d)">
-          {{ d === defaultDays ? $gettext('%{n} days (default)', { n: String(d) }) : $gettext('%{n} days', { n: String(d) }) }}
-        </option>
-      </select>
+      />
     </template>
     <template #actions>
       <oc-button
@@ -95,6 +88,7 @@ import { useGettext } from 'vue3-gettext'
 import GwModal from '../components/GwModal.vue'
 import { useApi } from '../composables/useApi'
 import type { AppPasswordInput, IssuedAppPassword } from '../api/types'
+import InlineNotice from '../components/InlineNotice.vue'
 import { copyText } from './clipboard'
 
 defineOptions({ name: 'NewAppPasswordDialog' })
@@ -116,10 +110,22 @@ const lifetimes = computed(() =>
   [...new Set([props.maxLifetimeDays, 90, 30, 7])]
     .filter((d) => d <= props.maxLifetimeDays)
     .sort((a, b) => b - a)
+    .map((days) => ({
+      days,
+      label:
+        days === props.maxLifetimeDays
+          ? $gettext('%{n} days (default)', { n: String(days) })
+          : $gettext('%{n} days', { n: String(days) })
+    }))
 )
+// The chosen option; the longest one until the user picks another.
+const picked = ref<{ days: number; label: string }>()
+const chosen = computed({
+  get: () => picked.value ?? lifetimes.value[0],
+  set: (option) => (picked.value = option)
+})
 
 const name = ref('')
-const days = ref(String(props.maxLifetimeDays))
 const nameError = ref('')
 const busy = ref(false)
 const issued = ref<IssuedAppPassword>()
@@ -150,8 +156,8 @@ async function submit() {
     return
   }
   const input: AppPasswordInput = { name: name.value.trim() }
-  if (Number(days.value) !== defaultDays.value) {
-    input.expires_in_days = Number(days.value)
+  if (chosen.value.days !== defaultDays.value) {
+    input.expires_in_days = chosen.value.days
   }
   busy.value = true
   try {
@@ -167,13 +173,10 @@ async function copy() {
   copyFailed.value = !(await copyText(issued.value?.password ?? ''))
   copied.value = !copyFailed.value
 }
-
 </script>
 
 <style>
-.groupware-secret {
-  font-size: 1.1rem;
-  word-break: break-all;
-  user-select: all;
+.gw-secret-row {
+  gap: var(--oc-space-small);
 }
 </style>
