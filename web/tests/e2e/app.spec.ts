@@ -29,12 +29,17 @@ test('oCIS Web loads the application', async ({ page }) => {
   await expect(page).toHaveURL(/\/groupware\/calendar$/)
   await expect(page.locator('h1')).toHaveText('Calendar')
 
+  // The page reads the calendars through the Graph paths. The default
+  // calendar exists after the first sign-in.
+  await expect(page.getByTestId('calendar-item').first()).toContainText('Personal')
+
   // The sidebar carries both entries, and the second one routes within the app.
   const sidebar = page.locator('#web-nav-sidebar')
   await expect(sidebar.getByRole('link', { name: 'Calendar' })).toBeVisible()
   await sidebar.getByRole('link', { name: 'Contacts' }).click()
   await expect(page).toHaveURL(/\/groupware\/contacts$/)
   await expect(page.locator('h1')).toHaveText('Contacts')
+  await expect(page.getByTestId('folder-item').first()).toContainText('Contacts')
 
   expect(pageErrors).toEqual([])
 })
