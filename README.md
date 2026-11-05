@@ -59,6 +59,15 @@ do not refresh it. Group membership is therefore as old as the user's last sign-
 token, at most a few minutes behind while the user is active. The snapshot of a disabled
 user is not updated.
 
+An owner who shares a calendar or address book gets a `shares.json` next to it. It lists,
+for each shared collection, the collection's store id and its members. A member is a user
+or a group, named by the oCIS id, with a display name kept for listings and an access
+level, `read` or `readwrite`. A collection has at most 200 members, and the owner cannot
+be one of them. The service reads all of these files at start and keeps a lookup by
+grantee in memory, so a share is stored once, with its owner. A `shares.json` the service
+cannot parse is logged and skipped, which means its owner shares nothing until the file
+is fixed. Deleting the file stops all sharing by that user.
+
 The service also creates `admin.sock` in the data directory, a unix socket that serves the
 admin API: listing users, disabling and enabling them, and purging a disabled user's data.
 The `admin` command (see [Administration](#administration)) uses it; so can
