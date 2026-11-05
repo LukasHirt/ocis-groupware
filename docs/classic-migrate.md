@@ -3,7 +3,7 @@
 `ocis-groupware admin migrate classic` copies the calendars, address books, shares
 and app tokens of a classic ownCloud installation into the data directory of the
 service. It reads the classic database directly. Nothing is changed on the
-classic side.
+classic side. [migration.md](migration.md) is the guide for the whole move around it.
 
 ```
 ocis-groupware admin [--config <file>] migrate classic --db-type <mysql|postgres>

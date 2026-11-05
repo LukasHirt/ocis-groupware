@@ -815,7 +815,10 @@ classic ownCloud database into the data directory. Unlike the commands above it 
 data directory itself, so the service has to be stopped while it runs; it refuses to start
 otherwise. It supports `--dry-run`, `--user <login>` for one user at a time and repeated
 runs, and prints a report that lists public links and subscriptions as not migrated. See
-[docs/classic-migrate.md](docs/classic-migrate.md).
+[docs/classic-migrate.md](docs/classic-migrate.md) for the command and
+[docs/migration.md](docs/migration.md) for the whole move: what to prepare, what does not
+come along, what devices need, how to roll back and the ingress routes for the classic
+addresses.
 
 ## Docker
 

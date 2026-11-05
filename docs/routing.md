@@ -61,6 +61,7 @@ are off by default. They only work for a user whose classic login name is the sa
 oCIS login name, because the user's name is part of every address. Other users add their
 devices again.
 
+[migration.md](migration.md) puts this in the context of a move from a classic server.
 The ingress has to send these paths to the service, and only these:
 
 | Path | What it is |
