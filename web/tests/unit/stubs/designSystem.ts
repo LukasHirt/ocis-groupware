@@ -164,10 +164,11 @@ export const OcSelect = defineComponent({
 })
 
 // A dialog. Escape asks to cancel, as the real one does; the focus trap is
-// not reproduced.
+// not reproduced. The title carries the icon, which the real one draws from
+// the icon prop.
 export const OcModal = defineComponent({
   name: 'OcModal',
-  props: { title: { type: String, default: '' } },
+  props: { title: { type: String, default: '' }, icon: { type: String, default: '' } },
   emits: ['cancel', 'confirm'],
   setup(props, { emit, slots }) {
     const titleId = nextId('oc-modal-title')
@@ -182,7 +183,13 @@ export const OcModal = defineComponent({
             if (e.key === 'Escape') emit('cancel')
           }
         },
-        [h('h2', { id: titleId }, props.title), slots.content?.()]
+        [
+          h('div', { class: 'oc-modal-title' }, [
+            props.icon ? h(OcIcon, { name: props.icon }) : null,
+            h('h2', { id: titleId }, props.title)
+          ]),
+          slots.content?.()
+        ]
       )
   }
 })
