@@ -3,6 +3,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -16,6 +17,11 @@ type Server struct {
 	httpServer *http.Server
 	logger     *slog.Logger
 	addr       string
+
+	// debugServer serves /metrics and /healthz on their own address, outside
+	// the authentication middleware. It is nil when no address is set.
+	debugServer  *http.Server
+	debugHandler http.Handler
 }
 
 // Option customizes a Server.
@@ -23,6 +29,8 @@ type Option func(*options)
 
 type options struct {
 	ready          func(context.Context) error
+	debugAddr      string
+	now            func() time.Time
 	dav, wellKnown http.Handler
 	compatDAV      http.Handler
 	appPasswords   http.Handler
@@ -31,10 +39,24 @@ type options struct {
 	web            http.Handler
 }
 
-// WithReadiness sets the function /healthz calls on every request. A non-nil
-// error turns the response into a 503.
+// WithReadiness sets the function /healthz calls. Its result is reused for
+// ten seconds, so the function runs at most once in that time however many
+// requests arrive. A non-nil error turns the response into a 503.
 func WithReadiness(fn func(context.Context) error) Option {
 	return func(o *options) { o.ready = fn }
+}
+
+// WithDebugAddr serves /metrics and /healthz on a listener of their own at
+// addr, with no authentication. Bind it to the loopback interface or keep it
+// inside the cluster. The main listener answers 404 for /metrics. Empty
+// serves no debug listener.
+func WithDebugAddr(addr string) Option {
+	return func(o *options) { o.debugAddr = addr }
+}
+
+// withClock replaces the clock of the readiness cache, for tests.
+func withClock(now func() time.Time) Option {
+	return func(o *options) { o.now = now }
 }
 
 // WithDAV mounts the DAV handler at /dav and /dav/, and the discovery handler
@@ -91,9 +113,18 @@ func New(addr string, logger *slog.Logger, authn func(http.Handler) http.Handler
 		opt(&o)
 	}
 
+	var ready *readyCheck
+	if o.ready != nil {
+		now := o.now
+		if now == nil {
+			now = time.Now
+		}
+		ready = &readyCheck{fn: o.ready, now: now}
+	}
+	health := healthzHandler(logger, ready)
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", healthzHandler(logger, o.ready))
-	mux.HandleFunc("GET /metrics", metricsHandler())
+	mux.HandleFunc("GET /healthz", health)
 	if o.dav != nil {
 		// Both, because the mux would otherwise answer /dav with a redirect.
 		mux.Handle("/dav/", o.dav)
@@ -138,7 +169,7 @@ func New(addr string, logger *slog.Logger, authn func(http.Handler) http.Handler
 	}
 	handler = refuseConnect(handler)
 
-	return &Server{
+	srv := &Server{
 		httpServer: &http.Server{
 			Addr:    addr,
 			Handler: withRequestLogging(logger, handler),
@@ -153,34 +184,66 @@ func New(addr string, logger *slog.Logger, authn func(http.Handler) http.Handler
 		logger: logger,
 		addr:   addr,
 	}
+	if o.debugAddr != "" {
+		debug := http.NewServeMux()
+		debug.HandleFunc("GET /healthz", health)
+		debug.HandleFunc("GET /metrics", metricsHandler())
+		srv.debugHandler = withRequestLogging(logger, debug)
+		srv.debugServer = &http.Server{
+			Addr:              o.debugAddr,
+			Handler:           srv.debugHandler,
+			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       30 * time.Second,
+			WriteTimeout:      30 * time.Second,
+			IdleTimeout:       time.Minute,
+			MaxHeaderBytes:    16 << 10,
+		}
+	}
+	return srv
 }
 
-// Run starts the server and blocks until ctx is canceled, then shuts down
-// gracefully.
+// Run starts the server, and the debug listener when there is one, and blocks
+// until ctx is canceled or one of them fails, then shuts both down gracefully.
 func (s *Server) Run(ctx context.Context) error {
-	errCh := make(chan error, 1)
-	go func() {
-		s.logger.Info("http server listening", "addr", s.addr)
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			errCh <- fmt.Errorf("server: listen and serve: %w", err)
-			return
-		}
-		errCh <- nil
-	}()
+	servers := []*http.Server{s.httpServer}
+	if s.debugServer != nil {
+		servers = append(servers, s.debugServer)
+	}
+	errCh := make(chan error, len(servers))
+	for _, srv := range servers {
+		go func() {
+			s.logger.Info("http server listening", "addr", srv.Addr)
+			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				errCh <- fmt.Errorf("server: listen and serve %s: %w", srv.Addr, err)
+				return
+			}
+			errCh <- nil
+		}()
+	}
 
+	var runErr error
 	select {
-	case err := <-errCh:
-		return err
+	case runErr = <-errCh:
+		if runErr == nil {
+			// A server stopped without an error: stop the rest as well.
+			runErr = <-errCh
+		}
 	case <-ctx.Done():
 		s.logger.Info("shutting down http server")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
-			return fmt.Errorf("server: shutdown: %w", err)
-		}
-		s.logger.Info("http server stopped cleanly")
-		return nil
 	}
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	var shutErr error
+	for _, srv := range servers {
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			shutErr = errors.Join(shutErr, fmt.Errorf("server: shutdown: %w", err))
+		}
+	}
+	if runErr != nil || shutErr != nil {
+		return errors.Join(runErr, shutErr)
+	}
+	s.logger.Info("http server stopped cleanly")
+	return nil
 }
 
 // allowedMethods is the Allow header of the 405 that answers CONNECT: the

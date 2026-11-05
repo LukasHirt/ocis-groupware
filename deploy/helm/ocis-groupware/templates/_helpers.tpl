@@ -40,6 +40,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- regexFind "[0-9]+$" .Values.config.httpAddr | required "config.httpAddr must end in a port number, for example \":8080\"" }}
 {{- end }}
 
+{{/* The port number in config.debugAddr, or empty when the debug listener is off. */}}
+{{- define "ocis-groupware.debugPort" -}}
+{{- if .Values.config.debugAddr -}}
+{{- regexFind "[0-9]+$" .Values.config.debugAddr | required "config.debugAddr must end in a port number, for example \":9180\"" }}
+{{- end -}}
+{{- end }}
+
 {{- define "ocis-groupware.image" -}}
 {{- printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) }}
 {{- end }}

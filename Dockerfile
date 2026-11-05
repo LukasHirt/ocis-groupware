@@ -31,5 +31,9 @@ COPY --from=build /out/ocis-groupware /ocis-groupware
 COPY --from=build --chown=65532:65532 /out/data /data
 ENV GROUPWARE_DATA_DIR=/data
 VOLUME /data
-EXPOSE 8080
+# The debug listener (/metrics, /healthz) binds to the loopback interface by
+# default, which cannot be reached from outside a container. Listen on all
+# interfaces here and do not publish this port beyond the monitoring network.
+ENV GROUPWARE_DEBUG_ADDR=:9180
+EXPOSE 8080 9180
 ENTRYPOINT ["/ocis-groupware"]

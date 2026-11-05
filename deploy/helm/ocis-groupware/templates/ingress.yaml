@@ -13,7 +13,7 @@
 {{- $prefix = concat $prefix (list "/remote.php/dav/principals/" "/remote.php/dav/addressbooks/" "/remote.php/dav/calendars/") -}}
 {{- end -}}
 {{- if .Values.ingress.exposeOps -}}
-{{- $exact = concat $exact (list "/healthz" "/metrics") -}}
+{{- $exact = concat $exact (list "/healthz") -}}
 {{- end -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress

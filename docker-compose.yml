@@ -103,8 +103,7 @@ services:
         PathRegexp(`^/graph/v1\.0/me/(calendar|calendars|events|contact|contacts)`) ||
         PathPrefix(`/groupware/`) ||
         PathPrefix(`/web/`) ||
-        Path(`/healthz`) ||
-        Path(`/metrics`))
+        Path(`/healthz`))
       traefik.http.routers.ocis-groupware.entrypoints: websecure
       traefik.http.routers.ocis-groupware.priority: "100"
       traefik.http.services.ocis-groupware.loadbalancer.server.port: "8080"

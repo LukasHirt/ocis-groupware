@@ -40,11 +40,8 @@ additional_policies:
       - endpoint: /web/
         backend: http://ocis-groupware:8080
         unprotected: true
-      # Ops paths, so the stack tests can wait for the service. Do not expose
-      # them this way in production.
+      # Readiness, so the stack tests can wait for the service. Metrics are on
+      # the debug address (:9180) and are not routed.
       - endpoint: /healthz
-        backend: http://ocis-groupware:8080
-        unprotected: true
-      - endpoint: /metrics
         backend: http://ocis-groupware:8080
         unprotected: true

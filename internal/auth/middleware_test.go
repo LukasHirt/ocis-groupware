@@ -44,7 +44,6 @@ func serve(t *testing.T, v Verifier, req *http.Request) (rec *httptest.ResponseR
 func TestMiddlewarePublicPathsSkipAuth(t *testing.T) {
 	for _, path := range []string{
 		"/healthz",
-		"/metrics",
 		"/.well-known/caldav",
 		"/.well-known/carddav",
 		"/web/groupware.js",
@@ -67,6 +66,8 @@ func TestMiddlewareProtectedPathsRequireToken(t *testing.T) {
 	for _, path := range []string{
 		"/graph/v1.0/me/events",
 		"/groupware/v1/app-passwords",
+		// Metrics are served on the debug listener only.
+		"/metrics",
 		// The router matches escaped paths, so encoded dot segments must not
 		// borrow a public or a self-authenticated prefix.
 		"/graph/..%2Fweb/x",

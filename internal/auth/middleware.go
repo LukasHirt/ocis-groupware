@@ -128,7 +128,7 @@ func routedPath(r *http.Request) string {
 // authentication.
 func isPublic(p string) bool {
 	switch p {
-	case "/healthz", "/metrics":
+	case "/healthz":
 		return true
 	}
 	return strings.HasPrefix(p, "/.well-known/") || strings.HasPrefix(p, "/web/")
