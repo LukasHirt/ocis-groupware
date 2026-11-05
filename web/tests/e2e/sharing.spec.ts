@@ -118,12 +118,13 @@ test('an address book is shared with a user and shows as read only and then edit
   const guest = await signInAs(browser, marie, 'Contacts')
   const folders = (p: Page) => p.getByTestId('folder-item').filter({ hasText: 'Lab contacts' })
   for (const p of [owner, guest]) {
-    await expect(p.locator('h1')).toHaveText('Contacts')
+    await expect(p.locator('h1')).toHaveText('All contacts')
   }
 
   await owner.getByTestId('book-new').click()
-  await owner.getByTestId('book-new-input').fill('Lab contacts')
+  await textField(owner, 'book-new-input').fill('Lab contacts')
   await owner.getByTestId('book-new-save').click()
+  await expect(textField(owner, 'book-new-input')).toHaveCount(0)
   await expect(folders(owner)).toHaveCount(1)
   await folders(owner).click()
   await owner.getByTestId('book-share').click()
@@ -132,17 +133,17 @@ test('an address book is shared with a user and shows as read only and then edit
   await owner.getByTestId('dialog-cancel').click()
 
   await reload(guest, 'Contacts')
-  await expect(folders(guest)).toContainText('read only')
+  await expect(folders(guest)).toContainText('Read only')
   await folders(guest).click()
   await expect(guest.getByTestId('book-share')).toHaveCount(0)
-  await expect(guest.getByTestId('book-rename')).toHaveCount(0)
+  await expect(guest.getByTestId('book-actions')).toHaveCount(0)
   await expect(guest.getByTestId('contact-new')).toBeDisabled()
 
   await owner.getByTestId('book-share').click()
   await pickOption(owner, 'share-role', 'Can edit')
   await owner.getByTestId('dialog-cancel').click()
   await reload(guest, 'Contacts')
-  await expect(folders(guest)).toContainText('can edit')
+  await expect(folders(guest)).toContainText('Can edit')
 
   await owner.getByTestId('book-share').click()
   await owner.getByTestId('share-revoke').click()
@@ -151,8 +152,9 @@ test('an address book is shared with a user and shows as read only and then edit
   await reload(guest, 'Contacts')
   await expect(folders(guest)).toHaveCount(0)
 
+  await owner.getByTestId('book-actions').click()
   await owner.getByTestId('book-delete').click()
-  await owner.getByTestId('book-delete-confirm').click()
+  await owner.getByTestId('dialog-confirm').click()
   await expect(folders(owner)).toHaveCount(0)
   await owner.context().close()
   await guest.context().close()

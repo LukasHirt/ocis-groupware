@@ -54,13 +54,18 @@ function sortValue(c: GraphContact, key: SortKey): string {
 }
 
 // sortContacts returns a sorted copy. Accents and case do not matter, and a
-// contact without a value for the key goes last.
-export function sortContacts(list: GraphContact[], key: SortKey): GraphContact[] {
+// contact without a value for the key goes last, also in descending order.
+export function sortContacts(
+  list: GraphContact[],
+  key: SortKey,
+  descending = false
+): GraphContact[] {
+  const sign = descending ? -1 : 1
   return [...list].sort((a, b) => {
     const x = sortValue(a, key)
     const y = sortValue(b, key)
     if (!x !== !y) return x ? -1 : 1
-    return collator.compare(x, y) || collator.compare(contactName(a), contactName(b))
+    return sign * (collator.compare(x, y) || collator.compare(contactName(a), contactName(b)))
   })
 }
 

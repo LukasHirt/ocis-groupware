@@ -59,8 +59,8 @@ describe('contacts page sharing', () => {
     ])
     const wrapper = await open()
     const items = wrapper.findAll('[data-testid="folder-item"]')
-    expect(items[1].text().replace(/\s+/g, ' ')).toContain('Marie Curie, read only')
-    expect(items[2].text().replace(/\s+/g, ' ')).toContain('Marie Curie, can edit')
+    expect(items[1].text().replace(/\s+/g, ' ')).toContain('Marie Curie · Read only')
+    expect(items[2].text().replace(/\s+/g, ' ')).toContain('Marie Curie · Can edit')
   })
 
   it('opens the share dialog of the chosen address book', async () => {

@@ -71,6 +71,11 @@ describe('sortContacts', () => {
     expect(sortContacts([b, a, c], 'company').map((x) => x.id)).toEqual(['c', 'a', 'b'])
   })
 
+  it('sorts in reverse and still puts contacts without a value last', () => {
+    expect(sortContacts([b, a, c], 'name', true).map((x) => x.id)).toEqual(['a', 'c', 'b'])
+    expect(sortContacts([b, a, c], 'company', true).map((x) => x.id)).toEqual(['a', 'c', 'b'])
+  })
+
   it('does not change its input', () => {
     const input = [a, b, c]
     sortContacts(input, 'name')
