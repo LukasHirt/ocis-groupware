@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/LukasHirt/groupkit/ical"
 	"github.com/LukasHirt/groupkit/store"
@@ -104,6 +103,9 @@ func (r *runner) migrateUser(ctx context.Context, login string, cals []classic.C
 func (r *runner) principalFor(ctx context.Context, u classic.User, ocisID string) (owner string, created bool, reason string, err error) {
 	reg := r.cfg.Registry
 	candidate := OwnerPrefix + ocisID
+	// The principal gets no groups. A classic membership, mapped by name, is
+	// not evidence that the user is in the oCIS group; the first sign-in
+	// brings the real ones.
 	found := ""
 	if _, err := reg.Get(candidate); err == nil {
 		found = candidate
@@ -131,17 +133,11 @@ func (r *runner) principalFor(ctx context.Context, u classic.User, ocisID string
 	if r.cfg.DryRun {
 		return candidate, true, "", nil
 	}
-	var groups []principals.Group
-	for _, g := range r.groups[u.ID] {
-		if id, ok := r.ids.Groups[g]; ok {
-			groups = append(groups, principals.Group{ID: id, Name: g})
-		}
-	}
 	name := u.DisplayName
 	if name == "" {
 		name = u.ID
 	}
-	_, created, err = reg.Import(ctx, candidate, u.ID, name, principals.Identity{OCISID: ocisID, Groups: groups, At: time.Now()})
+	_, created, err = reg.Import(ctx, candidate, u.ID, name, principals.Identity{OCISID: ocisID, At: r.cfg.Now()})
 	switch {
 	case errors.Is(err, principals.ErrUsernameTaken):
 		return "", false, err.Error(), nil

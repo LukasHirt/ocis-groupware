@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/owncloud/ocis-groupware/internal/ocisgraph"
@@ -42,12 +43,14 @@ type Unmapped struct {
 }
 
 // Result is the outcome of one Map call. Users and Groups map classic ids to
-// oCIS ids. Unmapped lists the rest in the order the ids were given, users
-// first.
+// oCIS ids. GroupsByName lists the classic group ids whose mapping came from
+// a lookup of the display name in oCIS rather than from a CSV file, sorted.
+// Unmapped lists the rest in the order the ids were given, users first.
 type Result struct {
-	Users    map[string]string
-	Groups   map[string]string
-	Unmapped []Unmapped
+	Users        map[string]string
+	Groups       map[string]string
+	GroupsByName []string
+	Unmapped     []Unmapped
 }
 
 // Directory looks users and groups up in oCIS. *ocisgraph.Client implements
@@ -166,7 +169,11 @@ func (m *Mapper) Map(ctx context.Context, userIDs, groupIDs []string) (Result, e
 			continue
 		}
 		res.Groups[id] = to
+		if _, fromCSV := m.groups[id]; !fromCSV {
+			res.GroupsByName = append(res.GroupsByName, id)
+		}
 	}
+	slices.Sort(res.GroupsByName)
 	return res, nil
 }
 

@@ -5,10 +5,12 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/LukasHirt/groupkit/store"
 
 	"github.com/owncloud/ocis-groupware/internal/migrate/classic"
+	"github.com/owncloud/ocis-groupware/internal/migrate/idmap"
 	"github.com/owncloud/ocis-groupware/internal/sharing"
 )
 
@@ -45,9 +47,11 @@ func runIt(t *testing.T, e *env, src Source, mut func(*Config)) *Report {
 	return rep
 }
 
+var importedAt = time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
+
 func TestRunCopiesCollectionsObjectsAndShares(t *testing.T) {
 	e := newEnv(t, "s")
-	rep := runIt(t, e, small(), nil)
+	rep := runIt(t, e, small(), func(c *Config) { c.Now = func() time.Time { return importedAt } })
 
 	p, err := e.reg.Get("migrated-ocis-alice")
 	if err != nil || p.Username != "alice" || p.Sub != "" || p.DisplayName != "Alice" {
@@ -77,7 +81,8 @@ func TestRunCopiesCollectionsObjectsAndShares(t *testing.T) {
 		t.Fatalf("members = %+v", members)
 	}
 	id, _ := e.reg.Identity("migrated-ocis-bob")
-	if id.OCISID != "ocis-bob" || len(id.Groups) != 1 || id.Groups[0].ID != "ocis-team" {
+	// bob was in the classic group "team", but that is not carried over.
+	if id.OCISID != "ocis-bob" || len(id.Groups) != 0 || !id.At.Equal(importedAt) {
 		t.Fatalf("identity = %+v", id)
 	}
 	if rep.Totals.ObjectsAdded != 3 || rep.Totals.Shares != 2 || rep.Totals.Collections != 2 || rep.Totals.Problems != 0 {
@@ -349,5 +354,43 @@ func TestWarnsWhenTokensCannotWork(t *testing.T) {
 	rep := runIt(t, e, src, func(c *Config) { c.LegacyTokensEnabled = false })
 	if len(rep.Warnings) != 1 || !strings.Contains(rep.Warnings[0], "GROUPWARE_LEGACY_TOKEN_SECRET") {
 		t.Fatalf("warnings = %v", rep.Warnings)
+	}
+}
+
+// byNameMapper reports the given groups as matched by display name.
+type byNameMapper struct {
+	Mapper
+	groups []string
+}
+
+func (m byNameMapper) Map(ctx context.Context, users, groups []string) (idmap.Result, error) {
+	res, err := m.Mapper.Map(ctx, users, groups)
+	res.GroupsByName = m.groups
+	return res, err
+}
+
+func TestReportListsGroupsMatchedByName(t *testing.T) {
+	e := newEnv(t, "s")
+	m := byNameMapper{Mapper: csvMapper(t, []string{"alice", "bob"}, []string{"team"}), groups: []string{"team"}}
+	rep, err := Run(context.Background(), e.config(small(), m))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var text strings.Builder
+	if err := rep.WriteText(&text); err != nil {
+		t.Fatal(err)
+	}
+	if want := "Groups matched to oCIS by display name\n  team\n"; !strings.Contains(text.String(), want) {
+		t.Fatalf("report lacks %q:\n%s", want, text.String())
+	}
+	// The share to the group is still written, and nobody gets its members.
+	members := e.shares.Members(store.CollectionRef{Owner: "migrated-ocis-alice", Kind: store.KindCalendar, Name: "work"})
+	if len(members) != 2 {
+		t.Fatalf("members = %+v", members)
+	}
+	for _, owner := range []string{"migrated-ocis-alice", "migrated-ocis-bob"} {
+		if id, _ := e.reg.Identity(owner); len(id.Groups) != 0 {
+			t.Fatalf("%s has groups %+v", owner, id.Groups)
+		}
 	}
 }

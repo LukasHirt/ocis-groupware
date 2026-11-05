@@ -74,9 +74,7 @@ func TestMigrateTheClassicFixture(t *testing.T) {
 		want := map[string]string{
 			"bob <- migrated-ocis-alice/work":       "readwrite",
 			"bob <- migrated-ocis-alice/friends":    "readwrite",
-			"carol <- migrated-ocis-alice/work":     "read",
 			"carol <- migrated-ocis-alice/personal": "read",
-			"carol <- migrated-ocis-alice/friends":  "read",
 			"alice <- migrated-ocis-bob/projects":   "readwrite",
 			"alice <- migrated-ocis-bob/contacts":   "read",
 		}
@@ -84,6 +82,12 @@ func TestMigrateTheClassicFixture(t *testing.T) {
 			if got[k] != v {
 				t.Errorf("%s = %q, want %q", k, got[k], v)
 			}
+		}
+		// carol is in the classic group that alice shares with, but her
+		// membership is not imported. She gets those collections with her
+		// first sign-in.
+		if len(got) != len(want) {
+			t.Errorf("received shares = %v, want %v", got, want)
 		}
 
 		// The classic app tokens sign in with their old values.

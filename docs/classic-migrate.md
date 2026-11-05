@@ -49,7 +49,10 @@ For every enabled classic user that maps to an oCIS user:
 - A principal with the classic login as username and the owner
   `migrated-<oCIS user id>`. It has no subject until the user signs in with a
   token for the first time, which binds it. Until then the user can sign in with
-  an app password. No default calendar or address book is created for it.
+  an app password. No default calendar or address book is created for it. It
+  has no group memberships either. A classic group that shares a name with an
+  oCIS group is not evidence that the user is in that oCIS group, so the groups
+  come with the first sign-in, from oCIS.
 - Their calendars and address books with URIs, names, descriptions, colours,
   order and time zone, and every event and contact byte for byte. The ETags
   differ, since the service derives them from the content, so clients do one full
@@ -59,9 +62,17 @@ For every enabled classic user that maps to an oCIS user:
   password. A token that was never used expires after 180 days.
 - The shares of their collections, as grants to the oCIS user or group the
   recipient maps to. Read-only becomes read, read-write becomes read-write.
+  A share to a group reaches the members of the oCIS group, through the
+  memberships their own sign-in recorded. The report lists the groups that were
+  matched to an oCIS group by display name, not by the `--groups` file, so check
+  them in the dry run.
 
 A user who has signed in to the service already is found by oCIS id, and the data
 is added to what they have.
+
+Until a migrated user opens oCIS Web once, they do not see over DAV the
+collections that were shared with their groups. Ask users to sign in to oCIS
+after the migration.
 
 ## What is not copied
 
