@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -23,11 +24,15 @@ const adminUsage = `usage: ocis-groupware admin [--config <file>] [--socket <pat
 
 commands:
   list [--json]                        every user, one per line
-  disable (<username> | --sub <sub>)   refuse the user's sign-ins
-  enable  (<username> | --sub <sub>)   let the user sign in again
-  purge   (<username> | --sub <sub>) [--yes]
-                                       delete a disabled user's data; without
+  disable <user>                       refuse the user's sign-ins
+  enable  <user>                       let the user sign in again
+  purge   <user> [--yes]               delete a disabled user's data; without
                                        --yes it only shows what would go
+
+<user> is a username, "--sub <sub>" or "--owner <owner>". The owner is the
+name the user's data is kept under; for a user who signed in on their own it
+equals the sub. A user imported before the first sign-in has an owner and no
+sub.
 
 The command talks to the running service over its admin socket, so the
 configuration (--config, GROUPWARE_DATA_DIR, GROUPWARE_ADMIN_SOCKET) must name
@@ -41,6 +46,7 @@ type adminCommand struct {
 	verb       string
 	username   string
 	sub        string
+	owner      string
 	json       bool
 	yes        bool
 }
@@ -87,8 +93,10 @@ func parseAdmin(args []string) (adminCommand, error) {
 		verb.BoolVar(&cmd.json, "json", false, "")
 	case "disable", "enable":
 		verb.StringVar(&cmd.sub, "sub", "", "")
+		verb.StringVar(&cmd.owner, "owner", "", "")
 	case "purge":
 		verb.StringVar(&cmd.sub, "sub", "", "")
+		verb.StringVar(&cmd.owner, "owner", "", "")
 		verb.BoolVar(&cmd.yes, "yes", false, "")
 	default:
 		return cmd, fmt.Errorf("unknown command %q", cmd.verb)
@@ -103,23 +111,28 @@ func parseAdmin(args []string) (adminCommand, error) {
 		}
 		return cmd, nil
 	}
-	subGiven := false
-	verb.Visit(func(f *flag.Flag) {
-		if f.Name == "sub" {
-			subGiven = true
-		}
-	})
-	switch {
-	case len(positional) > 1:
+	given := map[string]bool{}
+	verb.Visit(func(f *flag.Flag) { given[f.Name] = true })
+	if len(positional) > 1 {
 		return cmd, fmt.Errorf("%s takes one username", cmd.verb)
-	case len(positional) == 1 && subGiven:
-		return cmd, errors.New("give a username or --sub, not both")
+	}
+	n := len(positional)
+	for _, name := range []string{"sub", "owner"} {
+		if given[name] {
+			n++
+		}
+	}
+	switch {
+	case n == 0:
+		return cmd, fmt.Errorf("%s needs a username, --sub or --owner", cmd.verb)
+	case n > 1:
+		return cmd, errors.New("give a username, --sub or --owner, only one of them")
 	case len(positional) == 1:
 		cmd.username = positional[0]
-	case subGiven && strings.TrimSpace(cmd.sub) == "":
+	case given["sub"] && strings.TrimSpace(cmd.sub) == "":
 		return cmd, errors.New("--sub must not be empty")
-	case !subGiven:
-		return cmd, fmt.Errorf("%s needs a username or --sub", cmd.verb)
+	case given["owner"] && strings.TrimSpace(cmd.owner) == "":
+		return cmd, errors.New("--owner must not be empty")
 	}
 	return cmd, nil
 }
@@ -185,15 +198,19 @@ func (cmd adminCommand) purge(c *adminClient, stdout io.Writer) error {
 	switch {
 	case err == nil && !p.Disabled:
 		return cmd.notDisabled(p)
-	case err != nil && cmd.sub != "":
+	case err != nil && cmd.owner != "":
 		// A directory that lost its principal.json is not listed, but the
-		// service can still purge it by sub.
-		p = principal{Sub: cmd.sub}
+		// service can still purge it by owner.
+		p = principal{Owner: cmd.owner}
+	case err != nil && cmd.sub != "":
+		// Without a principal.json the owner of the directory is taken to
+		// be the sub, as it is for every user who signed in on their own.
+		p = principal{Owner: cmd.sub, Sub: cmd.sub}
 	case err != nil:
 		return err
 	}
 
-	raw, err := c.do(http.MethodPost, "/v1/principals/purge", map[string]any{"sub": p.Sub, "dry_run": !cmd.yes})
+	raw, err := c.do(http.MethodPost, "/v1/principals/purge", map[string]any{"owner": p.Owner, "dry_run": !cmd.yes})
 	var status *statusError
 	switch {
 	case err == nil:
@@ -233,8 +250,11 @@ func (cmd adminCommand) purge(c *adminClient, stdout io.Writer) error {
 // selector the command was given.
 func (cmd adminCommand) notDisabled(p principal) error {
 	selector := cmd.username
-	if selector == "" {
+	switch {
+	case cmd.sub != "":
 		selector = "--sub " + cmd.sub
+	case cmd.owner != "":
+		selector = "--owner " + cmd.owner
 	}
 	return fmt.Errorf("%s is not disabled; run \"admin principals disable %s\" first", nameOf(p), selector)
 }
@@ -246,15 +266,24 @@ func plural(n int, one, many string) string {
 	return fmt.Sprintf("%d %s", n, many)
 }
 
-// resolve finds the user the command names, by username or by sub, in the
-// service's list. The admin API works on subs only.
+// resolve finds the user the command names, by username, sub or owner, in the
+// service's list. The admin API works on owners only.
 func (cmd adminCommand) resolve(c *adminClient) (principal, error) {
 	list, _, err := c.list()
 	if err != nil {
 		return principal{}, err
 	}
 	for _, p := range list {
-		if cmd.username != "" && p.Username == cmd.username || cmd.username == "" && p.Sub == cmd.sub {
+		switch {
+		case cmd.username != "":
+			if p.Username == cmd.username {
+				return p, nil
+			}
+		case cmd.owner != "":
+			if p.Owner == cmd.owner {
+				return p, nil
+			}
+		case p.Sub == cmd.sub:
 			return p, nil
 		}
 	}
@@ -265,16 +294,24 @@ func (cmd adminCommand) notFound() error {
 	if cmd.username != "" {
 		return fmt.Errorf("no user named %q", cmd.username)
 	}
+	if cmd.owner != "" {
+		return fmt.Errorf("no user with owner %q", cmd.owner)
+	}
 	return fmt.Errorf("no user with sub %q", cmd.sub)
 }
 
 // label names a user in output: the username with the sub in brackets, or
-// the sub alone for a user without a username.
+// the sub alone for a user without a username. A user whose data is kept under
+// another name than the sub, or who has no sub yet, is shown by owner.
 func label(p principal) string {
 	if p.Username == "" {
-		return p.Sub
+		return p.Owner
 	}
-	return fmt.Sprintf("%s (sub %s)", p.Username, p.Sub)
+	kind := "owner"
+	if p.Sub == p.Owner {
+		kind = "sub"
+	}
+	return fmt.Sprintf("%s (%s %s)", p.Username, kind, p.Owner)
 }
 
 func (cmd adminCommand) setDisabled(c *adminClient, stdout io.Writer, disabled bool) error {
@@ -290,17 +327,17 @@ func (cmd adminCommand) setDisabled(c *adminClient, stdout io.Writer, disabled b
 		_, err := fmt.Fprintf(stdout, "%s is already %s\n", nameOf(p), state)
 		return err
 	}
-	if _, err := c.do(http.MethodPost, "/v1/principals/"+cmd.verb, map[string]string{"sub": p.Sub}); err != nil {
+	if _, err := c.do(http.MethodPost, "/v1/principals/"+cmd.verb, map[string]string{"owner": p.Owner}); err != nil {
 		return err
 	}
 	_, err = fmt.Fprintf(stdout, "%s %s\n", state, label(p))
 	return err
 }
 
-// nameOf is the username, or the sub for a user without one.
+// nameOf is the username, or the owner for a user without one.
 func nameOf(p principal) string {
 	if p.Username == "" {
-		return p.Sub
+		return p.Owner
 	}
 	return p.Username
 }
@@ -315,7 +352,14 @@ func (cmd adminCommand) list(c *adminClient, stdout io.Writer) error {
 		return err
 	}
 	tw := tabwriter.NewWriter(stdout, 0, 0, 3, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "USERNAME\tDISPLAY NAME\tSTATE\tCREATED\tSUB")
+	// The owner has a column of its own only when it differs from the sub
+	// for someone: for users who signed in on their own, it is the same value.
+	withOwner := slices.ContainsFunc(list, func(p principal) bool { return p.Owner != p.Sub })
+	header := "USERNAME\tDISPLAY NAME\tSTATE\tCREATED"
+	if withOwner {
+		header += "\tOWNER"
+	}
+	_, _ = fmt.Fprintln(tw, header+"\tSUB")
 	for _, p := range list {
 		name := p.Username
 		if name == "" {
@@ -325,14 +369,22 @@ func (cmd adminCommand) list(c *adminClient, stdout io.Writer) error {
 		if p.Disabled {
 			state = "disabled"
 		}
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", name, p.DisplayName, state,
-			p.CreatedAt.UTC().Format("2006-01-02 15:04 UTC"), p.Sub)
+		sub := p.Sub
+		if sub == "" {
+			sub = "-"
+		}
+		row := fmt.Sprintf("%s\t%s\t%s\t%s", name, p.DisplayName, state, p.CreatedAt.UTC().Format("2006-01-02 15:04 UTC"))
+		if withOwner {
+			row += "\t" + p.Owner
+		}
+		_, _ = fmt.Fprintln(tw, row+"\t"+sub)
 	}
 	return tw.Flush()
 }
 
 // principal is a principal as the admin API lists it.
 type principal struct {
+	Owner       string    `json:"owner"`
 	Sub         string    `json:"sub"`
 	Username    string    `json:"username"`
 	DisplayName string    `json:"display_name"`

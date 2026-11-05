@@ -34,7 +34,7 @@ type Identities struct {
 	now    func() time.Time
 
 	mu       sync.Mutex
-	attempts map[string]time.Time // by sub
+	attempts map[string]time.Time // by owner
 }
 
 // IdentitiesOption configures Identities.
@@ -66,17 +66,17 @@ func (i *Identities) SignIn(ctx context.Context, claims auth.Claims, token strin
 	if status != 0 {
 		return p, status, msg
 	}
-	i.Refresh(ctx, p.Sub, token)
+	i.Refresh(ctx, p.Owner, token)
 	return p, 0, ""
 }
 
-// Refresh looks up the identity of the principal sub with token and stores it,
+// Refresh looks up the identity of the principal that owns owner with token and stores it,
 // unless a snapshot or an attempt is younger than RefreshInterval.
-func (i *Identities) Refresh(ctx context.Context, sub, token string) {
+func (i *Identities) Refresh(ctx context.Context, owner, token string) {
 	if i == nil || i.graph == nil || token == "" {
 		return
 	}
-	current, err := i.reg.Identity(sub)
+	current, err := i.reg.Identity(owner)
 	if err != nil {
 		return
 	}
@@ -85,19 +85,19 @@ func (i *Identities) Refresh(ctx context.Context, sub, token string) {
 		return
 	}
 	i.mu.Lock()
-	if last, ok := i.attempts[sub]; ok && now.Sub(last) < RefreshInterval {
+	if last, ok := i.attempts[owner]; ok && now.Sub(last) < RefreshInterval {
 		i.mu.Unlock()
 		return
 	}
-	i.attempts[sub] = now
+	i.attempts[owner] = now
 	i.mu.Unlock()
 
 	user, err := i.graph.Me(ctx, token)
 	if err != nil {
 		if errors.Is(err, ocisgraph.ErrUnauthorized) {
-			i.logger.Info("oCIS refused the token for the identity lookup, keeping the snapshot", "sub", sub, "error", err)
+			i.logger.Info("oCIS refused the token for the identity lookup, keeping the snapshot", "owner", owner, "error", err)
 		} else {
-			i.logger.Warn("could not look up the oCIS identity, keeping the snapshot", "sub", sub, "error", err)
+			i.logger.Warn("could not look up the oCIS identity, keeping the snapshot", "owner", owner, "error", err)
 		}
 		return
 	}
@@ -105,11 +105,11 @@ func (i *Identities) Refresh(ctx context.Context, sub, token string) {
 	for _, g := range user.Groups {
 		id.Groups = append(id.Groups, principals.Group{ID: g.ID, Name: g.Name})
 	}
-	if err := i.reg.SetIdentity(ctx, sub, id); err != nil {
+	if err := i.reg.SetIdentity(ctx, owner, id); err != nil {
 		if errors.Is(err, principals.ErrDisabled) {
-			i.logger.Debug("identity of a disabled principal left alone", "sub", sub)
+			i.logger.Debug("identity of a disabled principal left alone", "owner", owner)
 			return
 		}
-		i.logger.Error("could not store the oCIS identity", "sub", sub, "error", err)
+		i.logger.Error("could not store the oCIS identity", "owner", owner, "error", err)
 	}
 }

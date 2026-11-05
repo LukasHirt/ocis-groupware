@@ -44,7 +44,7 @@ func TestServeAnswersOnTheSocket(t *testing.T) {
 		t.Fatalf("GET = %d %s", resp.StatusCode, body)
 	}
 
-	resp, err = client.Post("http://admin/v1/principals/disable", "application/json", strings.NewReader(`{"sub":"sub-1"}`))
+	resp, err = client.Post("http://admin/v1/principals/disable", "application/json", strings.NewReader(`{"owner":"sub-1"}`))
 	if err != nil {
 		t.Fatalf("POST over the socket: %v", err)
 	}

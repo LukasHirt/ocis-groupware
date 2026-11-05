@@ -39,7 +39,7 @@ type CalendarSource interface {
 type ownCalendars struct{ st store.Store }
 
 func (o ownCalendars) Calendars(ctx context.Context, user principals.Principal) ([]CalendarEntry, error) {
-	cols, err := o.st.ListCollections(ctx, user.Sub, store.KindCalendar)
+	cols, err := o.st.ListCollections(ctx, user.Owner, store.KindCalendar)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (a *Handler) myCalendars(ctx context.Context, user principals.Principal) ([
 	if err != nil {
 		return nil, nil, -1, err
 	}
-	owned := func(e CalendarEntry) bool { return e.Collection.Ref.Owner == user.Sub }
+	owned := func(e CalendarEntry) bool { return e.Collection.Ref.Owner == user.Owner }
 	slices.SortFunc(entries, func(x, y CalendarEntry) int {
 		switch {
 		case owned(x) != owned(y):
@@ -153,7 +153,7 @@ func (a *Handler) findCalendar(ctx context.Context, user principals.Principal, i
 	}
 	list, entries, _, err := a.myCalendars(ctx, user)
 	if err != nil {
-		a.logger.Error("could not list calendars", "sub", user.Sub, "error", err)
+		a.logger.Error("could not list calendars", "owner", user.Owner, "error", err)
 		return CalendarEntry{}, calendarJSON{}, internalError()
 	}
 	for i, e := range entries {
@@ -169,7 +169,7 @@ func (a *Handler) findCalendar(ctx context.Context, user principals.Principal, i
 func (a *Handler) listCalendars(w http.ResponseWriter, r *http.Request, c *call) {
 	list, _, _, err := a.myCalendars(r.Context(), c.caller)
 	if err != nil {
-		a.logger.Error("could not list calendars", "sub", c.caller.Sub, "error", err)
+		a.logger.Error("could not list calendars", "owner", c.caller.Owner, "error", err)
 		writeError(w, internalError())
 		return
 	}
@@ -189,7 +189,7 @@ func (a *Handler) getCalendar(w http.ResponseWriter, r *http.Request, c *call) {
 func (a *Handler) defaultCalendar(ctx context.Context, user principals.Principal) (CalendarEntry, *apiError) {
 	_, entries, def, err := a.myCalendars(ctx, user)
 	if err != nil {
-		a.logger.Error("could not list calendars", "sub", user.Sub, "error", err)
+		a.logger.Error("could not list calendars", "owner", user.Owner, "error", err)
 		return CalendarEntry{}, internalError()
 	}
 	if def < 0 {
@@ -263,7 +263,7 @@ func (a *Handler) createCalendar(w http.ResponseWriter, r *http.Request, c *call
 	if u.Color != nil {
 		props.Color = *u.Color
 	}
-	ref := store.CollectionRef{Owner: c.caller.Sub, Kind: store.KindCalendar, Name: newCollectionName()}
+	ref := store.CollectionRef{Owner: c.caller.Owner, Kind: store.KindCalendar, Name: newCollectionName()}
 	col, err := a.cfg.Store.CreateCollection(r.Context(), ref, props)
 	if err != nil {
 		writeError(w, a.storeError("create a calendar", c.caller, err))
@@ -358,6 +358,6 @@ func (a *Handler) storeError(action string, user principals.Principal, err error
 	case errors.Is(err, store.ErrInvalidName):
 		return badRequest("the name is not valid")
 	}
-	a.logger.Error("could not "+action, "sub", user.Sub, "error", err)
+	a.logger.Error("could not "+action, "owner", user.Owner, "error", err)
 	return internalError()
 }

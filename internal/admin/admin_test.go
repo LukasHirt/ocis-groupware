@@ -42,6 +42,7 @@ func (b *syncBuffer) String() string {
 // fixture is the admin handler over a registry on the real file store, with
 // alice (sub-1) and bob (sub-2) provisioned.
 type fixture struct {
+	dataDir string
 	fs      *filestore.Store
 	reg     *principals.Registry
 	logs    *syncBuffer
@@ -67,7 +68,7 @@ func newFixture(t *testing.T) *fixture {
 			t.Fatalf("Provision(%q): %v", p[0], err)
 		}
 	}
-	return &fixture{fs: fs, reg: reg, logs: logs, handler: Handler(reg, logger)}
+	return &fixture{dataDir: dir, fs: fs, reg: reg, logs: logs, handler: Handler(reg, logger)}
 }
 
 // do sends a request to the handler. A non-empty body is sent as JSON.
@@ -108,6 +109,7 @@ func (f *fixture) issue(t *testing.T, sub, name string) {
 }
 
 type listedPrincipal struct {
+	Owner       string `json:"owner"`
 	Sub         string `json:"sub"`
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
@@ -191,7 +193,7 @@ func TestListIsEmptyArrayWithoutPrincipals(t *testing.T) {
 func TestDisableAndEnable(t *testing.T) {
 	f := newFixture(t)
 
-	rec := f.do(http.MethodPost, "/v1/principals/disable", `{"sub":"sub-1"}`)
+	rec := f.do(http.MethodPost, "/v1/principals/disable", `{"owner":"sub-1"}`)
 	assertStatus(t, rec, http.StatusOK)
 	var p listedPrincipal
 	decode(t, rec, &p)
@@ -202,15 +204,15 @@ func TestDisableAndEnable(t *testing.T) {
 		t.Fatal("principal is not disabled in the registry")
 	}
 	if logs := f.logs.String(); !strings.Contains(logs, "principal disabled by admin") ||
-		!strings.Contains(logs, "sub=sub-1") || !strings.Contains(logs, "username=alice") {
+		!strings.Contains(logs, "owner=sub-1") || !strings.Contains(logs, "username=alice") {
 		t.Fatalf("no audit line for the disable in logs:\n%s", logs)
 	}
 
 	// Disabling twice is fine: the answer is the same.
-	rec = f.do(http.MethodPost, "/v1/principals/disable", `{"sub":"sub-1"}`)
+	rec = f.do(http.MethodPost, "/v1/principals/disable", `{"owner":"sub-1"}`)
 	assertStatus(t, rec, http.StatusOK)
 
-	rec = f.do(http.MethodPost, "/v1/principals/enable", `{"sub":"sub-1"}`)
+	rec = f.do(http.MethodPost, "/v1/principals/enable", `{"owner":"sub-1"}`)
 	assertStatus(t, rec, http.StatusOK)
 	decode(t, rec, &p)
 	if p.Disabled {
@@ -227,13 +229,13 @@ func TestDisableAndEnable(t *testing.T) {
 func TestDisableUnknownSub(t *testing.T) {
 	f := newFixture(t)
 	for _, verb := range []string{"disable", "enable"} {
-		rec := f.do(http.MethodPost, "/v1/principals/"+verb, `{"sub":"nobody"}`)
+		rec := f.do(http.MethodPost, "/v1/principals/"+verb, `{"owner":"nobody"}`)
 		assertError(t, rec, http.StatusNotFound, "not found")
 	}
 }
 
 type purgeJSON struct {
-	Sub          string `json:"sub"`
+	Owner        string `json:"owner"`
 	Calendars    int    `json:"calendars"`
 	AddressBooks int    `json:"addressbooks"`
 	AppPasswords int    `json:"app_passwords"`
@@ -243,7 +245,7 @@ func TestPurgeRefusesEnabledPrincipal(t *testing.T) {
 	f := newFixture(t)
 	f.createCollection(t, "sub-1", store.KindCalendar, "work")
 
-	rec := f.do(http.MethodPost, "/v1/principals/purge", `{"sub":"sub-1"}`)
+	rec := f.do(http.MethodPost, "/v1/principals/purge", `{"owner":"sub-1"}`)
 	assertError(t, rec, http.StatusConflict, "principal is not disabled")
 	if _, err := os.Stat(f.fs.OwnerDir("sub-1")); err != nil {
 		t.Fatalf("owner directory was touched: %v", err)
@@ -264,11 +266,11 @@ func TestPurgeDryRunCountsAndKeeps(t *testing.T) {
 	f.issue(t, "sub-1", "Tablet")
 	f.disable(t, "sub-1")
 
-	rec := f.do(http.MethodPost, "/v1/principals/purge", `{"sub":"sub-1","dry_run":true}`)
+	rec := f.do(http.MethodPost, "/v1/principals/purge", `{"owner":"sub-1","dry_run":true}`)
 	assertStatus(t, rec, http.StatusOK)
 	var report purgeJSON
 	decode(t, rec, &report)
-	want := purgeJSON{Sub: "sub-1", Calendars: 3, AddressBooks: 2, AppPasswords: 3}
+	want := purgeJSON{Owner: "sub-1", Calendars: 3, AddressBooks: 2, AppPasswords: 3}
 	if report != want {
 		t.Fatalf("dry run = %+v, want %+v", report, want)
 	}
@@ -286,11 +288,11 @@ func TestPurge(t *testing.T) {
 	f.issue(t, "sub-1", "Phone")
 	f.disable(t, "sub-1")
 
-	rec := f.do(http.MethodPost, "/v1/principals/purge", `{"sub":"sub-1"}`)
+	rec := f.do(http.MethodPost, "/v1/principals/purge", `{"owner":"sub-1"}`)
 	assertStatus(t, rec, http.StatusOK)
 	var report purgeJSON
 	decode(t, rec, &report)
-	want := purgeJSON{Sub: "sub-1", Calendars: 2, AddressBooks: 1, AppPasswords: 1}
+	want := purgeJSON{Owner: "sub-1", Calendars: 2, AddressBooks: 1, AppPasswords: 1}
 	if report != want {
 		t.Fatalf("purge = %+v, want %+v", report, want)
 	}
@@ -301,11 +303,11 @@ func TestPurge(t *testing.T) {
 		t.Fatalf("Get after purge = %v, want ErrNotFound", err)
 	}
 	if logs := f.logs.String(); !strings.Contains(logs, "principal purged by admin") ||
-		!strings.Contains(logs, "sub=sub-1") || !strings.Contains(logs, "username=alice") {
+		!strings.Contains(logs, "owner=sub-1") || !strings.Contains(logs, "username=alice") {
 		t.Fatalf("no audit line for the purge in logs:\n%s", logs)
 	}
 
-	rec = f.do(http.MethodPost, "/v1/principals/purge", `{"sub":"sub-1"}`)
+	rec = f.do(http.MethodPost, "/v1/principals/purge", `{"owner":"sub-1"}`)
 	assertError(t, rec, http.StatusNotFound, "not found")
 }
 
@@ -319,11 +321,11 @@ func TestBadRequests(t *testing.T) {
 		status int
 	}{
 		{"not json", http.MethodPost, "/v1/principals/disable", `sub-1`, http.StatusBadRequest},
-		{"unknown field", http.MethodPost, "/v1/principals/disable", `{"sub":"sub-1","force":true}`, http.StatusBadRequest},
-		{"empty sub", http.MethodPost, "/v1/principals/disable", `{"sub":""}`, http.StatusBadRequest},
+		{"unknown field", http.MethodPost, "/v1/principals/disable", `{"owner":"sub-1","force":true}`, http.StatusBadRequest},
+		{"empty owner", http.MethodPost, "/v1/principals/disable", `{"owner":""}`, http.StatusBadRequest},
 		{"no body", http.MethodPost, "/v1/principals/disable", ``, http.StatusBadRequest},
-		{"two values", http.MethodPost, "/v1/principals/purge", `{"sub":"sub-1"} {}`, http.StatusBadRequest},
-		{"too large", http.MethodPost, "/v1/principals/enable", `{"sub":"` + strings.Repeat("x", 5000) + `"}`, http.StatusRequestEntityTooLarge},
+		{"two values", http.MethodPost, "/v1/principals/purge", `{"owner":"sub-1"} {}`, http.StatusBadRequest},
+		{"too large", http.MethodPost, "/v1/principals/enable", `{"owner":"` + strings.Repeat("x", 5000) + `"}`, http.StatusRequestEntityTooLarge},
 		{"list is GET only", http.MethodPost, "/v1/principals", `{}`, http.StatusMethodNotAllowed},
 		{"disable is POST only", http.MethodGet, "/v1/principals/disable", ``, http.StatusMethodNotAllowed},
 		{"purge is POST only", http.MethodDelete, "/v1/principals/purge", ``, http.StatusMethodNotAllowed},
@@ -349,5 +351,56 @@ func TestBadRequests(t *testing.T) {
 	// Nothing above changed alice.
 	if p, err := f.reg.Get("sub-1"); err != nil || p.Disabled {
 		t.Fatalf("alice after the bad requests: %+v, %v", p, err)
+	}
+}
+
+func TestPrincipalWithOwnerApartFromSub(t *testing.T) {
+	f := newFixture(t)
+	dir := f.fs.OwnerDir("migrated-1")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	file := `{"owner":"migrated-1","username":"carol","display_name":"Carol","created_at":"2026-10-30T09:12:00Z","defaults_created":true}`
+	if err := os.WriteFile(dir+"/principal.json", []byte(file), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	reg, err := principals.NewRegistry(f.dataDir, f.fs, f.fs.OwnerDir, nil, principals.WithBcryptCost(bcrypt.MinCost))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.reg, f.handler = reg, Handler(reg, nil)
+	f.createCollection(t, "migrated-1", store.KindCalendar, "work")
+
+	var list struct {
+		Principals []listedPrincipal `json:"principals"`
+	}
+	decode(t, f.do(http.MethodGet, "/v1/principals", ""), &list)
+	var carol *listedPrincipal
+	for i := range list.Principals {
+		if list.Principals[i].Username == "carol" {
+			carol = &list.Principals[i]
+		}
+	}
+	if carol == nil || carol.Owner != "migrated-1" || carol.Sub != "" {
+		t.Fatalf("list = %+v", list.Principals)
+	}
+
+	if rec := f.do(http.MethodPost, "/v1/principals/purge", `{"owner":"migrated-1"}`); rec.Code != http.StatusConflict {
+		t.Fatalf("purge of an enabled principal = %d", rec.Code)
+	}
+	if rec := f.do(http.MethodPost, "/v1/principals/disable", `{"owner":"migrated-1"}`); rec.Code != http.StatusOK {
+		t.Fatalf("disable = %d %s", rec.Code, rec.Body)
+	}
+	var got purgeJSON
+	rec := f.do(http.MethodPost, "/v1/principals/purge", `{"owner":"migrated-1","dry_run":true}`)
+	decode(t, rec, &got)
+	if rec.Code != http.StatusOK || got.Calendars != 1 {
+		t.Fatalf("dry run = %d %+v", rec.Code, got)
+	}
+	if rec := f.do(http.MethodPost, "/v1/principals/purge", `{"owner":"migrated-1"}`); rec.Code != http.StatusOK {
+		t.Fatalf("purge = %d %s", rec.Code, rec.Body)
+	}
+	if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("owner directory remains: %v", err)
 	}
 }

@@ -1,7 +1,10 @@
 // Package principals keeps the registry of users (principals) that have used
 // the service. Each principal is a file, principal.json, in the owner's
-// directory of the groupkit file store. An in-memory index maps usernames to
-// subjects.
+// directory of the groupkit file store. The owner is the key of the user's
+// data. It is the subject from the identity provider for users who signed in
+// themselves, and a name of its own for users who were imported before they
+// signed in and have no subject yet. In-memory indexes map usernames and
+// subjects to owners.
 package principals
 
 import (
@@ -33,8 +36,13 @@ const ownersDirName = "owners"
 
 // Principal is a user known to the service.
 type Principal struct {
-	// Sub is the subject from the identity provider. It never changes and
-	// owns the user's data.
+	// Owner keys the user's data: the owner directory, the collections, the
+	// app passwords and the shares. It never changes. It equals Sub unless the
+	// principal was imported before its user signed in.
+	Owner string
+	// Sub is the subject from the identity provider. It never changes once
+	// set. It is empty for an imported principal whose user has not signed
+	// in yet.
 	Sub string
 	// Username is the name that appears in URLs. It is empty when another
 	// principal has taken the name over and this one has not logged in since.
@@ -56,7 +64,10 @@ var (
 
 // record is the content of principal.json.
 type record struct {
-	Sub         string    `json:"sub"`
+	// Owner keys the data of the principal. A file without it counts as
+	// owned by its subject.
+	Owner       string    `json:"owner,omitempty"`
+	Sub         string    `json:"sub,omitempty"`
 	Username    string    `json:"username"`
 	DisplayName string    `json:"display_name"`
 	CreatedAt   time.Time `json:"created_at"`
@@ -82,7 +93,7 @@ type record struct {
 
 func (rec record) principal() Principal {
 	return Principal{
-		Sub: rec.Sub, Username: rec.Username, DisplayName: rec.DisplayName,
+		Owner: rec.Owner, Sub: rec.Sub, Username: rec.Username, DisplayName: rec.DisplayName,
 		CreatedAt: rec.CreatedAt, Disabled: rec.Disabled,
 	}
 }
@@ -93,8 +104,8 @@ var tempPrefixes = []string{
 	"." + appPasswordsFileName + ".tmp-",
 }
 
-// Registry keeps principals in <ownerDir(sub)>/principal.json and a username
-// index in memory. It is safe for concurrent use.
+// Registry keeps principals in <ownerDir(owner)>/principal.json and username
+// and subject indexes in memory. It is safe for concurrent use.
 type Registry struct {
 	dataDir  string
 	st       store.Store
@@ -108,8 +119,9 @@ type Registry struct {
 	// for a login that changed a name or created a principal; logins that
 	// change nothing take only the read lock.
 	mu         sync.RWMutex
-	principals map[string]record // by sub
-	byUsername map[string]string // username to sub
+	principals map[string]record // by owner
+	byUsername map[string]string // username to owner
+	bySub      map[string]string // subject to owner
 
 	// shares holds the shares of the principals' collections, see SetShares.
 	shares ShareCleaner
@@ -122,7 +134,7 @@ type Registry struct {
 	// that it costs the same as checking a wrong password.
 	dummyHash []byte
 	appsMu    sync.Mutex
-	apps      map[string]*appSet // by sub
+	apps      map[string]*appSet // by owner
 	// beforeCachePut, if set, runs in VerifyBasic between the last check of
 	// the app password and storing it in the cache. Tests use it to revoke
 	// the password in exactly that gap.
@@ -166,6 +178,7 @@ func NewRegistry(dataDir string, st store.Store, ownerDir func(owner string) str
 		syncDir:    syncDir,
 		principals: make(map[string]record),
 		byUsername: make(map[string]string),
+		bySub:      make(map[string]string),
 		bcryptCost: defaultBcryptCost,
 		compare:    bcrypt.CompareHashAndPassword,
 		cache:      newCredentialCache(cacheTTL),
@@ -221,23 +234,29 @@ func (r *Registry) load() error {
 		if c := a.UpdatedAt.Compare(b.UpdatedAt); c != 0 {
 			return c
 		}
-		return cmp.Compare(a.Sub, b.Sub)
+		return cmp.Compare(a.Owner, b.Owner)
 	})
 	for _, rec := range recs {
 		if rec.Username != "" {
 			if prev, ok := r.byUsername[rec.Username]; ok {
 				r.logger.Warn("username claimed by more than one principal, the newer claim wins",
-					"username", rec.Username, "sub", rec.Sub, "previous_sub", prev)
+					"username", rec.Username, "owner", rec.Owner, "previous_owner", prev)
 				released := r.principals[prev]
 				released.Username = ""
 				if err := r.writeRecord(released); err != nil {
-					r.logger.Error("could not release username in principal file", "sub", prev, "error", err)
+					r.logger.Error("could not release username in principal file", "owner", prev, "error", err)
 				}
 				r.principals[prev] = released
 			}
-			r.byUsername[rec.Username] = rec.Sub
+			r.byUsername[rec.Username] = rec.Owner
 		}
-		r.principals[rec.Sub] = rec
+		if prev, ok := r.bySub[rec.Sub]; rec.Sub != "" && ok {
+			r.logger.Warn("subject claimed by more than one principal file, the first stays bound",
+				"sub", rec.Sub, "owner", rec.Owner, "bound_owner", prev)
+		} else if rec.Sub != "" {
+			r.bySub[rec.Sub] = rec.Owner
+		}
+		r.principals[rec.Owner] = rec
 	}
 	return nil
 }
@@ -273,21 +292,32 @@ func (r *Registry) readRecord(dir string) (record, error) {
 	if err := json.Unmarshal(data, &rec); err != nil {
 		return record{}, fmt.Errorf("decode: %w", err)
 	}
-	if err := store.ValidateOwner(rec.Sub); err != nil {
-		return record{}, fmt.Errorf("sub: %w", err)
+	if rec.Owner == "" {
+		rec.Owner = rec.Sub
+	}
+	if err := store.ValidateOwner(rec.Owner); err != nil {
+		return record{}, fmt.Errorf("owner: %w", err)
+	}
+	if rec.Sub != "" {
+		if err := store.ValidateOwner(rec.Sub); err != nil {
+			return record{}, fmt.Errorf("sub: %w", err)
+		}
 	}
 	if rec.Username != "" {
 		if err := store.ValidateName(rec.Username); err != nil {
 			return record{}, fmt.Errorf("username: %w", err)
 		}
 	}
-	if filepath.Clean(r.ownerDir(rec.Sub)) != filepath.Clean(dir) {
-		return record{}, fmt.Errorf("file for sub %q is not in its owner directory", rec.Sub)
+	if filepath.Clean(r.ownerDir(rec.Owner)) != filepath.Clean(dir) {
+		return record{}, fmt.Errorf("file for owner %q is not in its owner directory", rec.Owner)
 	}
 	return rec, nil
 }
 
 // Provision returns the principal for sub and whether this call created it.
+// A subject that is not bound to a principal gets a new one that owns its data
+// under the subject as owner. A principal that was bound to the subject
+// earlier is found through it, whatever its owner is.
 // A new principal gets its file and the default address book and calendar.
 // For an existing principal, a changed username or display name is written
 // to its file.
@@ -314,7 +344,7 @@ func (r *Registry) Provision(ctx context.Context, sub, username, displayName str
 	}
 
 	r.mu.RLock()
-	rec, ok := r.principals[sub]
+	rec, ok := r.principals[r.bySub[sub]]
 	r.mu.RUnlock()
 	if ok && rec.Disabled {
 		return Principal{}, false, ErrDisabled
@@ -329,10 +359,10 @@ func (r *Registry) Provision(ctx context.Context, sub, username, displayName str
 	}
 	if !rec.DefaultsCreated {
 		// Concurrent first calls may both get here; groupkit makes that safe.
-		if err := groupkit.EnsureDefaultCollections(ctx, r.st, sub); err != nil {
+		if err := groupkit.EnsureDefaultCollections(ctx, r.st, rec.Owner); err != nil {
 			return Principal{}, false, fmt.Errorf("principals: default collections: %w", err)
 		}
-		r.markDefaultsCreated(sub)
+		r.markDefaultsCreated(rec.Owner)
 	}
 	return rec.principal(), created, nil
 }
@@ -343,7 +373,14 @@ func (r *Registry) save(sub, username, displayName string) (record, bool, error)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	old, exists := r.principals[sub]
+	owner, exists := r.bySub[sub]
+	if !exists {
+		owner = sub
+		if _, taken := r.principals[owner]; taken {
+			return record{}, false, fmt.Errorf("principals: %q is the owner of another principal", sub)
+		}
+	}
+	old := r.principals[owner]
 	if exists && old.Disabled {
 		// Checked again under the lock: the principal may have been disabled
 		// since Provision looked.
@@ -353,7 +390,7 @@ func (r *Registry) save(sub, username, displayName string) (record, bool, error)
 		return old, false, nil
 	}
 	now := r.now().UTC()
-	rec := record{Sub: sub, CreatedAt: now}
+	rec := record{Owner: owner, Sub: sub, CreatedAt: now}
 	if exists {
 		rec = old
 	}
@@ -364,14 +401,15 @@ func (r *Registry) save(sub, username, displayName string) (record, bool, error)
 		return record{}, false, err
 	}
 
-	if exists && old.Username != username && r.byUsername[old.Username] == sub {
+	if exists && old.Username != username && r.byUsername[old.Username] == owner {
 		delete(r.byUsername, old.Username)
 	}
-	if holder, ok := r.byUsername[username]; ok && holder != sub {
+	if holder, ok := r.byUsername[username]; ok && holder != owner {
 		r.release(holder, username, now)
 	}
-	r.byUsername[username] = sub
-	r.principals[sub] = rec
+	r.byUsername[username] = owner
+	r.bySub[sub] = owner
+	r.principals[owner] = rec
 	return rec, !exists, nil
 }
 
@@ -380,31 +418,31 @@ func (r *Registry) save(sub, username, displayName string) (record, bool, error)
 // since the caller looked; writing an older copy would hand the name back.
 // A failed write is only logged: the flag stays false, so the next Provision
 // ensures again (a no-op once the collections exist) and retries the write.
-func (r *Registry) markDefaultsCreated(sub string) {
+func (r *Registry) markDefaultsCreated(owner string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	rec, ok := r.principals[sub]
+	rec, ok := r.principals[owner]
 	if !ok || rec.DefaultsCreated {
 		return
 	}
 	rec.DefaultsCreated = true
 	if err := r.writeRecord(rec); err != nil {
-		r.logger.Warn("could not save that the default collections exist", "sub", sub, "error", err)
+		r.logger.Warn("could not save that the default collections exist", "owner", owner, "error", err)
 		return
 	}
-	r.principals[sub] = rec
+	r.principals[owner] = rec
 }
 
 // release takes username away from holder after another principal claimed
 // it. The caller holds r.mu. If the file cannot be written, the newer claim
 // still wins after a restart, so the error is only logged.
 func (r *Registry) release(holder, username string, now time.Time) {
-	r.logger.Warn("username moved to another principal", "username", username, "previous_sub", holder)
+	r.logger.Warn("username moved to another principal", "username", username, "previous_owner", holder)
 	rec := r.principals[holder]
 	rec.Username = ""
 	rec.UpdatedAt = now
 	if err := r.writeRecord(rec); err != nil {
-		r.logger.Error("could not release username in principal file", "sub", holder, "error", err)
+		r.logger.Error("could not release username in principal file", "owner", holder, "error", err)
 	}
 	r.principals[holder] = rec
 }
@@ -412,9 +450,9 @@ func (r *Registry) release(holder, username string, now time.Time) {
 // writeRecord replaces the principal file atomically. It creates the owner
 // directory when needed.
 func (r *Registry) writeRecord(rec record) error {
-	dir := r.ownerDir(rec.Sub)
+	dir := r.ownerDir(rec.Owner)
 	if dir == "" {
-		return fmt.Errorf("principals: no owner directory for sub %q", rec.Sub)
+		return fmt.Errorf("principals: no owner directory for owner %q", rec.Owner)
 	}
 	data, err := json.MarshalIndent(rec, "", "  ")
 	if err != nil {
@@ -510,31 +548,43 @@ func syncDir(dir string) error {
 	return d.Close()
 }
 
-// Get returns the principal for sub, or ErrNotFound.
-func (r *Registry) Get(sub string) (Principal, error) {
+// Get returns the principal that owns owner's data, or ErrNotFound.
+func (r *Registry) Get(owner string) (Principal, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	rec, ok := r.principals[sub]
+	rec, ok := r.principals[owner]
 	if !ok {
 		return Principal{}, ErrNotFound
 	}
 	return rec.principal(), nil
 }
 
+// BySub returns the principal that is bound to the subject sub, or
+// ErrNotFound.
+func (r *Registry) BySub(sub string) (Principal, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	owner, ok := r.bySub[sub]
+	if !ok {
+		return Principal{}, ErrNotFound
+	}
+	return r.principals[owner].principal(), nil
+}
+
 // SetDisabled disables or enables the principal and returns it. It returns
-// ErrNotFound for an unknown sub. The flag is the only thing it writes:
+// ErrNotFound for an unknown owner. The flag is the only thing it writes:
 // updated_at stays, so the action cannot move a username between
 // principals, and the app passwords are kept, so enabling restores every
 // device without pairing it again. Credentials of the principal that were
 // verified recently are forgotten, so the next request after a disable is
 // refused.
-func (r *Registry) SetDisabled(ctx context.Context, sub string, disabled bool) (Principal, error) {
+func (r *Registry) SetDisabled(ctx context.Context, owner string, disabled bool) (Principal, error) {
 	if err := ctx.Err(); err != nil {
 		return Principal{}, err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	rec, ok := r.principals[sub]
+	rec, ok := r.principals[owner]
 	if !ok {
 		return Principal{}, ErrNotFound
 	}
@@ -543,14 +593,14 @@ func (r *Registry) SetDisabled(ctx context.Context, sub string, disabled bool) (
 		if err := r.writeRecord(rec); err != nil {
 			return Principal{}, err
 		}
-		r.principals[sub] = rec
+		r.principals[owner] = rec
 	}
-	r.cache.invalidate(sub)
+	r.cache.invalidate(owner)
 	return rec.principal(), nil
 }
 
 // ListPrincipals returns every principal, disabled and nameless ones
-// included, sorted by username and then by sub. The nameless come first.
+// included, sorted by username and then by owner. The nameless come first.
 func (r *Registry) ListPrincipals(ctx context.Context) []Principal {
 	if ctx.Err() != nil {
 		return nil
@@ -565,18 +615,18 @@ func (r *Registry) ListPrincipals(ctx context.Context) []Principal {
 		if c := cmp.Compare(a.Username, b.Username); c != 0 {
 			return c
 		}
-		return cmp.Compare(a.Sub, b.Sub)
+		return cmp.Compare(a.Owner, b.Owner)
 	})
 	return list
 }
 
-// LookupUsername returns the sub of the principal that holds username.
+// LookupUsername returns the owner of the principal that holds username.
 func (r *Registry) LookupUsername(username string) (string, bool) {
 	if username == "" {
 		return "", false
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	sub, ok := r.byUsername[username]
-	return sub, ok
+	owner, ok := r.byUsername[username]
+	return owner, ok
 }

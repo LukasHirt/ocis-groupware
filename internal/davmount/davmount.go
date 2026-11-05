@@ -80,7 +80,7 @@ func New(cfg Config) (dav, wellKnown http.Handler, err error) {
 
 // identity is the authenticated caller of a request.
 type identity struct {
-	sub      string
+	owner    string
 	username string
 }
 
@@ -88,7 +88,7 @@ type identityKey struct{}
 
 func identityFrom(ctx context.Context) (identity, bool) {
 	id, ok := ctx.Value(identityKey{}).(identity)
-	return id, ok && id.sub != "" && id.username != ""
+	return id, ok && id.owner != "" && id.username != ""
 }
 
 // currentUser names the caller by the username in its URLs.
@@ -101,7 +101,7 @@ func currentUser(r *http.Request) (string, error) {
 }
 
 // authorize lets the caller reach its own data only: the URL user must be the
-// caller's username, and the store owner is the caller's subject.
+// caller's username, and the store owner is the principal's owner.
 func authorize(r *http.Request, urlUser string) (string, error) {
 	id, ok := identityFrom(r.Context())
 	if !ok {
@@ -110,7 +110,7 @@ func authorize(r *http.Request, urlUser string) (string, error) {
 	if urlUser != id.username {
 		return "", groupkit.ErrForbidden
 	}
-	return id.sub, nil
+	return id.owner, nil
 }
 
 // authenticator resolves the caller of a DAV request before it reaches the
@@ -164,7 +164,7 @@ func (a *authenticator) basic(ctx context.Context, username, password string) (i
 	p, err := a.reg.VerifyBasic(ctx, username, password)
 	switch {
 	case err == nil:
-		return identity{sub: p.Sub, username: p.Username}, 0
+		return identity{owner: p.Owner, username: p.Username}, 0
 	case errors.Is(err, principals.ErrInvalidCredentials):
 		a.logger.Debug("app password rejected")
 	case errors.Is(err, principals.ErrExpired):
@@ -198,7 +198,7 @@ func (a *authenticator) bearer(ctx context.Context, token string) (identity, int
 	if status != 0 {
 		return identity{}, status
 	}
-	return identity{sub: p.Sub, username: p.Username}, 0
+	return identity{owner: p.Owner, username: p.Username}, 0
 }
 
 // cleanPath reports whether an escaped request path has no empty, "." or ".."

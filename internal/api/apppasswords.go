@@ -121,9 +121,9 @@ func (h *appPasswords) serve(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *appPasswords) list(w http.ResponseWriter, p principals.Principal) {
-	list, err := h.reg.ListAppPasswords(p.Sub)
+	list, err := h.reg.ListAppPasswords(p.Owner)
 	if err != nil {
-		h.logger.Error("could not list app passwords", "sub", p.Sub, "error", err)
+		h.logger.Error("could not list app passwords", "owner", p.Owner, "error", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -146,7 +146,7 @@ func (h *appPasswords) create(w http.ResponseWriter, r *http.Request, p principa
 		writeError(w, status, msg)
 		return
 	}
-	ap, secret, err := h.reg.IssueAppPassword(r.Context(), p.Sub, req.Name, 0)
+	ap, secret, err := h.reg.IssueAppPassword(r.Context(), p.Owner, req.Name, 0)
 	switch {
 	case err == nil:
 	case errors.Is(err, principals.ErrInvalidAppPasswordName):
@@ -156,25 +156,25 @@ func (h *appPasswords) create(w http.ResponseWriter, r *http.Request, p principa
 		writeError(w, http.StatusConflict, "too many app passwords: revoke one first")
 		return
 	default:
-		h.logger.Error("could not issue app password", "sub", p.Sub, "error", err)
+		h.logger.Error("could not issue app password", "owner", p.Owner, "error", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	h.logger.Info("app password issued", "sub", p.Sub, "id", ap.ID)
+	h.logger.Info("app password issued", "owner", p.Owner, "id", ap.ID)
 	writeJSON(w, http.StatusCreated, issuedJSON{appPasswordJSON: toJSON(ap), Password: secret})
 }
 
 func (h *appPasswords) revoke(w http.ResponseWriter, r *http.Request, p principals.Principal, id string) {
-	err := h.reg.RevokeAppPassword(r.Context(), p.Sub, id)
+	err := h.reg.RevokeAppPassword(r.Context(), p.Owner, id)
 	switch {
 	case err == nil:
-		h.logger.Info("app password revoked", "sub", p.Sub, "id", clip(id))
+		h.logger.Info("app password revoked", "owner", p.Owner, "id", clip(id))
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, principals.ErrNotFound):
 		// The same answer for an unknown id and for another principal's.
 		writeError(w, http.StatusNotFound, "not found")
 	default:
-		h.logger.Error("could not revoke app password", "sub", p.Sub, "id", clip(id), "error", err)
+		h.logger.Error("could not revoke app password", "owner", p.Owner, "id", clip(id), "error", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 	}
 }

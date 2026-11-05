@@ -13,20 +13,21 @@ import (
 	"github.com/owncloud/ocis-groupware/internal/principals"
 )
 
-// maxBody is the largest request body, in bytes. A request names a subject
+// maxBody is the largest request body, in bytes. A request names an owner
 // and nothing else.
 const maxBody = 4 << 10
 
 // Registry is what the admin API needs from the principal registry.
 type Registry interface {
 	ListPrincipals(ctx context.Context) []principals.Principal
-	SetDisabled(ctx context.Context, sub string, disabled bool) (principals.Principal, error)
-	Purge(ctx context.Context, sub string, dryRun bool) (principals.PurgeReport, error)
+	SetDisabled(ctx context.Context, owner string, disabled bool) (principals.Principal, error)
+	Purge(ctx context.Context, owner string, dryRun bool) (principals.PurgeReport, error)
 }
 
 // principalJSON is a principal as the API shows it.
 type principalJSON struct {
-	Sub         string    `json:"sub"`
+	Owner       string    `json:"owner"`
+	Sub         string    `json:"sub"` // empty until the user has signed in
 	Username    string    `json:"username"`
 	DisplayName string    `json:"display_name"`
 	CreatedAt   time.Time `json:"created_at"`
@@ -35,7 +36,7 @@ type principalJSON struct {
 
 func toJSON(p principals.Principal) principalJSON {
 	return principalJSON{
-		Sub: p.Sub, Username: p.Username, DisplayName: p.DisplayName,
+		Owner: p.Owner, Sub: p.Sub, Username: p.Username, DisplayName: p.DisplayName,
 		CreatedAt: p.CreatedAt, Disabled: p.Disabled,
 	}
 }
@@ -43,12 +44,12 @@ func toJSON(p principals.Principal) principalJSON {
 // Handler returns the admin API:
 //
 //	GET  /v1/principals          every principal
-//	POST /v1/principals/disable  {"sub": "..."}
-//	POST /v1/principals/enable   {"sub": "..."}
-//	POST /v1/principals/purge    {"sub": "...", "dry_run": false}
+//	POST /v1/principals/disable  {"owner": "..."}
+//	POST /v1/principals/enable   {"owner": "..."}
+//	POST /v1/principals/purge    {"owner": "...", "dry_run": false}
 //
 // Answers and errors are JSON. Mutations run one at a time, and each is
-// logged at Info with the subject and username, which is the audit trail.
+// logged at Info with the owner and username, which is the audit trail.
 // The handler must only be served on the admin socket: it authenticates
 // nobody.
 func Handler(reg Registry, logger *slog.Logger) http.Handler {
@@ -96,29 +97,30 @@ func (h *handler) list(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"principals": out})
 }
 
-// subRequest is the body of every mutation.
-type subRequest struct {
-	Sub    string `json:"sub"`
+// ownerRequest is the body of every mutation. The owner is the key of the
+// principal's data, which is the subject for a user who signed in on their own.
+type ownerRequest struct {
+	Owner  string `json:"owner"`
 	DryRun bool   `json:"dry_run"`
 }
 
 func (h *handler) setDisabled(disabled bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req subRequest
+		var req ownerRequest
 		if status, msg := decodeBody(w, r, &req); status != 0 {
 			writeError(w, status, msg)
 			return
 		}
 		h.mu.Lock()
 		defer h.mu.Unlock()
-		p, err := h.reg.SetDisabled(r.Context(), req.Sub, disabled)
+		p, err := h.reg.SetDisabled(r.Context(), req.Owner, disabled)
 		switch {
 		case err == nil:
 		case errors.Is(err, principals.ErrNotFound):
 			writeError(w, http.StatusNotFound, "not found")
 			return
 		default:
-			h.logger.Error("could not change the disabled flag", "sub", req.Sub, "disabled", disabled, "error", err)
+			h.logger.Error("could not change the disabled flag", "owner", req.Owner, "disabled", disabled, "error", err)
 			writeError(w, http.StatusInternalServerError, "internal error")
 			return
 		}
@@ -126,13 +128,13 @@ func (h *handler) setDisabled(disabled bool) http.HandlerFunc {
 		if disabled {
 			msg = "principal disabled by admin"
 		}
-		h.logger.Info(msg, "sub", p.Sub, "username", p.Username)
+		h.logger.Info(msg, "owner", p.Owner, "username", p.Username)
 		writeJSON(w, http.StatusOK, toJSON(p))
 	}
 }
 
 func (h *handler) purge(w http.ResponseWriter, r *http.Request) {
-	var req subRequest
+	var req ownerRequest
 	if status, msg := decodeBody(w, r, &req); status != 0 {
 		writeError(w, status, msg)
 		return
@@ -141,11 +143,11 @@ func (h *handler) purge(w http.ResponseWriter, r *http.Request) {
 	defer h.mu.Unlock()
 	var username string
 	for _, p := range h.reg.ListPrincipals(r.Context()) {
-		if p.Sub == req.Sub {
+		if p.Owner == req.Owner {
 			username = p.Username
 		}
 	}
-	report, err := h.reg.Purge(r.Context(), req.Sub, req.DryRun)
+	report, err := h.reg.Purge(r.Context(), req.Owner, req.DryRun)
 	switch {
 	case err == nil:
 	case errors.Is(err, principals.ErrNotFound):
@@ -155,16 +157,16 @@ func (h *handler) purge(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "principal is not disabled")
 		return
 	default:
-		h.logger.Error("could not purge principal", "sub", req.Sub, "error", err)
+		h.logger.Error("could not purge principal", "owner", req.Owner, "error", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	if !req.DryRun {
-		h.logger.Info("principal purged by admin", "sub", req.Sub, "username", username,
+		h.logger.Info("principal purged by admin", "owner", req.Owner, "username", username,
 			"calendars", report.Calendars, "addressbooks", report.AddressBooks, "app_passwords", report.AppPasswords, "shares", report.Shares)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"sub":           req.Sub,
+		"owner":         req.Owner,
 		"calendars":     report.Calendars,
 		"addressbooks":  report.AddressBooks,
 		"app_passwords": report.AppPasswords,
@@ -173,9 +175,9 @@ func (h *handler) purge(w http.ResponseWriter, r *http.Request) {
 }
 
 // decodeBody reads one JSON object of at most maxBody bytes into req,
-// refusing unknown fields, anything after the object and an empty sub. It
+// refusing unknown fields, anything after the object and an empty owner. It
 // returns the status and message to answer with, or 0.
-func decodeBody(w http.ResponseWriter, r *http.Request, req *subRequest) (int, string) {
+func decodeBody(w http.ResponseWriter, r *http.Request, req *ownerRequest) (int, string) {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(req); err != nil {
@@ -187,8 +189,8 @@ func decodeBody(w http.ResponseWriter, r *http.Request, req *subRequest) (int, s
 		}
 		return bodyError(err)
 	}
-	if req.Sub == "" {
-		return http.StatusBadRequest, "sub must not be empty"
+	if req.Owner == "" {
+		return http.StatusBadRequest, "owner must not be empty"
 	}
 	return 0, ""
 }
@@ -198,7 +200,7 @@ func bodyError(err error) (int, string) {
 	if errors.As(err, &tooLarge) {
 		return http.StatusRequestEntityTooLarge, "request body too large"
 	}
-	return http.StatusBadRequest, `request body must be a JSON object like {"sub": "..."}`
+	return http.StatusBadRequest, `request body must be a JSON object like {"owner": "..."}`
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

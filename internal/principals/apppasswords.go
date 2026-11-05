@@ -143,11 +143,11 @@ func WithBcryptCost(cost int) Option {
 // together with its secret. The secret is not stored and cannot be shown
 // again. A ttl of 0 means 365 days. It returns ErrTooManyAppPasswords when
 // the principal has MaxAppPasswords already.
-func (r *Registry) IssueAppPassword(ctx context.Context, sub, name string, ttl time.Duration) (AppPassword, string, error) {
+func (r *Registry) IssueAppPassword(ctx context.Context, owner, name string, ttl time.Duration) (AppPassword, string, error) {
 	if err := ctx.Err(); err != nil {
 		return AppPassword{}, "", err
 	}
-	if err := r.enabled(sub); err != nil {
+	if err := r.enabled(owner); err != nil {
 		return AppPassword{}, "", fmt.Errorf("principals: issue app password: %w", err)
 	}
 	if err := validateAppPasswordName(name); err != nil {
@@ -182,17 +182,17 @@ func (r *Registry) IssueAppPassword(ctx context.Context, sub, name string, ttl t
 		ExpiresAt: now.Add(ttl),
 	}
 
-	set := r.appSet(sub)
+	set := r.appSet(owner)
 	set.mu.Lock()
 	defer set.mu.Unlock()
-	if err := r.loadAppPasswords(sub, set); err != nil {
+	if err := r.loadAppPasswords(owner, set); err != nil {
 		return AppPassword{}, "", err
 	}
 	if len(set.records) >= MaxAppPasswords {
 		return AppPassword{}, "", ErrTooManyAppPasswords
 	}
 	records := append(slices.Clone(set.records), rec)
-	if err := r.writeAppPasswords(sub, records); err != nil {
+	if err := r.writeAppPasswords(owner, records); err != nil {
 		return AppPassword{}, "", err
 	}
 	set.records = records
@@ -202,14 +202,14 @@ func (r *Registry) IssueAppPassword(ctx context.Context, sub, name string, ttl t
 // ListAppPasswords returns the principal's app passwords, oldest first,
 // expired ones included. It returns ErrNotFound for an unknown principal
 // and ErrDisabled for a disabled one.
-func (r *Registry) ListAppPasswords(sub string) ([]AppPassword, error) {
-	if err := r.enabled(sub); err != nil {
+func (r *Registry) ListAppPasswords(owner string) ([]AppPassword, error) {
+	if err := r.enabled(owner); err != nil {
 		return nil, fmt.Errorf("principals: list app passwords: %w", err)
 	}
-	set := r.appSet(sub)
+	set := r.appSet(owner)
 	set.mu.Lock()
 	defer set.mu.Unlock()
-	if err := r.loadAppPasswords(sub, set); err != nil {
+	if err := r.loadAppPasswords(owner, set); err != nil {
 		return nil, err
 	}
 	list := make([]AppPassword, 0, len(set.records))
@@ -224,28 +224,28 @@ func (r *Registry) ListAppPasswords(sub string) ([]AppPassword, error) {
 // request with the revoked password fails. It returns ErrNotFound if the
 // principal has no app password with that id and ErrDisabled for a disabled
 // principal.
-func (r *Registry) RevokeAppPassword(ctx context.Context, sub, id string) error {
+func (r *Registry) RevokeAppPassword(ctx context.Context, owner, id string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := r.enabled(sub); err != nil {
+	if err := r.enabled(owner); err != nil {
 		return fmt.Errorf("principals: revoke app password: %w", err)
 	}
-	set := r.appSet(sub)
+	set := r.appSet(owner)
 	set.mu.Lock()
-	err := r.removeAppPassword(sub, id, set)
+	err := r.removeAppPassword(owner, id, set)
 	set.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	r.cache.invalidate(sub)
+	r.cache.invalidate(owner)
 	return nil
 }
 
-// enabled returns nil if sub is a principal that is not disabled, else
+// enabled returns nil if owner is a principal that is not disabled, else
 // ErrNotFound or ErrDisabled.
-func (r *Registry) enabled(sub string) error {
-	p, err := r.Get(sub)
+func (r *Registry) enabled(owner string) error {
+	p, err := r.Get(owner)
 	if err != nil {
 		return err
 	}
@@ -256,8 +256,8 @@ func (r *Registry) enabled(sub string) error {
 }
 
 // removeAppPassword deletes an app password. The caller holds set.mu.
-func (r *Registry) removeAppPassword(sub, id string, set *appSet) error {
-	if err := r.loadAppPasswords(sub, set); err != nil {
+func (r *Registry) removeAppPassword(owner, id string, set *appSet) error {
+	if err := r.loadAppPasswords(owner, set); err != nil {
 		return err
 	}
 	i := slices.IndexFunc(set.records, func(rec appRecord) bool { return rec.ID == id })
@@ -265,7 +265,7 @@ func (r *Registry) removeAppPassword(sub, id string, set *appSet) error {
 		return fmt.Errorf("principals: app password: %w", ErrNotFound)
 	}
 	records := slices.Delete(slices.Clone(set.records), i, i+1)
-	if err := r.writeAppPasswords(sub, records); err != nil {
+	if err := r.writeAppPasswords(owner, records); err != nil {
 		return err
 	}
 	set.records = records
@@ -298,15 +298,15 @@ func (r *Registry) VerifyBasic(ctx context.Context, username, password string) (
 		}
 	}
 
-	sub, ok := r.LookupUsername(username)
+	owner, ok := r.LookupUsername(username)
 	if !ok || !validSecret(password) {
 		r.dummyCompare()
 		return Principal{}, ErrInvalidCredentials
 	}
 	// Read the generation before the app passwords, so that a revoke that
 	// happens after the read keeps this verification out of the cache.
-	gen := r.cache.generation(sub)
-	records, err := r.appPasswordRecords(sub)
+	gen := r.cache.generation(owner)
+	records, err := r.appPasswordRecords(owner)
 	if err != nil {
 		r.dummyCompare()
 		return Principal{}, err
@@ -338,26 +338,26 @@ func (r *Registry) VerifyBasic(ctx context.Context, username, password string) (
 	}
 	// The username may have moved, or the password been revoked, while the
 	// hash was compared.
-	p, ok := r.principalByName(sub, username)
+	p, ok := r.principalByName(owner, username)
 	if !ok {
 		return Principal{}, ErrInvalidCredentials
 	}
 	if p.Disabled {
 		return Principal{}, ErrDisabled
 	}
-	if !r.touch(sub, match.ID, now) {
+	if !r.touch(owner, match.ID, now) {
 		return Principal{}, ErrInvalidCredentials
 	}
 	if r.beforeCachePut != nil {
 		r.beforeCachePut()
 	}
-	r.cache.put(key, cacheEntry{sub: sub, id: match.ID, gen: gen, expires: match.ExpiresAt}, now)
+	r.cache.put(key, cacheEntry{sub: owner, id: match.ID, gen: gen, expires: match.ExpiresAt}, now)
 	return p, nil
 }
 
-// principalByName returns the principal for sub if it still holds username.
-func (r *Registry) principalByName(sub, username string) (Principal, bool) {
-	p, err := r.Get(sub)
+// principalByName returns the principal for owner if it still holds username.
+func (r *Registry) principalByName(owner, username string) (Principal, bool) {
+	p, err := r.Get(owner)
 	if err != nil || p.Username != username {
 		return Principal{}, false
 	}
@@ -367,8 +367,8 @@ func (r *Registry) principalByName(sub, username string) (Principal, bool) {
 // touch records a use of the app password and reports whether it still
 // exists. last_used_at is written at most every lastUsedInterval. A failed
 // write is logged: the time is kept in memory and saved with the next write.
-func (r *Registry) touch(sub, id string, now time.Time) bool {
-	set := r.appSet(sub)
+func (r *Registry) touch(owner, id string, now time.Time) bool {
+	set := r.appSet(owner)
 	set.mu.Lock()
 	defer set.mu.Unlock()
 	if !set.loaded {
@@ -385,33 +385,33 @@ func (r *Registry) touch(sub, id string, now time.Time) bool {
 	records := slices.Clone(set.records)
 	records[i].LastUsedAt = &used
 	set.records = records
-	if err := r.writeAppPasswords(sub, records); err != nil {
-		r.logger.Warn("could not save the last use of an app password", "sub", sub, "id", id, "error", err)
+	if err := r.writeAppPasswords(owner, records); err != nil {
+		r.logger.Warn("could not save the last use of an app password", "owner", owner, "id", id, "error", err)
 	}
 	return true
 }
 
 // appPasswordRecords returns the principal's app passwords. The slice must
 // not be modified.
-func (r *Registry) appPasswordRecords(sub string) ([]appRecord, error) {
-	set := r.appSet(sub)
+func (r *Registry) appPasswordRecords(owner string) ([]appRecord, error) {
+	set := r.appSet(owner)
 	set.mu.Lock()
 	defer set.mu.Unlock()
-	if err := r.loadAppPasswords(sub, set); err != nil {
+	if err := r.loadAppPasswords(owner, set); err != nil {
 		return nil, err
 	}
 	return set.records, nil
 }
 
-// appSet returns the in-memory app passwords of sub, creating an empty,
+// appSet returns the in-memory app passwords of owner, creating an empty,
 // unloaded set the first time.
-func (r *Registry) appSet(sub string) *appSet {
+func (r *Registry) appSet(owner string) *appSet {
 	r.appsMu.Lock()
 	defer r.appsMu.Unlock()
-	set, ok := r.apps[sub]
+	set, ok := r.apps[owner]
 	if !ok {
 		set = &appSet{}
-		r.apps[sub] = set
+		r.apps[owner] = set
 	}
 	return set
 }
@@ -420,13 +420,13 @@ func (r *Registry) appSet(sub string) *appSet {
 // already. A missing file means no app passwords. A file that cannot be read
 // or decoded is an error, and set stays unloaded so that nothing overwrites
 // the file. The caller holds set.mu.
-func (r *Registry) loadAppPasswords(sub string, set *appSet) error {
+func (r *Registry) loadAppPasswords(owner string, set *appSet) error {
 	if set.loaded {
 		return nil
 	}
-	dir := r.ownerDir(sub)
+	dir := r.ownerDir(owner)
 	if dir == "" {
-		return fmt.Errorf("principals: no owner directory for sub %q", sub)
+		return fmt.Errorf("principals: no owner directory for owner %q", owner)
 	}
 	data, err := os.ReadFile(filepath.Join(dir, appPasswordsFileName))
 	switch {
@@ -438,17 +438,17 @@ func (r *Registry) loadAppPasswords(sub string, set *appSet) error {
 	}
 	var file appPasswordsFile
 	if err := json.Unmarshal(data, &file); err != nil {
-		return fmt.Errorf("principals: decode app passwords of sub %q: %w", sub, err)
+		return fmt.Errorf("principals: decode app passwords of owner %q: %w", owner, err)
 	}
 	set.records, set.loaded = file.AppPasswords, true
 	return nil
 }
 
 // writeAppPasswords replaces the principal's file atomically.
-func (r *Registry) writeAppPasswords(sub string, records []appRecord) error {
-	dir := r.ownerDir(sub)
+func (r *Registry) writeAppPasswords(owner string, records []appRecord) error {
+	dir := r.ownerDir(owner)
 	if dir == "" {
-		return fmt.Errorf("principals: no owner directory for sub %q", sub)
+		return fmt.Errorf("principals: no owner directory for owner %q", owner)
 	}
 	if records == nil {
 		records = []appRecord{}

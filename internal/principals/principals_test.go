@@ -130,7 +130,11 @@ func writeRecordFile(t *testing.T, f fixture, rec record) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := testOwnerDir(f.dataDir)(rec.Sub)
+	owner := rec.Owner
+	if owner == "" {
+		owner = rec.Sub
+	}
+	dir := testOwnerDir(f.dataDir)(owner)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +282,7 @@ func TestProvisionRefreshesChangedNames(t *testing.T) {
 			if created {
 				t.Fatal("created = true, want false")
 			}
-			want := Principal{Sub: "sub-1", Username: tt.username, DisplayName: tt.displayName, CreatedAt: first.CreatedAt}
+			want := Principal{Owner: "sub-1", Sub: "sub-1", Username: tt.username, DisplayName: tt.displayName, CreatedAt: first.CreatedAt}
 			if p != want {
 				t.Fatalf("Provision = %+v, want %+v", p, want)
 			}
@@ -1029,5 +1033,20 @@ func TestRestartRemovesLeftoverTempFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(other); err != nil {
 		t.Fatalf("unrelated file removed: %v", err)
+	}
+}
+
+// writeRecordFileAt writes rec as principal.json in dir.
+func writeRecordFileAt(t *testing.T, dir string, rec record) {
+	t.Helper()
+	data, err := json.Marshal(rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, principalFileName), data, 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
