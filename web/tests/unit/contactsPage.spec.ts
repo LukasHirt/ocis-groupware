@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import folders from '../../../internal/graphapi/testdata/contract/contact-folders.json'
 import contacts from '../../../internal/graphapi/testdata/contract/contacts.json'
+import importReport from '../../../internal/graphapi/testdata/contract/import-report-contacts.json'
 import contact from '../../../internal/graphapi/testdata/contract/contact.json'
 
 vi.mock('vue3-gettext', () => ({
@@ -13,14 +14,24 @@ const createContact = vi.fn()
 const updateContact = vi.fn()
 const deleteContact = vi.fn()
 const getContact = vi.fn()
+const exportAddressBook = vi.fn()
+const importAddressBook = vi.fn()
+const createContactFolder = vi.fn()
+const updateContactFolder = vi.fn()
+const deleteContactFolder = vi.fn()
 vi.mock('../../src/composables/useApi', () => {
   const client = {
-    listContactFolders: () => Promise.resolve(folders.value),
+    listContactFolders: () => Promise.resolve(structuredClone(folders.value)),
     listContacts: (id: string) => listContacts(id),
     createContact: (...a: unknown[]) => createContact(...a),
     updateContact: (...a: unknown[]) => updateContact(...a),
     deleteContact: (...a: unknown[]) => deleteContact(...a),
     getContact: (...a: unknown[]) => getContact(...a),
+    exportAddressBook: (...a: unknown[]) => exportAddressBook(...a),
+    importAddressBook: (...a: unknown[]) => importAddressBook(...a),
+    createContactFolder: (...a: unknown[]) => createContactFolder(...a),
+    updateContactFolder: (...a: unknown[]) => updateContactFolder(...a),
+    deleteContactFolder: (...a: unknown[]) => deleteContactFolder(...a),
     getContactPhoto: () => Promise.resolve(new Blob(['x'], { type: 'image/png' }))
   }
   return { useApi: () => ({ client, run: (_t: string, f: (c: unknown) => unknown) => f(client) }) }
@@ -29,7 +40,10 @@ vi.mock('../../src/composables/useApi', () => {
 import ContactsPage from '../../src/pages/ContactsPage.vue'
 import ContactPhoto from '../../src/contacts/ContactPhoto.vue'
 
-const mountOptions = { global: { mocks: { $gettext: (s: string) => s } } }
+// The host's gettext fills %{name} placeholders; so does this stand-in.
+const gettext = (s: string, params: Record<string, string> = {}) =>
+  s.replace(/%\{(\w+)\}/g, (_, k: string) => params[k] ?? '')
+const mountOptions = { global: { mocks: { $gettext: gettext } } }
 const [personal, team] = folders.value
 
 beforeEach(() => {
@@ -40,6 +54,11 @@ beforeEach(() => {
   updateContact.mockReset()
   deleteContact.mockReset()
   getContact.mockReset()
+  exportAddressBook.mockReset()
+  importAddressBook.mockReset()
+  createContactFolder.mockReset()
+  updateContactFolder.mockReset()
+  deleteContactFolder.mockReset()
   listContacts.mockImplementation((id: string) =>
     Promise.resolve(
       id === personal.id ? contacts.value : [{ ...contact, id: 'team.marie', parentFolderId: id }]
@@ -340,6 +359,127 @@ describe('the contacts page', () => {
       await w.find('[data-testid="groupcard-item"]').trigger('click')
       expect(w.find('[data-testid="group-rename"]').exists()).toBe(false)
       expect(w.find('[data-testid="group-delete"]').exists()).toBe(false)
+    })
+  })
+
+  describe('address books', () => {
+    const books = (w: Awaited<ReturnType<typeof open>>) =>
+      w.findAll('[data-testid="folder-item"] .name').map((n) => n.text())
+
+    it('creates an address book and shows it', async () => {
+      createContactFolder.mockResolvedValue({
+        ...personal,
+        id: 'new-book',
+        displayName: 'Clients',
+        'groupware.isDefault': false
+      })
+      const w = await open()
+      await w.find('[data-testid="book-new"]').trigger('click')
+      await w.find('[data-testid="book-new-input"]').setValue('  Clients ')
+      await w.find('[data-testid="book-new-save"]').trigger('click')
+      await flushPromises()
+      expect(createContactFolder).toHaveBeenCalledWith({ displayName: 'Clients' })
+      expect(books(w)).toContain('Clients')
+      expect(w.find('[data-testid="book-new-input"]').exists()).toBe(false)
+    })
+
+    it('renames the chosen address book', async () => {
+      updateContactFolder.mockImplementation((id: string, input: { displayName: string }) =>
+        Promise.resolve({ ...personal, id, ...input })
+      )
+      const w = await open()
+      await w.findAll('[data-testid="folder-item"]')[0].trigger('click')
+      await flushPromises()
+      await w.find('[data-testid="book-rename"]').trigger('click')
+      await w.find('[data-testid="book-rename-input"]').setValue('Friends and family')
+      await w.find('[data-testid="book-rename-save"]').trigger('click')
+      await flushPromises()
+      expect(updateContactFolder).toHaveBeenCalledWith(personal.id, {
+        displayName: 'Friends and family'
+      })
+      expect(books(w)[0]).toBe('Friends and family')
+    })
+
+    it('deletes an address book after a confirmation, but not the default one', async () => {
+      const w = await open()
+      await w.findAll('[data-testid="folder-item"]')[0].trigger('click')
+      await flushPromises()
+      expect(w.find('[data-testid="book-delete"]').exists()).toBe(false)
+      createContactFolder.mockResolvedValue({
+        ...personal,
+        id: 'new-book',
+        displayName: 'Clients',
+        'groupware.isDefault': false
+      })
+      listContacts.mockResolvedValue([])
+      deleteContactFolder.mockResolvedValue(true)
+      await w.find('[data-testid="book-new"]').trigger('click')
+      await w.find('[data-testid="book-new-input"]').setValue('Clients')
+      await w.find('[data-testid="book-new-save"]').trigger('click')
+      await flushPromises()
+      await w.findAll('[data-testid="folder-item"]')[2].trigger('click')
+      await flushPromises()
+      await w.find('[data-testid="book-delete"]').trigger('click')
+      expect(deleteContactFolder).not.toHaveBeenCalled()
+      await w.find('[data-testid="book-delete-confirm"]').trigger('click')
+      await flushPromises()
+      expect(deleteContactFolder).toHaveBeenCalledWith('new-book')
+      expect(books(w)).not.toContain('Clients')
+    })
+
+    it('offers no management for an address book that is shared with the user', async () => {
+      const w = await open()
+      await w.findAll('[data-testid="folder-item"]')[1].trigger('click')
+      await flushPromises()
+      expect(w.find('[data-testid="book-rename"]').exists()).toBe(false)
+      expect(w.find('[data-testid="book-delete"]').exists()).toBe(false)
+    })
+  })
+
+  describe('vCard files', () => {
+    const chooseBook = async (w: Awaited<ReturnType<typeof open>>, i: number) => {
+      await w.findAll('[data-testid="folder-item"]')[i].trigger('click')
+      await flushPromises()
+    }
+
+    it('downloads the chosen address book as a .vcf file', async () => {
+      exportAddressBook.mockResolvedValue(new Blob(['BEGIN:VCARD'], { type: 'text/vcard' }))
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+      const w = await open()
+      expect(w.find('[data-testid="book-download"]').exists()).toBe(false)
+      await chooseBook(w, 0)
+      await w.find('[data-testid="book-download"]').trigger('click')
+      await flushPromises()
+      expect(exportAddressBook).toHaveBeenCalledWith(personal.id)
+      expect(click).toHaveBeenCalledTimes(1)
+      expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('Contacts.vcf')
+      click.mockRestore()
+    })
+
+    it('imports a chosen file, shows what failed and reloads the contacts', async () => {
+      importAddressBook.mockResolvedValue(importReport)
+      const w = await open()
+      await chooseBook(w, 0)
+      listContacts.mockClear()
+      const input = w.find('[data-testid="book-import-input"]')
+      const file = new File(['BEGIN:VCARD'], 'cards.vcf', { type: 'text/vcard' })
+      Object.defineProperty(input.element, 'files', { value: [file] })
+      await input.trigger('change')
+      await flushPromises()
+      expect(importAddressBook).toHaveBeenCalledWith(personal.id, file)
+      expect(listContacts).toHaveBeenCalledWith(personal.id)
+      const report = w.find('[data-testid="import-report"]')
+      expect(report.text()).toContain('2')
+      expect(report.text()).toContain('missing END:VCARD')
+      await w.find('[data-testid="import-report-close"]').trigger('click')
+      expect(w.find('[data-testid="import-report"]').exists()).toBe(false)
+    })
+
+    it('offers no import into a read-only address book, but a download', async () => {
+      const w = await open()
+      await chooseBook(w, 1)
+      expect(w.find('[data-testid="book-import-input"]').exists()).toBe(false)
+      expect(w.find('[data-testid="book-download"]').exists()).toBe(true)
     })
   })
 })

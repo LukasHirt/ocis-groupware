@@ -203,6 +203,15 @@ per contact; contacts in read-only address books keep it. Group cards, which som
 clients write, are listed as read-only groups: they can be chosen to filter the list,
 and the UI never writes them.
 
+Address books are created from the sidebar. The owner of the chosen address book can
+rename it, and delete it after a confirmation that names it and says its contacts go
+with it. The default address book cannot be deleted from the UI, and address books that
+were shared with the user offer neither action. Any address book the user can read downloads as a `.vcf` file named after it. Where the
+user may write, a vCard file can be imported into it: the browser sends the file as it
+is, and the page lists how many cards were created, updated or failed, with the reason
+for each failed one, then reloads the contacts. Both use the import and export
+endpoints described below.
+
 Development needs Node 24:
 
 ```sh

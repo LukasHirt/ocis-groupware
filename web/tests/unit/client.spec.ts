@@ -6,6 +6,7 @@ import type {
   GraphContact,
   GraphContactFolder,
   GraphEvent,
+  ImportReport,
   Page
 } from '../../src/api/types'
 import calendars from '../../../internal/graphapi/testdata/contract/calendars.json'
@@ -17,6 +18,7 @@ import contact from '../../../internal/graphapi/testdata/contract/contact.json'
 import contactFolder from '../../../internal/graphapi/testdata/contract/contact-folder.json'
 import contactFolderShared from '../../../internal/graphapi/testdata/contract/contact-folder-shared.json'
 import contactFolders from '../../../internal/graphapi/testdata/contract/contact-folders.json'
+import importReport from '../../../internal/graphapi/testdata/contract/import-report-contacts.json'
 import contacts from '../../../internal/graphapi/testdata/contract/contacts.json'
 import event from '../../../internal/graphapi/testdata/contract/event.json'
 import eventOccurrence from '../../../internal/graphapi/testdata/contract/event-occurrence.json'
@@ -273,6 +275,33 @@ describe('contacts', () => {
     expect(got.displayName).toBe('Dr. Marie Salomea Curie')
     expect(calls).toHaveLength(7)
     expect(calls[4].headers).toEqual({ 'If-Match': 'W/"2"' })
+  })
+})
+
+describe('address book files', () => {
+  it('has types that match the import report', () => {
+    const r: ImportReport = importReport as ImportReport
+    expect(r.results.map((x) => x.status)).toEqual(['created', 'failed', 'created'])
+  })
+
+  it('downloads an address book as a blob', async () => {
+    const blob = new Blob(['BEGIN:VCARD'], { type: 'text/vcard' })
+    const { client, calls } = fake({
+      [`GET /groupware/v1/addressbooks/b1/export`]: { status: 200, data: blob }
+    })
+    expect(await client.exportAddressBook('b1')).toBe(blob)
+    expect(calls[0].responseType).toBe('blob')
+  })
+
+  it('sends a file as the raw body and returns the report', async () => {
+    const file = new Blob(['BEGIN:VCARD'], { type: 'text/vcard' })
+    const { client, calls } = fake({
+      [`POST /groupware/v1/addressbooks/b1/import`]: { status: 200, data: importReport }
+    })
+    const report = await client.importAddressBook('b1', file)
+    expect(report.failed).toBe(1)
+    expect(calls[0].data).toBe(file)
+    expect(calls[0].headers).toEqual({ 'Content-Type': 'text/vcard' })
   })
 })
 

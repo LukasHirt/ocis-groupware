@@ -100,3 +100,61 @@ test('a contact can be created, found, edited, given a photo and a group, and de
 
   expect(pageErrors).toEqual([])
 })
+
+test('an address book can be created, renamed, filled from a vCard file, downloaded and deleted', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', (err) => pageErrors.push(err.message))
+
+  await signIn(page)
+  await openContacts(page)
+
+  await page.getByTestId('book-new').click()
+  await page.getByTestId('book-new-input').fill('Clients')
+  await page.getByTestId('book-new-save').click()
+  const book = (name: string) => page.getByTestId('folder-item').filter({ hasText: name })
+  await expect(book('Clients')).toBeVisible()
+
+  // The new address book is chosen, and the owner may rename it.
+  await page.getByTestId('book-rename').click()
+  await page.getByTestId('book-rename-input').fill('Customers')
+  await page.getByTestId('book-rename-save').click()
+  await expect(book('Customers')).toBeVisible()
+  await expect(book('Clients')).toHaveCount(0)
+
+  // A vCard file with two good cards and a broken one is imported, and the
+  // report names the broken one. The address book downloads as a .vcf file.
+  const vcf = [
+    'BEGIN:VCARD\r\nVERSION:3.0\r\nUID:ada\r\nFN:Ada Lovelace\r\nN:Lovelace;Ada;;;\r\nEND:VCARD\r\n',
+    'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Broken\r\n',
+    'BEGIN:VCARD\r\nVERSION:3.0\r\nUID:grace\r\nFN:Grace Hopper\r\nN:Hopper;Grace;;;\r\nEND:VCARD\r\n'
+  ]
+  await page.getByTestId('book-import-input').setInputFiles({
+    name: 'cards.vcf',
+    mimeType: 'text/vcard',
+    buffer: Buffer.from(vcf[0] + vcf[2])
+  })
+  await expect(page.getByTestId('import-report')).toContainText('2 created')
+  await expect(page.getByTestId('contact-item')).toHaveCount(2)
+  await page.getByTestId('import-report-close').click()
+  await page.getByTestId('book-import-input').setInputFiles({
+    name: 'broken.vcf',
+    mimeType: 'text/vcard',
+    buffer: Buffer.from(vcf[1])
+  })
+  await expect(page.getByTestId('import-report')).toContainText('1 failed')
+  const download = page.waitForEvent('download')
+  await page.getByTestId('book-download').click()
+  expect((await download).suggestedFilename()).toBe('Customers.vcf')
+
+  // A contact can be put into it.
+  await page.getByTestId('contact-new').click()
+  await page.getByTestId('field-givenName').fill('Grace')
+  await page.getByTestId('form-save').click()
+  await expect(page.getByTestId('contact-item')).toHaveCount(3)
+
+  await page.getByTestId('book-delete').click()
+  await page.getByTestId('book-delete-confirm').click()
+  await expect(book('Customers')).toHaveCount(0)
+
+  expect(pageErrors).toEqual([])
+})

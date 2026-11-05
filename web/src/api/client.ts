@@ -8,6 +8,7 @@ import type {
   GraphContact,
   GraphContactFolder,
   GraphEvent,
+  ImportReport,
   Page
 } from './types'
 
@@ -159,6 +160,23 @@ export function createClient(transport: Transport) {
         method: 'DELETE',
         url: `${graph}/contactFolders/${enc(folderId)}/contacts/${enc(id)}`,
         ...ifMatch(etag)
+      }),
+
+    // exportAddressBook downloads the address book as one vCard file.
+    // importAddressBook sends a vCard file as the body, 20 MB at most, and
+    // answers with what happened to each card.
+    exportAddressBook: (id: string) =>
+      send<Blob>({
+        method: 'GET',
+        url: `/groupware/v1/addressbooks/${enc(id)}/export`,
+        responseType: 'blob'
+      }),
+    importAddressBook: (id: string, file: Blob) =>
+      send<ImportReport>({
+        method: 'POST',
+        url: `/groupware/v1/addressbooks/${enc(id)}/import`,
+        data: file,
+        headers: { 'Content-Type': 'text/vcard' }
       }),
 
     // A photo is read as a blob and written as the raw image, JPEG or PNG
