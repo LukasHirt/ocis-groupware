@@ -2037,6 +2037,12 @@ components:
             addressBookHomeUrl:
               type: string
           required: [url, calendarHomeUrl, addressBookHomeUrl]
+        username_conflict:
+          type: boolean
+          description: >-
+            True when the user's oCIS username is held by another account that
+            can still use it. The username is then empty and DAV does not work
+            until an administrator frees the name.
         app_passwords_valid_until:
           type: string
           format: date-time
@@ -2045,7 +2051,7 @@ components:
             When the user's app passwords stop working unless oCIS confirms the
             user again, by a sign-in with a token. Null when the identity lease
             is off or oCIS has not confirmed the user yet.
-      required: [username, displayName, dav, app_passwords_valid_until]
+      required: [username, displayName, dav, username_conflict, app_passwords_valid_until]
     ImportResult:
       type: object
       properties:

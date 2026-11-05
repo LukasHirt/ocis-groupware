@@ -6,6 +6,7 @@
     "calendarHomeUrl": "https://ocis.example/dav/calendars/einstein/",
     "addressBookHomeUrl": "https://ocis.example/dav/addressbooks/einstein/"
   },
+  "username_conflict": false,
   "app_passwords_valid_until": null
 }
 

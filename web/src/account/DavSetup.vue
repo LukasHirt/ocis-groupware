@@ -8,7 +8,14 @@
         )
       }}
     </p>
-    <p v-if="!account.username" class="oc-text-muted" data-testid="dav-no-username">
+    <p
+      v-if="!account.username && account.username_conflict"
+      class="oc-text-muted"
+      data-testid="dav-username-conflict"
+    >
+      {{ $gettext('Your user name is in use by another account. Ask your administrator.') }}
+    </p>
+    <p v-else-if="!account.username" class="oc-text-muted" data-testid="dav-no-username">
       {{
         $gettext(
           'Your DAV username is not available. If another user has taken over your name, ask an administrator.'

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/owncloud/ocis-groupware/internal/auth"
 	"github.com/owncloud/ocis-groupware/internal/ocisgraph"
 	"github.com/owncloud/ocis-groupware/internal/principals"
 	"github.com/owncloud/ocis-groupware/internal/provision"
@@ -16,6 +17,7 @@ import (
 type accountBody struct {
 	Username               string     `json:"username"`
 	DisplayName            string     `json:"displayName"`
+	UsernameConflict       bool       `json:"username_conflict"`
 	AppPasswordsValidUntil *time.Time `json:"app_passwords_valid_until"`
 	DAV                    struct {
 		URL                string `json:"url"`
@@ -89,5 +91,30 @@ func TestAccountInfoShowsWhenAppPasswordsStopWorking(t *testing.T) {
 	}
 	if d := got.AppPasswordsValidUntil.Sub(before); d < 720*time.Hour-time.Minute || d > 720*time.Hour+time.Minute {
 		t.Errorf("valid until %v is %v from now, want 720h", got.AppPasswordsValidUntil, d)
+	}
+}
+
+// A user whose username is held by an active account still signs in, without
+// a username, and the answer says why.
+func TestAccountInfoReportsAUsernameConflict(t *testing.T) {
+	f := newFixture(t)
+	f.verifier.tokens["einstein-2"] = auth.Claims{Subject: "sub-einstein-2", PreferredUsername: "einstein", DisplayName: "Albert Two"}
+	if rec := f.do(http.MethodGet, "/groupware/v1/me", "einstein", ""); rec.Code != http.StatusOK {
+		t.Fatalf("first user: %d", rec.Code)
+	}
+	rec := f.do(http.MethodGet, "/groupware/v1/me", "einstein-2", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("second user: %d %s", rec.Code, rec.Body.String())
+	}
+	got := decodeBody[accountBody](t, rec)
+	if got.Username != "" || !got.UsernameConflict || got.DAV.CalendarHomeURL != "" {
+		t.Errorf("account = %+v, want no username, a conflict and no home addresses", got)
+	}
+	compareContract(t, "account-username-conflict", rec.Body.Bytes())
+
+	// The holder is unaffected.
+	holder := decodeBody[accountBody](t, f.do(http.MethodGet, "/groupware/v1/me", "einstein", ""))
+	if holder.Username != "einstein" || holder.UsernameConflict {
+		t.Errorf("holder = %+v", holder)
 	}
 }

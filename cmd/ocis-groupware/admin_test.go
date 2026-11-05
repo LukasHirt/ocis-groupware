@@ -70,6 +70,9 @@ func startServiceWith(t *testing.T, prepare func(dir string, st *filestore.Store
 	clock := time.Date(2026, 10, 30, 9, 12, 44, 0, time.UTC)
 	reg, err := principals.NewRegistry(dir, st, st.OwnerDir, discardLogger(),
 		principals.WithBcryptCost(bcrypt.MinCost),
+		// With a lease, carol (sub-3) is a principal that oCIS never confirmed
+		// and loses the username to sub-4 below.
+		principals.WithIdentityMaxAge(720*time.Hour),
 		principals.WithClock(func() time.Time { return clock }))
 	if err != nil {
 		t.Fatal(err)

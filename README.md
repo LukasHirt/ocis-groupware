@@ -163,6 +163,29 @@ before upgrading, or every web sign-in gets `401`. The same goes for scripts tha
 the Graph API with a token of another client: list that client too. A setting that held
 one client ID keeps working unchanged.
 
+### Usernames
+
+DAV clients sign in with the oCIS username, so a username belongs to one account at a
+time. A sign-in with a token that names a username held by another account moves the name
+only if the holder can no longer use it: the holder is disabled, or its identity lease
+has run out (see "The identity lease"). With the lease off, only a disabled holder frees a
+name. A holder who renames in oCIS releases the old name at their own next sign-in.
+
+Otherwise the newcomer is signed in and provisioned without a username. The web
+application and the Graph API work for them, DAV and app passwords do not. The service logs
+a warning with both owners, `GET /groupware/v1/me` returns `username: ""` and
+`username_conflict: true`, and the Account page says that the name is in use by another
+account. The claim is made again at every sign-in and the principal file is written only
+when the outcome changes. To resolve it, run `ocis-groupware admin principals disable
+<holder>`: the newcomer's next sign-in takes the name. A holder that was deleted or renamed
+in oCIS frees the name by itself when its lease runs out.
+
+Upgrading: until now the newest sign-in took a username from its holder at once. That
+let anyone who can set `preferred_username` at a permissive identity provider take over an
+active user's DAV address. If two accounts really share a name, say after an account was
+recreated in oCIS under the same login, the new account has no DAV access until the old one
+is disabled or its lease runs out.
+
 ## Web application
 
 The service serves its web application, a build of `web/`, under `/web/` without
@@ -743,17 +766,18 @@ takes the bearer token and answers:
     "calendarHomeUrl": "https://ocis.example/dav/calendars/einstein/",
     "addressBookHomeUrl": "https://ocis.example/dav/addressbooks/einstein/"
   },
+  "username_conflict": false,
   "app_passwords_valid_until": "2026-12-05T10:00:00Z"
 }
 ```
 
 The addresses use the scheme and host of the request, taking the scheme from
 `X-Forwarded-Proto` behind a proxy. `username` is the name a DAV client signs in with,
-together with an app password. When another user has taken the name over and this user has
-not signed in since, `username` is empty and so are the two home addresses.
-`app_passwords_valid_until` is the end of the identity lease (see "The identity lease"), or
-`null` when the lease is off. The same body is
-in `internal/graphapi/testdata/contract/account.json`.
+together with an app password. When another account holds the name (see "Usernames"),
+`username` is empty, `username_conflict` is `true` and the two home addresses are empty;
+`username_conflict` is `false` otherwise. `app_passwords_valid_until` is the end of
+the identity lease (see "The identity lease"), or `null` when the lease is off. The same
+body is in `internal/graphapi/testdata/contract/account.json`.
 
 ## Administration
 
@@ -777,9 +801,11 @@ data directory itself. `migrate classic` is the exception and needs the service 
 `list` prints one user per line with the username, display name, state, creation time,
 identity age and sub. The identity age is the time since oCIS last confirmed the user, such
 as `3d`, or `never`. With the identity lease on, a user at or past the lease shows `(stale)`:
-their app passwords are refused until they sign in with a token again. `--json` prints the admin API's answer as it is. A user whose username was taken
-over by a newer account shows `-` as username, and `--sub <sub>` reaches it where a
-username is needed.
+their app passwords are refused until they sign in with a token again.
+
+`--json` prints the admin API's answer as it is. A user without a username, because
+another account holds it or because the holder took it over (see "Usernames"), shows `-`,
+and `--sub <sub>` reaches it where a username is needed.
 
 Every user also has an owner, the name the user's data is kept under. For someone who
 signed in on their own it is the sub, and `list` leaves it out. A user can exist without a

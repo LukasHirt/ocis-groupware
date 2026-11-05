@@ -1,0 +1,12 @@
+{
+  "username": "",
+  "displayName": "Albert Two",
+  "dav": {
+    "url": "http://example.com/dav/",
+    "calendarHomeUrl": "",
+    "addressBookHomeUrl": ""
+  },
+  "username_conflict": true,
+  "app_passwords_valid_until": null
+}
+

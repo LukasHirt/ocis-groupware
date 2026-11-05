@@ -90,6 +90,22 @@ describe('DAV address', () => {
     })
     const wrapper = await page()
     expect(wrapper.find('[data-testid="dav-no-username"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="dav-username-conflict"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="copy-dav-calendar"]').exists()).toBe(false)
+  })
+
+  it('tells the user when an active account holds their username', async () => {
+    api.getAccount.mockResolvedValue({
+      username: '',
+      username_conflict: true,
+      displayName: 'Albert Einstein',
+      dav: { url: 'https://ocis.example/dav/', calendarHomeUrl: '', addressBookHomeUrl: '' }
+    })
+    const wrapper = await page()
+    expect(wrapper.find('[data-testid="dav-username-conflict"]').text()).toBe(
+      'Your user name is in use by another account. Ask your administrator.'
+    )
+    expect(wrapper.find('[data-testid="dav-no-username"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="copy-dav-calendar"]').exists()).toBe(false)
   })
 })
