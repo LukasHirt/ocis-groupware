@@ -337,7 +337,7 @@ The application is in English. Every text goes through gettext, and
 [docs/translations.md](docs/translations.md) describes how to extract the messages and
 add a language. The application's icon is `web/src/assets/icon.svg`.
 
-Development needs Node 24:
+Development needs Node 26:
 
 ```sh
 task web:install   # npm ci
