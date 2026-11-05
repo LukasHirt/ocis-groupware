@@ -109,7 +109,7 @@ func TestUnsupportedPathsAnswer501(t *testing.T) {
 		"/graph/v1.0/me/events/delta",
 		"/graph/v1.0/me/calendars/x/events/$count",
 		"/graph/v1.0/$batch",
-		"/graph/v1.0/me/contacts",
+		"/graph/v1.0/me/contacts/delta",
 		"/graph/v1.0/",
 	} {
 		rec := f.do(http.MethodGet, target, "einstein", "")

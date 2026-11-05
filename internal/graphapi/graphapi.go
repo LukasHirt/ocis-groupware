@@ -35,6 +35,9 @@ type Config struct {
 	// Calendars decides which calendars a user sees. Nil shows each user
 	// their own calendars only.
 	Calendars CalendarSource
+	// ContactFolders decides which address books a user sees. Nil shows each
+	// user their own address books only.
+	ContactFolders ContactFolderSource
 	// Logger receives faults. Nil discards them.
 	Logger *slog.Logger
 }
@@ -44,11 +47,12 @@ type Option func(*Handler)
 
 // Handler is the facade.
 type Handler struct {
-	cfg       Config
-	logger    *slog.Logger
-	ids       *provision.Identities
-	calendars CalendarSource
-	routes    []route
+	cfg            Config
+	logger         *slog.Logger
+	ids            *provision.Identities
+	calendars      CalendarSource
+	contactFolders ContactFolderSource
+	routes         []route
 }
 
 // call is what a route handler works with: the signed-in caller and the
@@ -92,6 +96,10 @@ func New(cfg Config, opts ...Option) (*Handler, error) {
 	if a.calendars == nil {
 		a.calendars = ownCalendars{st: cfg.Store}
 	}
+	a.contactFolders = cfg.ContactFolders
+	if a.contactFolders == nil {
+		a.contactFolders = ownContactFolders{st: cfg.Store}
+	}
 	a.routes = []route{
 		{http.MethodGet, strings.Split("me/calendar", "/"), a.getDefaultCalendar},
 		{http.MethodPatch, strings.Split("me/calendar", "/"), a.patchDefaultCalendar},
@@ -119,6 +127,7 @@ func New(cfg Config, opts ...Option) (*Handler, error) {
 		{http.MethodGet, strings.Split("me/calendar/calendarView", "/"), a.calendarView("default")},
 		{http.MethodGet, strings.Split("me/calendars/{id}/calendarView", "/"), a.calendarView("calendar")},
 	}
+	a.routes = append(a.routes, a.contactRoutes()...)
 	for _, opt := range opts {
 		opt(a)
 	}
