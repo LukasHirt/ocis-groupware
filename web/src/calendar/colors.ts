@@ -13,6 +13,33 @@ export const palette = [
   '#5f7388'
 ]
 
+type Gettext = (message: string) => string
+
+// colorName is the name of a palette colour, for people who cannot tell the
+// swatches apart by sight. A colour outside the palette is a custom one.
+export function colorName(hex: string, $gettext: Gettext): string {
+  switch (hex.toLowerCase()) {
+    case palette[0]:
+      return $gettext('Blue')
+    case palette[1]:
+      return $gettext('Green')
+    case palette[2]:
+      return $gettext('Orange')
+    case palette[3]:
+      return $gettext('Purple')
+    case palette[4]:
+      return $gettext('Red')
+    case palette[5]:
+      return $gettext('Teal')
+    case palette[6]:
+      return $gettext('Olive')
+    case palette[7]:
+      return $gettext('Slate')
+    default:
+      return $gettext('Custom colour')
+  }
+}
+
 function hash(text: string): number {
   let h = 0
   for (let i = 0; i < text.length; i++) {

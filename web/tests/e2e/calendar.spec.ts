@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openApp, openNav, signIn } from './helpers'
+import { openApp, openNav, pickOption, selectBox, signIn, textField } from './helpers'
 
 // The page shows times in the browser's zone, so the zone is fixed for the
 // checks of times below.
@@ -52,15 +52,15 @@ test('a calendar can be created, renamed, recoloured and deleted', async ({ page
   const mine = items.filter({ hasText: 'Field notes' })
 
   await page.getByTestId('calendar-add').click()
-  await page.getByTestId('calendar-name').fill('Field notes')
+  await textField(page, 'calendar-name').fill('Field notes')
   await page.getByTestId('calendar-color-#c2415d').click()
   await page.getByTestId('dialog-confirm').click()
   await expect(page.getByRole('dialog')).toBeHidden()
   await expect(mine).toHaveCount(1)
 
   await mine.getByTestId('calendar-edit').click()
-  await expect(page.getByTestId('calendar-name')).toHaveValue('Field notes')
-  await page.getByTestId('calendar-name').fill('Lab notes')
+  await expect(textField(page, 'calendar-name')).toHaveValue('Field notes')
+  await textField(page, 'calendar-name').fill('Lab notes')
   await page.getByTestId('calendar-color-#2f9e6e').click()
   await page.getByTestId('dialog-confirm').click()
   await expect(page.getByRole('dialog')).toBeHidden()
@@ -70,9 +70,9 @@ test('a calendar can be created, renamed, recoloured and deleted', async ({ page
 
   // A name is required.
   await renamed.getByTestId('calendar-edit').click()
-  await page.getByTestId('calendar-name').fill('')
+  await textField(page, 'calendar-name').fill('')
   await page.getByTestId('dialog-confirm').click()
-  await expect(page.getByTestId('calendar-name-error')).toBeVisible()
+  await expect(page.locator('#gw-calendar-name-message')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toBeHidden()
 
@@ -236,9 +236,9 @@ test('the settings change the first day, week numbers and time zone, and are kep
   await expect(page.locator('.fc-daygrid-week-number')).toHaveCount(0)
 
   await page.getByTestId('settings-open').click()
-  await page.getByTestId('settings-first-day').selectOption('0')
-  await page.getByTestId('settings-week-numbers').check()
-  await page.getByTestId('settings-zone').selectOption('Asia/Tokyo')
+  await pickOption(page, 'settings-first-day', 'Sunday')
+  await page.getByTestId('settings-week-numbers').getByRole('checkbox').check()
+  await pickOption(page, 'settings-zone', 'Asia/Tokyo')
   await page.getByTestId('dialog-confirm').click()
   await expect(page.getByRole('dialog')).toBeHidden()
   await expect(page.locator('.fc-col-header-cell').first()).toContainText('Sun')
@@ -254,7 +254,7 @@ test('the settings change the first day, week numbers and time zone, and are kep
   await openNav(page, 'Calendar')
   await expect(page.locator('.fc-col-header-cell').first()).toContainText('Sun')
   await page.getByTestId('settings-open').click()
-  await expect(page.getByTestId('settings-zone')).toHaveValue('Asia/Tokyo')
+  await expect(selectBox(page, 'settings-zone')).toContainText('Asia/Tokyo')
   await page.getByTestId('dialog-cancel').click()
 })
 
@@ -262,7 +262,7 @@ test('a calendar can be imported from a file, with a report, and exported again'
   await openCalendar(page)
   const items = page.getByTestId('calendar-item')
   await page.getByTestId('calendar-add').click()
-  await page.getByTestId('calendar-name').fill('Imported')
+  await textField(page, 'calendar-name').fill('Imported')
   await page.getByTestId('dialog-confirm').click()
   const mine = items.filter({ hasText: 'Imported' })
   await expect(mine).toHaveCount(1)

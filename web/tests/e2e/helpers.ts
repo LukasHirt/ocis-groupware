@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 
 export interface TestUser {
   name: string
@@ -37,4 +37,26 @@ export async function openApp(page: Page, label: string) {
 // openNav follows an item of the navigation inside the open application.
 export async function openNav(page: Page, name: string) {
   await page.locator('#web-nav-sidebar').getByRole('link', { name, exact: true }).click()
+}
+
+// selectBox is a design-system select. Its wrapper repeats the attributes of
+// the select, the test id among them, so the select itself is picked out by
+// the class of the library it is made with.
+export function selectBox(scope: Page | Locator, testId: string) {
+  return scope.locator(`.v-select[data-testid="${testId}"]`)
+}
+
+// pickOption chooses an entry of a design-system select by its visible text.
+// The scope narrows the search when the page holds several selects with the
+// same id, such as one per row.
+export async function pickOption(scope: Page | Locator, testId: string, label: string) {
+  const select = selectBox(scope, testId)
+  await select.locator('.vs__dropdown-toggle').click()
+  await select.getByRole('option', { name: label, exact: true }).click()
+}
+
+// textField is the input of a design-system text field. Its root element
+// carries the test id as well, so the id alone would match two elements.
+export function textField(scope: Page | Locator, testId: string) {
+  return scope.locator(`input[data-testid="${testId}"], textarea[data-testid="${testId}"]`)
 }

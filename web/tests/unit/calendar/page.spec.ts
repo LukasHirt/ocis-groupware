@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import CalendarPage from '../../../src/pages/CalendarPage.vue'
+import { choose } from '../helpers/select'
 import calendars from '../../../../internal/graphapi/testdata/contract/calendars.json'
 import importReport from '../../../../internal/graphapi/testdata/contract/import-report.json'
 import eventSeries from '../../../../internal/graphapi/testdata/contract/event-series.json'
@@ -354,8 +355,8 @@ describe('the calendar page', () => {
       const wrapper = await mountPage()
       expect(wrapper.findAll('.fc-col-header-cell')[0].text()).toContain('Mon')
       await wrapper.get('[data-testid="settings-open"]').trigger('click')
-      await wrapper.get('[data-testid="settings-first-day"]').setValue('0')
-      await wrapper.get('[data-testid="settings-zone"]').setValue('Asia/Tokyo')
+      await choose(wrapper, 'settings-first-day', 'Sunday')
+      await choose(wrapper, 'settings-zone', 'Asia/Tokyo')
       calendarViewCalls.length = 0
       await wrapper.get('form').trigger('submit')
       await flushPromises()
