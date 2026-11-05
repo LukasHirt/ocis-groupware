@@ -66,3 +66,47 @@ test('an app password is created, works for a DAV client and is revoked', async 
 
   expect(pageErrors).toEqual([])
 })
+
+test('the devices page lines up its heading and content and fits a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openAccount(page)
+  await expect(page.getByTestId('dav-account')).toBeVisible()
+
+  // On a desktop the content starts where the heading does.
+  const left = (selector: string) =>
+    page.locator(selector).first().evaluate((el) => el.getBoundingClientRect().left)
+  expect(Math.abs((await left('h1')) - (await left('.gw-devices')))).toBeLessThanOrEqual(2)
+
+  // On a phone nothing touches the edge of the window and an address is only
+  // broken after a slash.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByTestId('app-password-add')).toBeVisible()
+  const edge = await page
+    .getByTestId('app-password-add')
+    .evaluate((el) => window.innerWidth - el.getBoundingClientRect().right)
+  expect(edge).toBeGreaterThanOrEqual(8)
+  for (const id of ['dav-url-value', 'dav-calendar-value', 'dav-addressbook-value']) {
+    // The layout of the narrow window settles a moment after the resize.
+    const breaks = () => page.getByTestId(id).evaluate((el) => {
+      const range = document.createRange()
+      const bad: string[] = []
+      let top: number | undefined
+      let before = ''
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+      for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+        for (let i = 0; i < node.length; i++) {
+          range.setStart(node, i)
+          range.setEnd(node, i + 1)
+          const rect = range.getBoundingClientRect()
+          if (top !== undefined && rect.top > top + 2 && before !== '/') {
+            bad.push(`${before}|${node.data[i]}`)
+          }
+          top = rect.top
+          before = node.data[i]
+        }
+      }
+      return bad
+    })
+    await expect.poll(breaks, { message: id }).toEqual([])
+  }
+})

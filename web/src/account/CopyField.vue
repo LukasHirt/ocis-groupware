@@ -2,7 +2,11 @@
   <oc-tr class="gw-copy-field">
     <oc-th scope="row" class="gw-copy-label oc-text-muted" width="shrink">{{ label }}</oc-th>
     <oc-td class="gw-copy-value" width="expand">
-      <span :data-testid="`${id}-value`">{{ value }}</span>
+      <!-- A long address wraps after a slash and breaks inside a word only when
+           a single part is wider than the line. -->
+      <span :data-testid="`${id}-value`"
+        ><template v-for="(part, i) in parts" :key="i">{{ part }}<wbr /></template
+      ></span>
     </oc-td>
     <oc-td width="shrink" align-h="right">
       <oc-button
@@ -20,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useGettext } from 'vue3-gettext'
 import { copyText } from './clipboard'
 
@@ -31,6 +35,7 @@ defineOptions({ name: 'CopyField' })
 const props = defineProps<{ id: string; label: string; value: string }>()
 
 const { $gettext } = useGettext()
+const parts = computed(() => props.value.split(/(?<=\/)/))
 const copied = ref(false)
 let timer: ReturnType<typeof setTimeout> | undefined
 
@@ -53,5 +58,21 @@ onBeforeUnmount(() => clearTimeout(timer))
 }
 .gw-copy-value {
   overflow-wrap: anywhere;
+}
+/* On a phone the label sits above its value, so the value has the whole line. */
+@media (max-width: 640px) {
+  .gw-copy-field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    padding: var(--oc-space-xsmall) 0;
+  }
+  .gw-copy-field > .gw-copy-label {
+    grid-column: 1 / -1;
+    padding-bottom: 0;
+  }
+  .gw-copy-field > .oc-td {
+    min-width: 0;
+  }
 }
 </style>

@@ -1,6 +1,6 @@
 <template>
   <app-shell :title="$gettext('Devices')" :loading="loading">
-    <div class="gw-devices oc-mt-m oc-px-m">
+    <div class="gw-devices oc-mt-m">
       <dav-setup v-if="account" :account="account" />
 
       <section class="oc-mt-xl" aria-labelledby="groupware-app-passwords-title">
@@ -169,8 +169,11 @@ onMounted(async () => {
 
 <style>
 .gw-devices {
+  /* The page body already has the side padding of the app bar, so the content
+     starts under the heading. */
+  width: 100%;
   max-width: 60rem;
-  margin: 0 auto;
+  min-width: 0;
   padding-bottom: var(--oc-space-xlarge);
 }
 .gw-section-title {
@@ -188,8 +191,9 @@ onMounted(async () => {
 .gw-section-head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: var(--oc-space-medium);
+  gap: var(--oc-space-small) var(--oc-space-medium);
   border-bottom: 1px solid var(--oc-color-border);
 }
 .gw-section-head .gw-section-title {
