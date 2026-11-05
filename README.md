@@ -115,6 +115,14 @@ clients sign in. A request under `/dav` without valid credentials gets `401` wit
 calendars and address books. A user's first request with a bearer token creates
 their default address book and calendar.
 
+A user whose data was imported before their first sign-in has no subject yet, only the
+oCIS user id. At the first bearer sign-in with an unknown subject, the service asks oCIS
+who the token belongs to. If an imported user without a subject has that id, the subject
+is bound to it and the user finds the imported data. A user that already has a subject is
+never taken over, and a disabled imported user is refused with `403`. While imported users
+without a subject exist and oCIS cannot be reached, a sign-in with a new subject gets `503`
+and is tried again on the next request, so that it does not create a second, empty user.
+
 ## Web application
 
 The service serves its web application, a build of `web/`, under `/web/` without

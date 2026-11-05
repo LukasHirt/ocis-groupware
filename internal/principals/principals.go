@@ -60,6 +60,8 @@ var (
 	// ErrDisabled means the principal exists and the credentials were right,
 	// but the principal is disabled.
 	ErrDisabled = errors.New("principals: principal is disabled")
+	// ErrAmbiguous means more than one unbound principal has the oCIS id.
+	ErrAmbiguous = errors.New("principals: more than one principal has the oCIS id")
 )
 
 // record is the content of principal.json.
@@ -629,4 +631,71 @@ func (r *Registry) LookupUsername(username string) (string, bool) {
 	defer r.mu.RUnlock()
 	owner, ok := r.byUsername[username]
 	return owner, ok
+}
+
+// HasUnbound reports whether some principal has no subject yet.
+func (r *Registry) HasUnbound() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, rec := range r.principals {
+		if rec.Sub == "" {
+			return true
+		}
+	}
+	return false
+}
+
+// Bind gives the principal that has no subject yet, and whose oCIS id is
+// ocisID, the subject sub, and returns it. The second result is true when
+// this call made the binding.
+//
+// A principal that already has a subject is never taken over: it does not
+// match, whatever its oCIS id. If sub already belongs to a principal, that
+// principal is returned and nothing is bound. Bind returns ErrNotFound when
+// no unbound principal has the id (or the id is empty), ErrAmbiguous when
+// several have it, and ErrDisabled, with nothing written, when the match is
+// disabled. Only the subject changes in the file; updated_at stays, so the
+// binding cannot move a username between principals.
+func (r *Registry) Bind(ctx context.Context, ocisID, sub string) (Principal, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return Principal{}, false, err
+	}
+	if err := store.ValidateOwner(sub); err != nil {
+		return Principal{}, false, fmt.Errorf("principals: invalid sub: %w", err)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if owner, ok := r.bySub[sub]; ok {
+		return r.principals[owner].principal(), false, nil
+	}
+	if ocisID == "" {
+		return Principal{}, false, ErrNotFound
+	}
+	var match []string
+	for owner, rec := range r.principals {
+		if rec.Sub == "" && rec.OCISID == ocisID {
+			match = append(match, owner)
+		}
+	}
+	switch len(match) {
+	case 0:
+		return Principal{}, false, ErrNotFound
+	case 1:
+	default:
+		return Principal{}, false, ErrAmbiguous
+	}
+	rec := r.principals[match[0]]
+	if rec.Disabled {
+		return Principal{}, false, ErrDisabled
+	}
+	if _, taken := r.principals[sub]; taken {
+		return Principal{}, false, fmt.Errorf("principals: %q is the owner of another principal", sub)
+	}
+	rec.Sub = sub
+	if err := r.writeRecord(rec); err != nil {
+		return Principal{}, false, err
+	}
+	r.principals[rec.Owner] = rec
+	r.bySub[sub] = rec.Owner
+	return rec.principal(), true, nil
 }

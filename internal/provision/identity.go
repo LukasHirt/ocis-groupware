@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
@@ -61,13 +62,57 @@ func NewIdentities(reg *principals.Registry, graph Looker, logger *slog.Logger, 
 // SignIn provisions the principal of the claims like Principal does and, when
 // that succeeds, refreshes its identity snapshot with token. The return values
 // are those of Principal.
+//
+// A subject that no principal is bound to yet is first looked up in oCIS with
+// token. If an imported principal without a subject has the user's oCIS id,
+// the subject is bound to it, so the user finds the data that was imported
+// for them. A lookup that fails then ends the sign-in with 503, as long as
+// such principals exist: provisioning anyway would give the user an empty
+// second principal. The next request tries again. A disabled imported
+// principal refuses the sign-in with 403.
 func (i *Identities) SignIn(ctx context.Context, claims auth.Claims, token string, logger *slog.Logger) (principals.Principal, int, string) {
+	if status, msg := i.bind(ctx, claims.Subject, token, logger); status != 0 {
+		return principals.Principal{}, status, msg
+	}
 	p, status, msg := Principal(ctx, i.reg, claims, logger)
 	if status != 0 {
 		return p, status, msg
 	}
 	i.Refresh(ctx, p.Owner, token)
 	return p, 0, ""
+}
+
+// bind binds sub to an imported principal that has the caller's oCIS id, if
+// there is one. It returns the status to refuse the request with, or 0.
+func (i *Identities) bind(ctx context.Context, sub, token string, logger *slog.Logger) (int, string) {
+	if i.graph == nil || token == "" || !i.reg.HasUnbound() {
+		return 0, ""
+	}
+	if _, err := i.reg.BySub(sub); err == nil {
+		return 0, ""
+	}
+	user, err := i.graph.Me(ctx, token)
+	if err != nil {
+		logger.Warn("could not look up the oCIS identity to bind an imported user", "sub", sub, "error", err)
+		return http.StatusServiceUnavailable, "identity lookup failed"
+	}
+	p, bound, err := i.reg.Bind(ctx, user.ID, sub)
+	switch {
+	case err == nil:
+		if bound {
+			logger.Info("bound imported user to the subject", "owner", p.Owner, "sub", sub)
+			i.store(ctx, p.Owner, user, i.now())
+		}
+		return 0, ""
+	case errors.Is(err, principals.ErrNotFound):
+		return 0, ""
+	case errors.Is(err, principals.ErrDisabled):
+		logger.Info("sign-in of a disabled imported user refused", "sub", sub)
+		return http.StatusForbidden, "account disabled"
+	default:
+		logger.Error("could not bind imported user", "sub", sub, "error", err)
+		return http.StatusInternalServerError, "internal error"
+	}
 }
 
 // Refresh looks up the identity of the principal that owns owner with token and stores it,
@@ -101,6 +146,11 @@ func (i *Identities) Refresh(ctx context.Context, owner, token string) {
 		}
 		return
 	}
+	i.store(ctx, owner, user, now)
+}
+
+// store saves the snapshot of user as the identity of the principal owner.
+func (i *Identities) store(ctx context.Context, owner string, user ocisgraph.User, now time.Time) {
 	id := principals.Identity{OCISID: user.ID, At: now}
 	for _, g := range user.Groups {
 		id.Groups = append(id.Groups, principals.Group{ID: g.ID, Name: g.Name})
