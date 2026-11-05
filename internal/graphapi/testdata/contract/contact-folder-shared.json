@@ -1,0 +1,11 @@
+{
+  "id": "dGVhbS1ib29r",
+  "displayName": "Team",
+  "groupware.isDefault": false,
+  "groupware.canEdit": false,
+  "groupware.canShare": false,
+  "groupware.owner": {
+    "name": "Marie Curie"
+  }
+}
+

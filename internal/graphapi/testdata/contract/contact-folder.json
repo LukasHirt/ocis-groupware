@@ -1,0 +1,11 @@
+{
+  "id": "cGVyc29uYWwtYm9vaw",
+  "displayName": "Contacts",
+  "groupware.isDefault": true,
+  "groupware.canEdit": true,
+  "groupware.canShare": true,
+  "groupware.owner": {
+    "name": "Albert Einstein"
+  }
+}
+

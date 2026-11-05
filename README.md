@@ -277,6 +277,35 @@ cannot express, such as one with `BYHOUR`, comes back as `recurrence: null` with
 it alone. A `PATCH` changes only the fields it sends and keeps every other property, alarm
 and attendee parameter.
 
+### Contact folders and contacts
+
+| Request | Answer |
+|---|---|
+| `GET /graph/v1.0/me/contactFolders` | The address books the user sees, paged |
+| `POST /graph/v1.0/me/contactFolders` | Creates an address book from `displayName`; `201` |
+| `GET`, `PATCH /graph/v1.0/me/contactFolders/{id}` | One address book; `PATCH` changes `displayName` |
+| `DELETE /graph/v1.0/me/contactFolders/{id}` | Deletes the address book and its contacts; `204` |
+| `GET /graph/v1.0/me/contacts`, `/me/contactFolders/{id}/contacts` | The contacts of the default address book (the oldest one the user owns) or of one address book, sorted by display name, paged |
+| `GET /graph/v1.0/me/contacts/{id}`, `/me/contactFolders/{id}/contacts/{id}` | One contact |
+| `POST /graph/v1.0/me/contacts`, `/me/contactFolders/{id}/contacts` | Creates a contact from the fields in the contact mapping below; `201` |
+| `PATCH /graph/v1.0/me/contacts/{id}` | Changes the fields in the body and leaves everything else of the stored card as it is |
+| `DELETE /graph/v1.0/me/contacts/{id}` | Deletes the contact; `204` |
+
+A contact folder has the id of its owner and its recipients, built like a calendar id. Besides
+`id` and `displayName` it carries `groupware.isDefault`, `groupware.canEdit` (may change
+contacts), `groupware.canShare` (owner only) and `groupware.owner.name`. A contact id is the folder
+id, a dot and the URL-safe base64 form of the card's name in the address book. `@odata.etag`
+carries the card's ETag as a weak validator, `parentFolderId` the folder id, and
+`lastModifiedDateTime` the card's `REV`, or the time it was written.
+
+Cards that stand for a group never show in a list, and asking for one by id answers `404`;
+the facade does not write them. `If-Match` is honoured on `PATCH` and `DELETE` and answers `412`
+with the code `preconditionFailed`. A `PATCH` that changes nothing does not write the card. A
+user with read-only access to the address book, and anyone but the owner changing the folder
+itself, gets `403`. Contacts made here show up for CardDAV clients at the next sync like any other
+write. `$filter`, `$select`, `$orderby`, `$expand`, `$count`, `$search`, `delta` and child folders
+answer `501`.
+
 ### Contact mapping
 
 Contacts are stored as vCard 3.0 or 4.0 and shown as Graph contacts. The mapping loses

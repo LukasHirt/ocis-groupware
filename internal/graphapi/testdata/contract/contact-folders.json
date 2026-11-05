@@ -1,0 +1,25 @@
+{
+  "value": [
+    {
+      "id": "cGVyc29uYWwtYm9vaw",
+      "displayName": "Contacts",
+      "groupware.isDefault": true,
+      "groupware.canEdit": true,
+      "groupware.canShare": true,
+      "groupware.owner": {
+        "name": "Albert Einstein"
+      }
+    },
+    {
+      "id": "dGVhbS1ib29r",
+      "displayName": "Team",
+      "groupware.isDefault": false,
+      "groupware.canEdit": false,
+      "groupware.canShare": false,
+      "groupware.owner": {
+        "name": "Marie Curie"
+      }
+    }
+  ]
+}
+
