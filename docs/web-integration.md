@@ -174,7 +174,7 @@ two host modules they touch.
 
 ## Running the browser test by hand
 
-With the compose stack up and Node 24:
+With the compose stack up and Node 26:
 
 ```sh
 cd web

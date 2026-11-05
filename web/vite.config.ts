@@ -38,6 +38,9 @@ export default defineConfig({
     exclude: ['tests/e2e/**'],
     // Registers stand-ins for the design-system components that oCIS Web
     // provides, see tests/unit/stubs.
-    setupFiles: ['tests/unit/setup.ts']
+    setupFiles: ['tests/unit/setup.ts'],
+    // Node 25 and later define a localStorage global of their own, which
+    // shadows the one in happy-dom and is undefined without a storage file.
+    execArgv: ['--no-experimental-webstorage']
   }
 })
