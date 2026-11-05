@@ -26,7 +26,8 @@ function run(bin, env) {
 // extract writes the template to path. The source references that the tool
 // adds (file and line) are removed, so that editing a file does not change
 // the template unless a message changed. The messages are sorted by id because
-// the tool lists them in the order it finds the files.
+// the tool lists them in the order it finds the files, and the English collation
+// keeps the order the same on every machine, whatever its locale.
 function extract(path) {
   run('vue-gettext-extract', { L10N_EXTRACT: '1', L10N_POT: path })
   const text = readFileSync(path, 'utf8')
@@ -35,7 +36,7 @@ function extract(path) {
     .join('\n')
   const [header, ...entries] = text.trimEnd().split('\n\n')
   const id = (entry) => JSON.parse(entry.match(/^msgid (.*)$/m)[1])
-  entries.sort((a, b) => id(a).localeCompare(id(b)))
+  entries.sort((a, b) => id(a).localeCompare(id(b), 'en'))
   writeFileSync(path, [header, ...entries].join('\n\n') + '\n')
 }
 
