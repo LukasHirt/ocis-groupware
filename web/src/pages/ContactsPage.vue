@@ -37,6 +37,45 @@
             </button>
           </li>
         </ul>
+
+        <h2 class="oc-h5 oc-mt-m">{{ $gettext('Groups') }}</h2>
+        <ul class="oc-list">
+          <li>
+            <button
+              class="oc-button oc-button-m oc-button-passive oc-button-justify-content-left oc-width-1-1"
+              :class="{ selected: group === null }"
+              :aria-current="group === null"
+              data-testid="group-all"
+              @click="group = null"
+            >
+              {{ $gettext('Every contact') }}
+            </button>
+          </li>
+          <li v-for="g in groups" :key="`c:${g.name}`">
+            <button
+              class="oc-button oc-button-m oc-button-passive oc-button-justify-content-left oc-width-1-1"
+              :class="{ selected: group?.kind === 'category' && group.name === g.name }"
+              data-testid="group-item"
+              @click="group = { kind: 'category', name: g.name }"
+            >
+              <span class="name">{{ g.name }}</span>
+              <span class="oc-text-muted oc-ml-s">{{ g.count }}</span>
+            </button>
+          </li>
+          <li v-for="g in groupCards" :key="`g:${g.id}`">
+            <button
+              class="oc-button oc-button-m oc-button-passive oc-button-justify-content-left oc-width-1-1"
+              :class="{ selected: group?.kind === 'card' && group.id === g.id }"
+              data-testid="groupcard-item"
+              @click="group = { kind: 'card', id: g.id }"
+            >
+              <span class="name">{{ g.name }}</span>
+              <span class="oc-text-muted oc-ml-s"
+                >{{ g.count }}, {{ $gettext('group card, read only') }}</span
+              >
+            </button>
+          </li>
+        </ul>
       </nav>
 
       <section :aria-label="$gettext('Contact list')">
@@ -67,6 +106,64 @@
           >
             {{ $gettext('New contact') }}
           </button>
+        </div>
+        <div
+          v-if="group?.kind === 'category'"
+          class="oc-flex oc-flex-middle oc-mt-s"
+          data-testid="group-actions"
+        >
+          <template v-if="renaming">
+            <input
+              v-model="renameTo"
+              class="oc-text-input oc-mr-s"
+              :aria-label="$gettext('New name of the group')"
+              data-testid="group-rename-input"
+              @keydown.enter.prevent="renameGroupTo"
+            />
+            <button
+              class="oc-button oc-button-s oc-button-primary oc-mr-xs"
+              :disabled="!renameTo.trim()"
+              data-testid="group-rename-save"
+              @click="renameGroupTo"
+            >
+              {{ $gettext('Save') }}
+            </button>
+            <button class="oc-button oc-button-s oc-button-passive" @click="renaming = false">
+              {{ $gettext('Cancel') }}
+            </button>
+          </template>
+          <template v-else-if="confirmingGroupDelete">
+            <span class="oc-mr-s">{{ $gettext('Remove this group from its contacts?') }}</span>
+            <button
+              class="oc-button oc-button-s oc-button-danger oc-mr-xs"
+              data-testid="group-delete-confirm"
+              @click="deleteGroup"
+            >
+              {{ $gettext('Delete group') }}
+            </button>
+            <button
+              class="oc-button oc-button-s oc-button-passive"
+              @click="confirmingGroupDelete = false"
+            >
+              {{ $gettext('Cancel') }}
+            </button>
+          </template>
+          <template v-else>
+            <button
+              class="oc-button oc-button-s oc-button-passive oc-mr-xs"
+              data-testid="group-rename"
+              @click="startRename"
+            >
+              {{ $gettext('Rename group') }}
+            </button>
+            <button
+              class="oc-button oc-button-s oc-button-passive"
+              data-testid="group-delete"
+              @click="confirmingGroupDelete = true"
+            >
+              {{ $gettext('Delete group') }}
+            </button>
+          </template>
         </div>
         <div v-if="loadingContacts" class="oc-mt-m" role="status">
           <oc-spinner :aria-label="$gettext('Loading')" />
@@ -112,6 +209,14 @@
           @cancel="editing = null"
         />
         <contact-detail v-else-if="selected" :contact="selected">
+          <template #groups>
+            <contact-groups
+              :contact="selected"
+              :can-edit="canEdit(selected)"
+              :suggestions="groups.map((g) => g.name)"
+              @change="setCategories(selected, $event)"
+            />
+          </template>
           <template #photo>
             <contact-photo
               :contact="selected"
@@ -166,7 +271,16 @@ import { useGettext } from 'vue3-gettext'
 import PageLayout from '../components/PageLayout.vue'
 import ContactDetail from '../contacts/ContactDetail.vue'
 import ContactForm from '../contacts/ContactForm.vue'
+import ContactGroups from '../contacts/ContactGroups.vue'
 import ContactPhoto from '../contacts/ContactPhoto.vue'
+import {
+  inGroup,
+  listGroupCards,
+  listGroups,
+  removeFromGroup,
+  renameGroup,
+  type GroupFilter
+} from '../contacts/groups'
 import { contactName, filterContacts, sortContacts, type SortKey } from '../contacts/model'
 import { useApi } from '../composables/useApi'
 import type { ContactInput, GraphContact, GraphContactFolder } from '../api/types'
@@ -186,7 +300,16 @@ const query = ref('')
 const sortKey = ref<SortKey>('name')
 const selectedId = ref<string | null>(null)
 
-const shown = computed(() => sortContacts(filterContacts(contacts.value, query.value), sortKey.value))
+const group = ref<GroupFilter>(null)
+const groups = computed(() => listGroups(contacts.value))
+const groupCards = computed(() => listGroupCards(contacts.value))
+
+const shown = computed(() =>
+  sortContacts(
+    filterContacts(contacts.value.filter((c) => inGroup(c, group.value)), query.value),
+    sortKey.value
+  )
+)
 const selected = computed(() => contacts.value.find((c) => c.id === selectedId.value))
 const editing = ref<'new' | 'edit' | null>(null)
 const confirmingDelete = ref(false)
@@ -204,6 +327,8 @@ const canEdit = (c: GraphContact) =>
 
 // Another contact, or another address book, ends an edit in progress.
 watch([selectedId, folderId], () => {
+  renaming.value = false
+  confirmingGroupDelete.value = false
   editing.value = null
   confirmingDelete.value = false
 })
@@ -248,6 +373,61 @@ async function reload(contact: GraphContact) {
     c.getContact(contact.parentFolderId ?? '', contact.id)
   )
   if (fresh) replaceContact(fresh)
+}
+
+async function setCategories(contact: GraphContact, categories: string[]) {
+  const updated = await run($gettext('Could not change the groups'), (c) =>
+    c.updateContact(contact.parentFolderId ?? '', contact.id, { categories }, contact['@odata.etag'])
+  )
+  if (updated) replaceContact(updated)
+}
+
+const renaming = ref(false)
+const renameTo = ref('')
+const confirmingGroupDelete = ref(false)
+
+function startRename() {
+  renameTo.value = group.value?.kind === 'category' ? group.value.name : ''
+  renaming.value = true
+}
+
+// changeGroup rewrites the categories of every contact in the group that the
+// user may write to, one request each, and keeps the answers that came back.
+async function changeGroup(change: (categories: string[]) => string[]) {
+  if (group.value?.kind !== 'category') return false
+  const name = group.value.name
+  const members = contacts.value.filter((c) => c.categories.includes(name) && canEdit(c))
+  let ok = true
+  for (const member of members) {
+    const updated = await run($gettext('Could not change the group'), (c) =>
+      c.updateContact(
+        member.parentFolderId ?? '',
+        member.id,
+        { categories: change(member.categories) },
+        member['@odata.etag']
+      )
+    )
+    if (updated) replaceContact(updated)
+    else ok = false
+  }
+  return ok
+}
+
+async function renameGroupTo() {
+  const from = group.value?.kind === 'category' ? group.value.name : ''
+  const to = renameTo.value.trim()
+  if (!from || !to) return
+  const ok = await changeGroup((cats) => renameGroup(cats, from, to))
+  renaming.value = false
+  if (ok) group.value = { kind: 'category', name: to }
+}
+
+async function deleteGroup() {
+  const name = group.value?.kind === 'category' ? group.value.name : ''
+  if (!name) return
+  const ok = await changeGroup((cats) => removeFromGroup(cats, name))
+  confirmingGroupDelete.value = false
+  if (ok) group.value = null
 }
 
 async function saveNew(input: ContactInput, targetId: string) {

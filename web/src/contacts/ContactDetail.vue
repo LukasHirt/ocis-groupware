@@ -11,8 +11,9 @@
         </dd>
       </template>
     </dl>
+    <slot name="groups" />
     <div v-if="contact['groupware.groups'].length" class="oc-mt-m">
-      <span class="oc-text-muted">{{ $gettext('Member of') }}</span>
+      <span class="oc-text-muted">{{ $gettext('Group cards') }}</span>
       <span
         v-for="g in contact['groupware.groups']"
         :key="g.id"
@@ -78,7 +79,6 @@ const rows = computed<Row[]>(() => {
     { label: $gettext('Department'), lines: [c.department] },
     { label: $gettext('Spouse'), lines: [c.spouseName] },
     { label: $gettext('Children'), lines: c.children },
-    { label: $gettext('Categories'), lines: c.categories },
     { label: $gettext('Notes'), lines: c.personalNotes ? c.personalNotes.split('\n') : [] }
   ]
   return all

@@ -43,7 +43,7 @@ const png = Buffer.from(
   'base64'
 )
 
-test('a contact can be created, found, edited, given a photo and deleted', async ({ page }) => {
+test('a contact can be created, found, edited, given a photo and a group, and deleted', async ({ page }) => {
   const pageErrors: string[] = []
   page.on('pageerror', (err) => pageErrors.push(err.message))
 
@@ -77,6 +77,22 @@ test('a contact can be created, found, edited, given a photo and deleted', async
   await expect(page.getByTestId('photo-image')).toBeVisible()
   await page.getByTestId('photo-remove').click()
   await expect(page.getByTestId('photo-initials')).toBeVisible()
+
+  // Groups are categories: adding one lists it in the sidebar, where it can
+  // be chosen, renamed and removed again.
+  await page.getByTestId('membership-input').fill('Pioneers')
+  await page.getByTestId('membership-add').click()
+  await page.getByTestId('group-item').filter({ hasText: 'Pioneers' }).click()
+  await expect(page.getByTestId('contact-item')).toHaveCount(1)
+  await page.getByTestId('group-rename').click()
+  await page.getByTestId('group-rename-input').fill('Founders')
+  await page.getByTestId('group-rename-save').click()
+  await expect(page.getByTestId('group-item').filter({ hasText: 'Founders' })).toBeVisible()
+  await expect(page.getByTestId('membership-name')).toHaveText('Founders')
+  await page.getByTestId('group-delete').click()
+  await page.getByTestId('group-delete-confirm').click()
+  await expect(page.getByTestId('group-item')).toHaveCount(0)
+  await expect(page.getByTestId('membership-name')).toHaveCount(0)
 
   await page.getByTestId('contact-delete').click()
   await page.getByTestId('contact-delete-confirm').click()

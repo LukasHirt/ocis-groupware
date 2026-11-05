@@ -233,4 +233,113 @@ describe('the contacts page', () => {
       expect(w.findComponent(ContactPhoto).props('contact')['groupware.hasPhoto']).toBe(true)
     })
   })
+
+  describe('groups', () => {
+    const groupNames = (w: Awaited<ReturnType<typeof open>>) =>
+      w.findAll('[data-testid="group-item"] .name').map((n) => n.text())
+    const chooseGroup = async (w: Awaited<ReturnType<typeof open>>, name: string) => {
+      await w
+        .findAll('[data-testid="group-item"]')
+        .find((g) => g.find('.name').text() === name)!
+        .trigger('click')
+    }
+
+    it('lists the categories of the shown contacts and the group cards', async () => {
+      const w = await open()
+      expect(groupNames(w)).toEqual(expect.arrayContaining(['Friends', 'Physicists']))
+      expect(w.find('[data-testid="groupcard-item"]').text()).toContain('Physicists')
+    })
+
+    it('shows only the members of the chosen group', async () => {
+      const w = await open()
+      await chooseGroup(w, 'Friends')
+      expect(names(w)).toEqual(['Albert Einstein'])
+      await w.find('[data-testid="group-all"]').trigger('click')
+      expect(names(w).length).toBeGreaterThan(1)
+    })
+
+    it('adds a contact to a group and removes it again', async () => {
+      updateContact.mockImplementation((_f: string, _id: string, input: object) =>
+        Promise.resolve({ ...contact, ...input })
+      )
+      const w = await open()
+      await w
+        .findAll('[data-testid="contact-item"]')
+        .find((i) => i.text().includes('Marie'))!
+        .trigger('click')
+      await w.find('[data-testid="membership-input"]').setValue('Colleagues')
+      await w.find('[data-testid="membership-add"]').trigger('click')
+      await flushPromises()
+      expect(updateContact).toHaveBeenLastCalledWith(
+        contact.parentFolderId,
+        contact.id,
+        { categories: ['Physicists', 'Nobel, laureates', 'Colleagues'] },
+        contact['@odata.etag']
+      )
+      expect(groupNames(w)).toContain('Colleagues')
+
+      await w.find('[data-testid="membership-remove"]').trigger('click')
+      await flushPromises()
+      expect(updateContact).toHaveBeenLastCalledWith(
+        contact.parentFolderId,
+        contact.id,
+        { categories: ['Nobel, laureates', 'Colleagues'] },
+        expect.anything()
+      )
+    })
+
+    it('renames a group on every contact in it', async () => {
+      updateContact.mockImplementation((_f: string, id: string, input: object) =>
+        Promise.resolve({ ...contact, id, ...input })
+      )
+      const w = await open()
+      await chooseGroup(w, 'Physicists')
+      await w.find('[data-testid="group-rename"]').trigger('click')
+      await w.find('[data-testid="group-rename-input"]').setValue('Scientists')
+      await w.find('[data-testid="group-rename-save"]').trigger('click')
+      await flushPromises()
+      const calls = updateContact.mock.calls
+      expect(calls.length).toBeGreaterThan(0)
+      for (const call of calls) expect(call[2].categories).toContain('Scientists')
+      expect(groupNames(w)).toContain('Scientists')
+      // The copy in the read-only address book keeps its old group.
+      expect(groupNames(w)).toContain('Physicists')
+    })
+
+    it('deletes a group after a confirmation and keeps the contacts', async () => {
+      updateContact.mockImplementation((_f: string, id: string, input: object) =>
+        Promise.resolve({ ...contact, id, ...input })
+      )
+      const w = await open()
+      const before = names(w).length
+      await chooseGroup(w, 'Friends')
+      await w.find('[data-testid="group-delete"]').trigger('click')
+      expect(updateContact).not.toHaveBeenCalled()
+      await w.find('[data-testid="group-delete-confirm"]').trigger('click')
+      await flushPromises()
+      expect(updateContact).toHaveBeenCalledTimes(1)
+      expect(updateContact.mock.calls[0][2]).toEqual({ categories: [] })
+      expect(groupNames(w)).not.toContain('Friends')
+      expect(names(w)).toHaveLength(before)
+    })
+
+    it('leaves contacts of read-only address books alone when a group changes', async () => {
+      updateContact.mockImplementation((_f: string, id: string, input: object) =>
+        Promise.resolve({ ...contact, id, ...input })
+      )
+      const w = await open()
+      await chooseGroup(w, 'Physicists')
+      await w.find('[data-testid="group-delete"]').trigger('click')
+      await w.find('[data-testid="group-delete-confirm"]').trigger('click')
+      await flushPromises()
+      for (const call of updateContact.mock.calls) expect(call[0]).toBe(personal.id)
+    })
+
+    it('does not offer group management for a group card', async () => {
+      const w = await open()
+      await w.find('[data-testid="groupcard-item"]').trigger('click')
+      expect(w.find('[data-testid="group-rename"]').exists()).toBe(false)
+      expect(w.find('[data-testid="group-delete"]').exists()).toBe(false)
+    })
+  })
 })
