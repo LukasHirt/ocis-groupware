@@ -351,7 +351,9 @@ func (a *Handler) storeError(action string, user principals.Principal, err error
 		return notFound("the item does not exist")
 	case errors.Is(err, store.ErrPermission):
 		return forbidden("the user may not do this")
-	case errors.Is(err, store.ErrExists):
+	case errors.Is(err, store.ErrPreconditionFailed):
+		return preconditionFailed()
+	case errors.Is(err, store.ErrExists), errors.Is(err, store.ErrUIDConflict):
 		return newError(http.StatusConflict, codeNameExists, "the item already exists")
 	case errors.Is(err, store.ErrInvalidName):
 		return badRequest("the name is not valid")

@@ -209,28 +209,36 @@ func overrideAt(res *ical.Resolver, overrides []*ical.Component, rid time.Time) 
 	return nil
 }
 
-// occurrenceAt maps the occurrence of a series at rid.
-func (s storedEvent) occurrenceAt(v eventView, rid time.Time) (eventJSON, bool) {
+// findOccurrence returns the occurrence of a series at rid, which is an
+// override's own when one replaces it. The component is the override, or the
+// master.
+func (s storedEvent) findOccurrence(v eventView, rid time.Time) (*ical.Component, ical.Occurrence, bool) {
 	master, overrides := eventComponents(s.cal)
 	if master == nil {
-		return eventJSON{}, false
+		return nil, ical.Occurrence{}, false
 	}
-	var e eventJSON
 	if o := overrideAt(v.res, overrides, rid); o != nil {
 		sp := v.span(o)
-		e = v.occurrence(o, ical.Occurrence{Start: sp.start, End: sp.end, RecurrenceID: rid, Override: true})
-	} else {
-		occs, err := s.cal.Occurrences(v.res, nil, ical.Range{Start: rid, End: rid.Add(time.Second)})
-		if err != nil {
-			return eventJSON{}, false
-		}
-		i := slices.IndexFunc(occs, func(o ical.Occurrence) bool { return !o.Override && o.RecurrenceID.Equal(rid) })
-		if i < 0 {
-			return eventJSON{}, false
-		}
-		e = v.occurrence(master, occs[i])
+		return o, ical.Occurrence{Start: sp.start, End: sp.end, RecurrenceID: rid, Override: true}, true
 	}
-	e = s.withIDs(e)
+	occs, err := s.cal.Occurrences(v.res, nil, ical.Range{Start: rid, End: rid.Add(time.Second)})
+	if err != nil {
+		return nil, ical.Occurrence{}, false
+	}
+	i := slices.IndexFunc(occs, func(o ical.Occurrence) bool { return !o.Override && o.RecurrenceID.Equal(rid) })
+	if i < 0 {
+		return nil, ical.Occurrence{}, false
+	}
+	return master, occs[i], true
+}
+
+// occurrenceAt maps the occurrence of a series at rid.
+func (s storedEvent) occurrenceAt(v eventView, rid time.Time) (eventJSON, bool) {
+	base, occ, ok := s.findOccurrence(v, rid)
+	if !ok {
+		return eventJSON{}, false
+	}
+	e := s.withIDs(v.occurrence(base, occ))
 	e.ID = OccurrenceID(s.id(), rid)
 	e.SeriesMasterID = s.id()
 	return e, true

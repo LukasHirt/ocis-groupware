@@ -231,6 +231,9 @@ carries a generated name.
 | `GET /graph/v1.0/me/calendars/{id}/events` | The events of one calendar, own or shared |
 | `GET /graph/v1.0/me/events/{id}`, `/me/calendars/{id}/events/{id}` | One event, or one occurrence of a series |
 | `GET /graph/v1.0/me/calendarView?startDateTime=&endDateTime=` | The occurrences that overlap the window, series expanded, from every calendar the user sees; also below `/me/calendar` and `/me/calendars/{id}` |
+| `POST /graph/v1.0/me/events`, `/me/calendar/events`, `/me/calendars/{id}/events` | Creates an event from the fields in the event mapping below; `start` and `end` are required; `201` |
+| `PATCH /graph/v1.0/me/events/{id}` | Changes the fields in the body and leaves everything else of the stored event as it is; on an occurrence id it writes an override for that occurrence only |
+| `DELETE /graph/v1.0/me/events/{id}` | Deletes the event with its series and overrides; on an occurrence id it excludes that date; `204` |
 
 An event id is the calendar id, a dot and the URL-safe base64 form of the object's name in the
 calendar. An occurrence id adds a dot and the occurrence's `RECURRENCE-ID` in UTC, such as
@@ -239,6 +242,14 @@ calendar. An occurrence id adds a dot and the occurrence's `RECURRENCE-ID` in UT
 `occurrence` or `exception`, and occurrences have a `seriesMasterId`. The window may be up to five
 years long; times without an offset are UTC. An exception date is left out, a moved occurrence
 shows at its new time, and an occurrence that overlaps the window by any amount is included.
+
+`If-Match` is honoured on `PATCH` and `DELETE` and answers `412` with the code `preconditionFailed`
+when the event changed; `*` and the weak or bare form of the tag all work. Every write is also
+checked against the ETag it read, so two writers cannot overwrite each other silently. A user
+whose access to the calendar is read-only gets `403`. A `PATCH` on an occurrence cannot carry a
+`recurrence`, and an occurrence that the series does not have, or that was excluded, answers
+`404`. Changes show to DAV clients at the next sync like any other write, and no invitations or
+updates are sent to attendees.
 
 Times are shown in UTC, or in the zone of `Prefer: outlook.timezone="..."`, which the answer
 repeats in `Preference-Applied`. `$top` and `$skip` page every list. `$filter`, `$select`,
