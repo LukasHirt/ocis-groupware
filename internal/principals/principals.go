@@ -131,12 +131,17 @@ type Registry struct {
 	// App passwords, see apppasswords.go.
 	bcryptCost int
 	compare    func(hash, password []byte) error
+	hash       func(password []byte, cost int) ([]byte, error)
 	cache      *credentialCache
 	// dummyHash is compared against when a check has no stored hash, so
 	// that it costs the same as checking a wrong password.
 	dummyHash []byte
-	appsMu    sync.Mutex
-	apps      map[string]*appSet // by owner
+	// Legacy tokens, see legacy.go.
+	legacySecret string
+	legacyTTL    time.Duration
+	legacyGate   func(ctx context.Context, username string) error
+	appsMu       sync.Mutex
+	apps         map[string]*appSet // by owner
 	// beforeCachePut, if set, runs in VerifyBasic between the last check of
 	// the app password and storing it in the cache. Tests use it to revoke
 	// the password in exactly that gap.
@@ -183,6 +188,8 @@ func NewRegistry(dataDir string, st store.Store, ownerDir func(owner string) str
 		bySub:      make(map[string]string),
 		bcryptCost: defaultBcryptCost,
 		compare:    bcrypt.CompareHashAndPassword,
+		hash:       bcrypt.GenerateFromPassword,
+		legacyTTL:  defaultLegacyTokenLifetime,
 		cache:      newCredentialCache(cacheTTL),
 		apps:       make(map[string]*appSet),
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -32,6 +33,14 @@ type Config struct {
 	// AdminSocket is the path of the unix socket that serves the admin API.
 	// It defaults to admin.sock in DataDir.
 	AdminSocket string `yaml:"admin_socket"`
+	// LegacyTokenSecret is the instance secret of a classic installation. It
+	// is needed to sign in with an app token imported from there: the
+	// classic server keeps a token as sha512(token . secret). Without it,
+	// imported tokens do not work.
+	LegacyTokenSecret string `yaml:"legacy_token_secret"`
+	// LegacyTokenTTL is how long an imported token stays valid without being
+	// used. A Go duration such as 4320h.
+	LegacyTokenTTL time.Duration `yaml:"legacy_token_ttl"`
 }
 
 // Default returns the built-in configuration defaults.
@@ -39,6 +48,8 @@ func Default() Config {
 	return Config{
 		HTTPAddr: ":8080",
 		LogLevel: "info",
+
+		LegacyTokenTTL: 180 * 24 * time.Hour,
 	}
 }
 
@@ -86,6 +97,16 @@ func Load(path string) (Config, error) {
 	if v, ok := os.LookupEnv("GROUPWARE_ADMIN_SOCKET"); ok {
 		cfg.AdminSocket = v
 	}
+	if v, ok := os.LookupEnv("GROUPWARE_LEGACY_TOKEN_SECRET"); ok {
+		cfg.LegacyTokenSecret = v
+	}
+	if v, ok := os.LookupEnv("GROUPWARE_LEGACY_TOKEN_TTL"); ok {
+		ttl, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("config: GROUPWARE_LEGACY_TOKEN_TTL: %w", err)
+		}
+		cfg.LegacyTokenTTL = ttl
+	}
 	if cfg.AdminSocket == "" && cfg.DataDir != "" {
 		cfg.AdminSocket = filepath.Join(cfg.DataDir, "admin.sock")
 	}
@@ -106,6 +127,9 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.DataDir == "" {
 		return fmt.Errorf("config: data_dir must be set (GROUPWARE_DATA_DIR)")
+	}
+	if cfg.LegacyTokenTTL < 0 {
+		return fmt.Errorf("config: legacy_token_ttl must not be negative")
 	}
 	return nil
 }

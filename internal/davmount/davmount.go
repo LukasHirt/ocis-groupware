@@ -167,6 +167,9 @@ func (a *authenticator) basic(ctx context.Context, username, password string) (i
 		return identity{owner: p.Owner, username: p.Username}, 0
 	case errors.Is(err, principals.ErrInvalidCredentials):
 		a.logger.Debug("app password rejected")
+	case errors.Is(err, principals.ErrRateLimited):
+		a.logger.Info("sign-in refused by the rate limiter", "username", username)
+		return identity{}, http.StatusTooManyRequests
 	case errors.Is(err, principals.ErrExpired):
 		a.logger.Info("app password expired", "username", username)
 	case errors.Is(err, principals.ErrDisabled):

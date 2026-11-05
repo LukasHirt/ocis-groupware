@@ -28,6 +28,8 @@ over file, file wins over defaults.
 | `GROUPWARE_OCIS_URL` | `ocis_url` | Optional. Where the service calls the oCIS Graph API to look up the signed-in user's id and groups. Defaults to the issuer URL. Uses the same CA file |
 | `GROUPWARE_DATA_DIR` | `data_dir` | **Required.** Directory that holds all service state. The image sets it to `/data` |
 | `GROUPWARE_ADMIN_SOCKET` | `admin_socket` | Path of the admin API's unix socket, default `admin.sock` in the data directory. Leave it alone unless the data directory cannot hold a socket (see below) |
+| `GROUPWARE_LEGACY_TOKEN_SECRET` | `legacy_token_secret` | Optional. The instance secret of a classic installation whose app tokens were imported. Without it, imported tokens do not work (see below) |
+| `GROUPWARE_LEGACY_TOKEN_TTL` | `legacy_token_ttl` | Optional Go duration, default `4320h` (180 days). How long an imported token stays valid without being used |
 
 ## Data directory
 
@@ -196,6 +198,18 @@ To add an account in a CalDAV or CardDAV client, enter the server address (for e
 Clients that discover the account themselves find `/dav/` through `/.well-known/caldav` and
 `/.well-known/carddav`. Use a separate app password for each device, so you can revoke one
 without touching the others.
+
+### Imported classic app tokens
+
+App tokens imported from a classic installation are listed with the app passwords and
+sign in the same way, over HTTP Basic with the classic username and the old token. The
+classic server keeps a token as `sha512(token . secret)` with its instance secret, so the
+service needs that secret in `GROUPWARE_LEGACY_TOKEN_SECRET` to recognise the token. At the
+first successful sign-in the service stores a bcrypt hash of the token and forgets the
+digest; from then on the token is an ordinary app password and is valid for 365 days. A
+token that is not used expires 180 days after its last use (or its import), or after
+`GROUPWARE_LEGACY_TOKEN_TTL`. Checks of imported tokens can be refused by a limiter, which
+answers `429`.
 
 ocis-groupware contacts the issuer on the first authenticated request, and retries after
 a failure, so it can start before oCIS is ready. While the issuer is

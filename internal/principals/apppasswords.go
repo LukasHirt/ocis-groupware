@@ -39,8 +39,9 @@ const (
 	maxAppPasswordName = 100
 	// secretBytes is the number of random bytes in an app password.
 	secretBytes = 20
-	// secretLen is the length of an app password: secretBytes in base32.
-	secretLen = 32
+	// maxPasswordLen is the longest password VerifyBasic looks at. bcrypt
+	// does not take more.
+	maxPasswordLen = 72
 	// MaxAppPasswords is the most app passwords a principal can have,
 	// expired ones included.
 	MaxAppPasswords = 50
@@ -87,10 +88,14 @@ type appRecord struct {
 	//
 	// The hint is part of the file format: a record without a hint, or with
 	// a wrong one, is never compared, so its password can never be verified.
-	Hint       string     `json:"hint"`
-	CreatedAt  time.Time  `json:"created_at"`
-	ExpiresAt  time.Time  `json:"expires_at"`
-	LastUsedAt *time.Time `json:"last_used_at"`
+	Hint string `json:"hint"`
+	// LegacySHA512 is set instead of Hash and Hint for an app token imported
+	// from a classic installation: the hex of sha512(token . secret). The
+	// first successful sign-in replaces it with a bcrypt hash and a hint.
+	LegacySHA512 string     `json:"legacy_sha512,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	ExpiresAt    time.Time  `json:"expires_at"`
+	LastUsedAt   *time.Time `json:"last_used_at"`
 }
 
 func (rec appRecord) appPassword() AppPassword {
@@ -164,7 +169,7 @@ func (r *Registry) IssueAppPassword(ctx context.Context, owner, name string, ttl
 	if err != nil {
 		return AppPassword{}, "", err
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(secret), r.bcryptCost)
+	hash, err := r.hash([]byte(secret), r.bcryptCost)
 	if err != nil {
 		return AppPassword{}, "", fmt.Errorf("principals: hash app password: %w", err)
 	}
@@ -299,7 +304,7 @@ func (r *Registry) VerifyBasic(ctx context.Context, username, password string) (
 	}
 
 	owner, ok := r.LookupUsername(username)
-	if !ok || !validSecret(password) {
+	if !ok || password == "" || len(password) > maxPasswordLen {
 		r.dummyCompare()
 		return Principal{}, ErrInvalidCredentials
 	}
@@ -327,7 +332,40 @@ func (r *Registry) VerifyBasic(ctx context.Context, username, password string) (
 			break
 		}
 	}
-	if !compared {
+	if match == nil && r.legacyEnabled() && slices.ContainsFunc(records, func(rec appRecord) bool { return rec.LegacySHA512 != "" }) {
+		if r.legacyGate != nil {
+			if err := r.legacyGate(ctx, username); err != nil {
+				return Principal{}, err
+			}
+		}
+		id := r.matchLegacy(records, password)
+		if id == "" {
+			if !compared {
+				r.dummyCompare()
+			}
+			return Principal{}, ErrInvalidCredentials
+		}
+		// The password is right. Expiry and a disabled principal are
+		// checked before the token is used up.
+		for i := range records {
+			if records[i].ID == id {
+				match = &records[i]
+			}
+		}
+		if !now.Before(match.ExpiresAt) {
+			return Principal{}, ErrExpired
+		}
+		if p, err := r.Get(owner); err != nil || p.Username != username {
+			return Principal{}, ErrInvalidCredentials
+		} else if p.Disabled {
+			return Principal{}, ErrDisabled
+		}
+		swapped, err := r.swapLegacy(owner, id, password, now)
+		if err != nil {
+			return Principal{}, err
+		}
+		match = &swapped
+	} else if !compared {
 		r.dummyCompare()
 	}
 	if match == nil {
@@ -517,19 +555,6 @@ func newID() (string, error) {
 		return "", fmt.Errorf("principals: random id: %w", err)
 	}
 	return secretEncoding.EncodeToString(b), nil
-}
-
-// validSecret reports whether password has the form of an app password.
-func validSecret(password string) bool {
-	if len(password) != secretLen {
-		return false
-	}
-	for _, c := range []byte(password) {
-		if (c < 'a' || c > 'z') && (c < '2' || c > '7') {
-			return false
-		}
-	}
-	return true
 }
 
 func secretHint(secret string) string {
