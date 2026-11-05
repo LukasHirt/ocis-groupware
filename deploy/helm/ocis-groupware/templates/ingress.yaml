@@ -1,0 +1,60 @@
+{{- if .Values.ingress.enabled }}
+{{- $host := required "ingress.host is required when the ingress is enabled" .Values.ingress.host -}}
+{{- $fullname := include "ocis-groupware.fullname" . -}}
+{{- $port := .Values.service.port -}}
+{{- /* The same routes as docs/routing.md. The Graph paths are listed one by one because
+       an Ingress has no regular expressions; Prefix matches whole path segments. */ -}}
+{{- $exact := list "/dav" "/dav/" "/.well-known/caldav" "/.well-known/carddav" -}}
+{{- $prefix := list "/dav/calendars/" "/dav/addressbooks/" "/dav/principals/"
+      "/graph/v1.0/me/calendar" "/graph/v1.0/me/calendars" "/graph/v1.0/me/calendarView"
+      "/graph/v1.0/me/events" "/graph/v1.0/me/contact" "/graph/v1.0/me/contacts"
+      "/graph/v1.0/me/contactFolders" "/groupware/" "/web/" -}}
+{{- if .Values.config.compatPaths -}}
+{{- $prefix = concat $prefix (list "/remote.php/dav/principals/" "/remote.php/dav/addressbooks/" "/remote.php/dav/calendars/") -}}
+{{- end -}}
+{{- if .Values.ingress.exposeOps -}}
+{{- $exact = concat $exact (list "/healthz" "/metrics") -}}
+{{- end -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- include "ocis-groupware.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ $host | quote }}
+      secretName: {{ . }}
+  {{- end }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          {{- range $exact }}
+          - path: {{ . }}
+            pathType: Exact
+            backend:
+              service:
+                name: {{ $fullname }}
+                port:
+                  number: {{ $port }}
+          {{- end }}
+          {{- range $prefix }}
+          - path: {{ . }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}
+                port:
+                  number: {{ $port }}
+          {{- end }}
+{{- end }}

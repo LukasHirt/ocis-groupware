@@ -1,0 +1,25 @@
+# Every optional part switched on. CI renders it and checks the result; it is
+# not installed.
+config:
+  oidcIssuer: https://ocis.example.test
+  oidcAudience: web
+  ocisUrl: https://ocis.example.test
+  logLevel: debug
+  compatPaths: true
+  legacyTokenTtl: 720h
+  adminSocket: /run/groupware/admin.sock
+oidcCA:
+  pem: |
+    -----BEGIN CERTIFICATE-----
+    MIIBszCCAVmgAwIBAgIUXXXXXXXXXXXXXXXXXXXXXXXXXXXwCgYIKoZIzj0EAwIw
+    -----END CERTIFICATE-----
+legacyTokenSecret:
+  value: not-a-real-secret
+ingress:
+  enabled: true
+  className: nginx
+  host: ocis.example.test
+  tlsSecretName: ocis-tls
+  exposeOps: true
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 64m

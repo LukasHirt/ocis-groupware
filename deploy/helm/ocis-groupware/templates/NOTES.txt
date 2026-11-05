@@ -1,0 +1,10 @@
+ocis-groupware runs as one replica on the volume {{ include "ocis-groupware.claimName" . }}.
+
+Administer it through the admin socket:
+
+  kubectl --namespace {{ .Release.Namespace }} exec deploy/{{ include "ocis-groupware.fullname" . }} -- /ocis-groupware admin principals list
+{{- if not .Values.ingress.enabled }}
+
+The ingress is off. Route the paths in docs/routing.md to the service
+{{ include "ocis-groupware.fullname" . }}:{{ .Values.service.port }} on the host of oCIS.
+{{- end }}

@@ -99,6 +99,48 @@ jobs:
           persist-credentials: false
       - run: docker build -t ocis-groupware:ci .
 
+  # Lints the Helm chart, renders it with every option on and validates the
+  # manifests, then installs it into a kind cluster with the image built from
+  # this commit. oCIS is not part of the cluster: the install checks that the
+  # pod starts on its volume and passes its probe.
+  helm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.19.0
+      - name: Lint the chart
+        run: |
+          helm lint deploy/helm/ocis-groupware -f deploy/helm/ocis-groupware/ci/default-values.yaml
+          helm lint deploy/helm/ocis-groupware -f deploy/helm/ocis-groupware/test/full-values.yaml
+      - name: Validate the rendered manifests
+        run: |
+          for values in ci/default-values.yaml test/full-values.yaml; do
+            helm template check deploy/helm/ocis-groupware --kube-version 1.31.0 \
+              -f "deploy/helm/ocis-groupware/$values" |
+              go run github.com/yannh/kubeconform/cmd/kubeconform@v0.7.0 \
+                -strict -summary -kubernetes-version 1.31.0
+          done
+      - uses: helm/chart-testing-action@720270857a28afd41e2426521a7801db09e9b510 # v2.9.0
+      - uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
+        with:
+          cluster_name: chart
+      - name: Build the image and load it into the cluster
+        run: |
+          docker build -t ocis-groupware:ci .
+          kind load docker-image ocis-groupware:ci --name chart
+      - name: Install the chart
+        run: |
+          ct install --charts deploy/helm/ocis-groupware \
+            --helm-extra-set-args "--set=image.repository=ocis-groupware --set=image.tag=ci --set=image.pullPolicy=Never"
+
   # Boots oCIS and the service three times: with the ingress routing the
   # groupware paths (docker-compose.yml as it is), with the classic DAV paths
   # on top of that (deploy/compose/compat-paths.yml), and with the oCIS proxy
