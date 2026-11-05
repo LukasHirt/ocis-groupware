@@ -24,9 +24,13 @@ Only these go to the service, plus the classic paths below when they are switche
 stay with oCIS. The matches are on the path only; the
 service does not need the ingress to rewrite anything or add headers.
 
-`/healthz` and `/metrics` are for the monitoring side. The development stack routes them
-through Traefik so the stack tests can wait for the service, and the snippets below leave
-them out. Reach them on the service's own address.
+`/healthz` and `/metrics` are for the monitoring side. `/metrics` is not on the service's
+public port at all: it is served on the debug address (`GROUPWARE_DEBUG_ADDR`, default
+`127.0.0.1:9180`, port 9180 in the container image and the Helm chart), which has no
+authentication. Scrape that address from inside the cluster or host and do not route it.
+`/healthz` is answered on both ports. The development stack routes it through Traefik so
+the stack tests can wait for the service, and the snippets below leave it out. Reach it
+on the service's own address.
 
 ## Ingress snippets
 

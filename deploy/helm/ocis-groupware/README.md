@@ -52,6 +52,7 @@ repository for what each one does.
 | `config.ocisUrl` | `GROUPWARE_OCIS_URL` | `""` | Graph API address; the issuer when empty. Inside the cluster, use the oCIS Service |
 | `config.logLevel` | `GROUPWARE_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `config.httpAddr` | `GROUPWARE_HTTP_ADDR` | `:8080` | The container port is the number at the end |
+| `config.debugAddr` | `GROUPWARE_DEBUG_ADDR` | `:9180` | Where `/metrics` and `/healthz` are served without authentication, on a separate port named `metrics`. Empty turns it off |
 | `config.compatPaths` | `GROUPWARE_COMPAT_PATHS` | `false` | Serve the classic DAV layout; adds those paths to the Ingress |
 | `config.legacyTokenTtl` | `GROUPWARE_LEGACY_TOKEN_TTL` | `""` | A Go duration; the service default is `4320h` |
 | `config.identityMaxAge` | `GROUPWARE_IDENTITY_MAX_AGE` | `""` | A Go duration; the service default is `720h`. `0` turns the check off |
@@ -108,13 +109,14 @@ kubectl -n ocis exec deploy/groupware-ocis-groupware -- /ocis-groupware admin pr
 | `persistence.existingClaim` | `""` | Use a claim that exists instead of creating one |
 | `service.type` | `ClusterIP` | |
 | `service.port` | `8080` | |
+| `service.metricsPort` | `9180` | Also publish the debug port on the Service, named `metrics`. Empty leaves it out |
 | `service.annotations` | `{}` | |
 | `ingress.enabled` | `false` | |
 | `ingress.className` | `""` | |
 | `ingress.annotations` | `{}` | Controller settings, for example a larger body size for imports |
 | `ingress.host` | `""` | **Required** with the Ingress. The public host of oCIS |
 | `ingress.tlsSecretName` | `""` | Adds a `tls` block when set |
-| `ingress.exposeOps` | `false` | Also route `/healthz` and `/metrics` |
+| `ingress.exposeOps` | `false` | Also route `/healthz`. `/metrics` is never routed |
 | `serviceAccount.create` | `true` | |
 | `serviceAccount.name` | `""` | |
 | `serviceAccount.annotations` | `{}` | |
@@ -127,6 +129,20 @@ kubectl -n ocis exec deploy/groupware-ocis-groupware -- /ocis-groupware admin pr
 | `nodeSelector`, `tolerations`, `affinity` | empty | |
 | `priorityClassName` | `""` | |
 
+## Metrics
+
+`/metrics` is not served on the HTTP port any more. It is on the debug port (`:9180`,
+container port `metrics`), which has no authentication, so it is published on the Service
+only and never through the Ingress. Point Prometheus at the Service port named `metrics`,
+or at the pod port. A ServiceMonitor selects the Service and names that port:
+
+```yaml
+endpoints:
+  - port: metrics
+```
+
+Add a NetworkPolicy if other workloads in the namespace should not reach it.
+
 ## Ingress paths
 
 With `ingress.enabled`, the chart routes these to the service:
@@ -137,7 +153,7 @@ With `ingress.enabled`, the chart routes these to the service:
   `events`, `contact`, `contacts` or `contactFolders`
 - With `config.compatPaths`: `/remote.php/dav/principals/`, `/remote.php/dav/addressbooks/`,
   `/remote.php/dav/calendars/`
-- With `ingress.exposeOps`: `/healthz` and `/metrics`
+- With `ingress.exposeOps`: `/healthz`
 
 Everything else stays with oCIS. Make sure the oCIS Ingress for the host does not use a
 rewrite or a catch-all regular expression that wins over these paths, and that the

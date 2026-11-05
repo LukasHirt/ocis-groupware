@@ -21,6 +21,7 @@ over file, file wins over defaults.
 | Env var | YAML key | Notes |
 |---|---|---|
 | `GROUPWARE_HTTP_ADDR` | `http_addr` | Listen address, default `:8080` |
+| `GROUPWARE_DEBUG_ADDR` | `debug_addr` | Optional, default `127.0.0.1:9180`. A second listener for `/metrics` and `/healthz`, without authentication (see "Metrics and health checks"). Empty turns it off. The container image sets it to `:9180` |
 | `GROUPWARE_LOG_LEVEL` | `log_level` | `debug`, `info`, `warn` or `error`, default `info` |
 | `GROUPWARE_OIDC_ISSUER` | `oidc_issuer` | **Required.** The oCIS public URL, which is also the OIDC issuer |
 | `GROUPWARE_OIDC_AUDIENCE` | `oidc_audience` | Optional. The OAuth client IDs whose tokens are accepted, comma-separated (in YAML a string or a list). Default `web`, the client of oCIS Web. `*` accepts every client and logs a warning at startup. An empty value is refused (see "Accepted clients") |
@@ -42,6 +43,8 @@ over file, file wins over defaults.
 ocis-groupware keeps its state in one directory, `GROUPWARE_DATA_DIR`, and opens it with
 an exclusive lock: a second process on the same directory fails to start. The directory
 is created if missing and must be writable by the service. `/healthz` returns `503` when it is not.
+It checks by creating and removing a file, and reuses the result for 10 seconds, so a busy
+health check does not write to the volume on every request.
 
 The image runs as uid 65532 and declares `/data` as a volume owned by that user. The
 compose stack mounts the named volume `groupware-data` there. When you bind-mount a host
@@ -114,7 +117,7 @@ filesystem then.
 
 Every request needs an `Authorization: Bearer <access token>` header, validated
 against the keys the oCIS identity provider publishes. The exceptions are
-`/healthz`, `/metrics`, `/.well-known/*` and `/web/*`. The token's `sub` claim
+`/healthz`, `/.well-known/*` and `/web/*`. The token's `sub` claim
 identifies the user.
 
 CalDAV and CardDAV are served under `/dav`. There a request can also carry
@@ -482,9 +485,20 @@ is not itself a listed proxy. From any other peer the header is ignored, so a cl
 choose the address it is counted under. IPv6 clients are counted by their /64 network.
 
 The counters live in memory and are lost on restart. At most 10000 are kept; when that is
-exceeded the least recently used one is dropped. They are exposed at `/metrics`:
+exceeded the least recently used one is dropped. They are exposed at `/metrics` on the
+debug address:
 `groupware_auth_failures_total`, `groupware_auth_rate_limited_total` and
 `groupware_auth_limiter_entries`.
+
+### Metrics and health checks
+
+`/metrics` is served on its own listener, `GROUPWARE_DEBUG_ADDR`, which defaults to
+`127.0.0.1:9180`. It needs no token, so it is not on the public port: the public port
+answers `404` for `/metrics`. `/healthz` is served on both. Scrape the debug address from
+inside the host or cluster. To reach it from another container or pod, set the address to
+`:9180` (the image does) and keep the port off the ingress and off any published port that
+untrusted clients can reach. If you scraped `/metrics` through the ingress or on port 8080
+before, point the scraper at the debug port instead.
 
 ocis-groupware contacts the issuer on the first authenticated request, and retries after
 a failure, so it can start before oCIS is ready. While the issuer is

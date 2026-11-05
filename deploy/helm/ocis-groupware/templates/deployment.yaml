@@ -55,6 +55,11 @@ spec:
             - name: http
               containerPort: {{ include "ocis-groupware.port" . }}
               protocol: TCP
+            {{- with include "ocis-groupware.debugPort" . }}
+            - name: metrics
+              containerPort: {{ . }}
+              protocol: TCP
+            {{- end }}
           env:
             - name: GROUPWARE_OIDC_ISSUER
               value: {{ required "config.oidcIssuer is required" .Values.config.oidcIssuer | quote }}
@@ -62,6 +67,8 @@ spec:
               value: {{ .Values.persistence.mountPath | quote }}
             - name: GROUPWARE_HTTP_ADDR
               value: {{ .Values.config.httpAddr | quote }}
+            - name: GROUPWARE_DEBUG_ADDR
+              value: {{ .Values.config.debugAddr | quote }}
             - name: GROUPWARE_LOG_LEVEL
               value: {{ .Values.config.logLevel | quote }}
             - name: GROUPWARE_COMPAT_PATHS

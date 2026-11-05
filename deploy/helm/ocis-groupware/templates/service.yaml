@@ -15,5 +15,11 @@ spec:
       port: {{ .Values.service.port }}
       targetPort: http
       protocol: TCP
+    {{- if and (include "ocis-groupware.debugPort" .) .Values.service.metricsPort }}
+    - name: metrics
+      port: {{ .Values.service.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+    {{- end }}
   selector:
     {{- include "ocis-groupware.selectorLabels" . | nindent 4 }}

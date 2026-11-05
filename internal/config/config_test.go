@@ -477,3 +477,31 @@ func TestAppPasswordMaxLifetimeValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestDebugAddr(t *testing.T) {
+	t.Setenv("GROUPWARE_DEBUG_ADDR", "")
+	_ = os.Unsetenv("GROUPWARE_DEBUG_ADDR")
+	if got := Default().DebugAddr; got != "127.0.0.1:9180" {
+		t.Errorf("default = %q, want 127.0.0.1:9180", got)
+	}
+	t.Setenv("GROUPWARE_DEBUG_ADDR", ":9999")
+	cfg, err := Load("")
+	if err != nil || cfg.DebugAddr != ":9999" {
+		t.Errorf("env: %q, %v", cfg.DebugAddr, err)
+	}
+	// An empty value turns the listener off.
+	t.Setenv("GROUPWARE_DEBUG_ADDR", "")
+	cfg, err = Load("")
+	if err != nil || cfg.DebugAddr != "" {
+		t.Errorf("empty env: %q, %v", cfg.DebugAddr, err)
+	}
+	path := filepath.Join(t.TempDir(), "c.yaml")
+	if err := os.WriteFile(path, []byte("debug_addr: \"\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.Unsetenv("GROUPWARE_DEBUG_ADDR")
+	cfg, err = Load(path)
+	if err != nil || cfg.DebugAddr != "" {
+		t.Errorf("empty yaml: %q, %v", cfg.DebugAddr, err)
+	}
+}

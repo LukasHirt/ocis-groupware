@@ -32,6 +32,10 @@ config:
   logLevel: info
   # GROUPWARE_HTTP_ADDR. The container port follows the number after the colon.
   httpAddr: ":8080"
+  # GROUPWARE_DEBUG_ADDR. Where /metrics and /healthz are served, without
+  # authentication. The container port follows the number after the colon. The
+  # ingress never routes /metrics. Empty turns the listener off.
+  debugAddr: ":9180"
   # GROUPWARE_COMPAT_PATHS. Also serves the classic DAV layout below
   # /remote.php/dav. The ingress has to route those paths too, which the
   # chart's ingress does when this is on.
@@ -98,6 +102,10 @@ persistence:
 service:
   type: ClusterIP
   port: 8080
+  # Also publish the debug listener on the Service under this port, named
+  # metrics, for a ServiceMonitor or a scrape annotation inside the cluster.
+  # Empty leaves it unpublished. Use a NetworkPolicy to limit who can reach it.
+  metricsPort: 9180
   annotations: {}
 
 # An Ingress for the paths that go to the service. oCIS needs its own Ingress
@@ -110,8 +118,8 @@ ingress:
   host: ""
   # Names the TLS secret of the host. Empty adds no tls block.
   tlsSecretName: ""
-  # Add /healthz and /metrics to the paths. They are meant for monitoring
-  # and stay private by default.
+  # Add /healthz to the paths. It is meant for monitoring and stays private
+  # by default. /metrics is never routed; scrape the metrics port.
   exposeOps: false
 
 serviceAccount:

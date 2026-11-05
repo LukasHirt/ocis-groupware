@@ -18,7 +18,11 @@ import (
 
 // Config holds ocis-groupware's runtime configuration.
 type Config struct {
-	HTTPAddr   string `yaml:"http_addr"`
+	HTTPAddr string `yaml:"http_addr"`
+	// DebugAddr is where /metrics and /healthz are served, apart from the
+	// public listener. It defaults to the loopback interface. Empty turns the
+	// listener off.
+	DebugAddr  string `yaml:"debug_addr"`
 	LogLevel   string `yaml:"log_level"`
 	OIDCIssuer string `yaml:"oidc_issuer"`
 	// OIDCAudience lists the OAuth client ids whose tokens are accepted. A
@@ -123,8 +127,9 @@ func splitList(v string) StringList {
 // Default returns the built-in configuration defaults.
 func Default() Config {
 	return Config{
-		HTTPAddr: ":8080",
-		LogLevel: "info",
+		HTTPAddr:  ":8080",
+		DebugAddr: "127.0.0.1:9180",
+		LogLevel:  "info",
 
 		OIDCAudience: StringList{"web"},
 
@@ -157,6 +162,9 @@ func Load(path string) (Config, error) {
 
 	if v, ok := os.LookupEnv("GROUPWARE_HTTP_ADDR"); ok {
 		cfg.HTTPAddr = v
+	}
+	if v, ok := os.LookupEnv("GROUPWARE_DEBUG_ADDR"); ok {
+		cfg.DebugAddr = v
 	}
 	if v, ok := os.LookupEnv("GROUPWARE_LOG_LEVEL"); ok {
 		cfg.LogLevel = v

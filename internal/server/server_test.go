@@ -7,10 +7,13 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -41,26 +44,54 @@ func TestHealthz(t *testing.T) {
 	}
 }
 
-func TestHealthzReadiness(t *testing.T) {
-	calls := 0
+func TestHealthzReadinessIsCached(t *testing.T) {
+	var calls atomic.Int32
+	var mu sync.Mutex
 	var readyErr error
+	now := time.Unix(1000, 0)
+	clock := func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
+	advance := func(d time.Duration) { mu.Lock(); now = now.Add(d); mu.Unlock() }
 	s := New(":0", testLogger(), nil, WithReadiness(func(context.Context) error {
-		calls++
+		calls.Add(1)
+		time.Sleep(5 * time.Millisecond)
+		mu.Lock()
+		defer mu.Unlock()
 		return readyErr
-	}))
-	get := func() *httptest.ResponseRecorder {
+	}), withClock(clock), WithDebugAddr("127.0.0.1:0"))
+	get := func(h http.Handler) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()
-		s.httpServer.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 		return rec
 	}
 
-	if rec := get(); rec.Code != http.StatusOK {
-		t.Fatalf("ready: status = %d, want %d", rec.Code, http.StatusOK)
+	var wg sync.WaitGroup
+	for range 100 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if rec := get(s.httpServer.Handler); rec.Code != http.StatusOK {
+				t.Errorf("ready: status = %d, want 200", rec.Code)
+			}
+		}()
 	}
+	wg.Wait()
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("readiness ran %d times for 100 requests, want 1", got)
+	}
+
+	// A failure inside the window is not seen yet.
+	mu.Lock()
 	readyErr = errors.New("open /secret/path: read-only")
-	rec := get()
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("not ready: status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	mu.Unlock()
+	advance(9 * time.Second)
+	if rec := get(s.httpServer.Handler); rec.Code != http.StatusOK || calls.Load() != 1 {
+		t.Fatalf("within the window: status = %d, calls = %d", rec.Code, calls.Load())
+	}
+
+	advance(2 * time.Second)
+	rec := get(s.httpServer.Handler)
+	if rec.Code != http.StatusServiceUnavailable || calls.Load() != 2 {
+		t.Fatalf("after the window: status = %d, calls = %d", rec.Code, calls.Load())
 	}
 	if got := rec.Body.String(); strings.Contains(got, "read-only") || strings.Contains(got, "error") {
 		t.Errorf("body = %q, must not contain error text", got)
@@ -68,22 +99,85 @@ func TestHealthzReadiness(t *testing.T) {
 	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
 		t.Errorf("Content-Type = %q, want application/json", ct)
 	}
-	if calls != 2 {
-		t.Errorf("readiness called %d times, want once per request (2)", calls)
+	// The failure is cached too, and expires after the same 10 s.
+	for range 5 {
+		get(s.httpServer.Handler)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("a cached failure ran the check again: %d calls", calls.Load())
+	}
+	mu.Lock()
+	readyErr = nil
+	mu.Unlock()
+	advance(11 * time.Second)
+	if rec := get(s.httpServer.Handler); rec.Code != http.StatusOK {
+		t.Fatalf("recovered: status = %d, want 200", rec.Code)
+	}
+	// The debug listener shares the cache.
+	if rec := get(s.debugHandler); rec.Code != http.StatusOK || calls.Load() != 3 {
+		t.Fatalf("debug healthz: status = %d, calls = %d", rec.Code, calls.Load())
 	}
 }
 
-func TestMetrics(t *testing.T) {
-	s := New(":0", testLogger(), nil)
-	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
-	rec := httptest.NewRecorder()
-	s.httpServer.Handler.ServeHTTP(rec, req)
+func TestMetricsOnTheDebugListenerOnly(t *testing.T) {
+	s := New(":0", testLogger(), nil, WithDebugAddr("127.0.0.1:0"))
 
+	rec := httptest.NewRecorder()
+	s.httpServer.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("main /metrics status = %d, want 404", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	s.debugHandler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+		t.Fatalf("debug /metrics status = %d, want 200", rec.Code)
 	}
 	if got := rec.Body.String(); !strings.Contains(got, "go_goroutines") {
 		t.Errorf("body does not contain expected metric name %q", "go_goroutines")
+	}
+
+	rec = httptest.NewRecorder()
+	s.debugHandler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/dav/", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("debug /dav/ status = %d, want 404: the debug listener serves nothing else", rec.Code)
+	}
+}
+
+func TestNoDebugListenerWhenTheAddressIsEmpty(t *testing.T) {
+	if s := New(":0", testLogger(), nil); s.debugServer != nil || s.debugHandler != nil {
+		t.Fatal("a debug server exists without an address")
+	}
+}
+
+func TestRunServesMetricsOnTheDebugAddress(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := l.Addr().String()
+	_ = l.Close()
+	s := New("127.0.0.1:0", testLogger(), nil, WithDebugAddr(addr))
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- s.Run(ctx) }()
+	var resp *http.Response
+	for range 100 {
+		if resp, err = http.Get("http://" + addr + "/metrics"); err == nil {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -137,7 +231,8 @@ func TestAuthMiddlewareProtectsEverythingButPublicPaths(t *testing.T) {
 		want   int
 	}{
 		{"healthz is public", "/healthz", "", http.StatusOK},
-		{"metrics is public", "/metrics", "", http.StatusOK},
+		{"metrics is not served on the main listener", "/metrics", "", http.StatusUnauthorized},
+		{"metrics with a token is not found", "/metrics", "Bearer tok", http.StatusNotFound},
 		{"unregistered path without token fails closed", "/groupware/v1/x", "", http.StatusUnauthorized},
 		{"unregistered path with token reaches the router", "/groupware/v1/x", "Bearer tok", http.StatusNotFound},
 	}

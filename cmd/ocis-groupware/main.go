@@ -178,6 +178,7 @@ func run(args []string, stderr io.Writer) error {
 	var davOpts []auth.Option
 	srvOpts := []server.Option{
 		server.WithReadiness(dataDirWritable(cfg.DataDir)),
+		server.WithDebugAddr(cfg.DebugAddr),
 		server.WithDAV(dav, wellKnown),
 		server.WithAppPasswords(api.AppPasswords(registry, identities, logger, api.WithClientAddr(limiter.ClientAddr))),
 		server.WithGraph(facade),
