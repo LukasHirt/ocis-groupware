@@ -2,3 +2,6 @@
 *.md
 .github
 .golangci.yml
+web/node_modules
+web/dist
+web/coverage

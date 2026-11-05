@@ -10,6 +10,8 @@ coverage.txt
 # The web build; only the placeholder that keeps the directory is tracked
 /web/dist/*
 !/web/dist/.gitkeep
+/web/node_modules/
+/web/coverage/
 
 # Local design notes and plans
 docs/superpowers/
