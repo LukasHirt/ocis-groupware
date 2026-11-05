@@ -9,7 +9,7 @@ check the result, and what the directory does not hold.
 
 | Path | What it is |
 |---|---|
-| `format-version`, `lock` | The layout version and the lock file |
+| `format-version`, `lock` | The layout version and the lock file. See [format.md](format.md) |
 | `owners/<owner>/calendars/`, `owners/<owner>/addressbooks/` | The calendars and address books, one directory per collection, as plain files |
 | `owners/<owner>/principal.json` | The user: name, oCIS id, group snapshot, whether the user is disabled |
 | `owners/<owner>/app_passwords.json` | The user's app passwords, as bcrypt hashes |
@@ -149,7 +149,7 @@ The service keeps no copy of what oCIS owns. Back these up the way you back up o
   counters. They are rebuilt after a start.
 
 If you use the image from a registry, note the image tag you run. A backup made by a newer
-release may not open in an older one.
+release may not open in an older one, see [format.md](format.md).
 
 ## Docker and Helm
 

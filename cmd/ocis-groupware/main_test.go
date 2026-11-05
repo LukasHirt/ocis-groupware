@@ -75,6 +75,54 @@ func TestOpenStoreSecondOpenIsLocked(t *testing.T) {
 	}
 }
 
+// A directory whose format-version this build does not read, as after a
+// downgrade, stops the service before it touches anything: it exits with an
+// error that names the version, leaves the directory as it found it and does
+// not keep the lock.
+func TestStartRefusesAFormatVersionItDoesNotRead(t *testing.T) {
+	for _, version := range []string{"2", "0", "1.1"} {
+		t.Run(version, func(t *testing.T) {
+			dir := shortDir(t)
+			versionFile := filepath.Join(dir, "format-version")
+			if err := os.WriteFile(versionFile, []byte(version+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("GROUPWARE_OIDC_ISSUER", "https://ocis.invalid")
+			t.Setenv("GROUPWARE_DATA_DIR", dir)
+			t.Setenv("GROUPWARE_HTTP_ADDR", "127.0.0.1:0")
+			t.Setenv("GROUPWARE_DEBUG_ADDR", "")
+
+			var stdout, stderr strings.Builder
+			if code := realMain(nil, &stdout, &stderr); code != 1 {
+				t.Fatalf("exit code = %d, want 1; stderr: %s", code, stderr.String())
+			}
+			msg := stderr.String()
+			if !strings.Contains(msg, "unsupported format version") || !strings.Contains(msg, version) {
+				t.Errorf("error %q does not name the unsupported version %q", msg, version)
+			}
+
+			if got, err := os.ReadFile(versionFile); err != nil || string(got) != version+"\n" {
+				t.Errorf("format-version = %q, %v; it must stay as it was", got, err)
+			}
+			for _, name := range []string{"owners", "admin.sock"} {
+				if _, err := os.Stat(filepath.Join(dir, name)); !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("%s was created in a directory the service refused: %v", name, err)
+				}
+			}
+
+			// The refused start gave the lock back.
+			if err := os.WriteFile(versionFile, []byte("1\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			st, err := openStore(dir, discardLogger())
+			if err != nil {
+				t.Fatalf("open after the refused start: %v", err)
+			}
+			_ = st.Close()
+		})
+	}
+}
+
 // shortDir returns a directory whose paths fit a unix socket address;
 // t.TempDir() on macOS is often too long for one.
 func shortDir(t *testing.T) string {

@@ -50,7 +50,8 @@ The image runs as uid 65532 and declares `/data` as a volume owned by that user.
 compose stack mounts the named volume `groupware-data` there. When you bind-mount a host
 directory instead, give uid 65532 write access to it.
 
-[docs/backup.md](docs/backup.md) says how to back the directory up and restore it.
+[docs/backup.md](docs/backup.md) says how to back the directory up and restore it. [docs/format.md](docs/format.md) describes its layout, which files carry a version, and how to
+upgrade and go back.
 
 Each user has a directory below `owners/` with a `principal.json`. Its `disabled` field,
 when `true`, refuses every sign-in of that user, with app passwords and with bearer

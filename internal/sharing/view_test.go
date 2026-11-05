@@ -302,6 +302,35 @@ func TestRecipientOverrides(t *testing.T) {
 	}
 }
 
+// A file written by a release with another layout is not read, and not
+// rewritten by reading it: the recipient sees the owner's names until a
+// change of their own replaces the file.
+func TestOverridesFileOfAnotherVersionIsNotRead(t *testing.T) {
+	vf := newViewFixture(t)
+	vf.grant(t, user("u-bob", Read))
+	ctx := context.Background()
+	ref := vf.sref(bob)
+
+	path := filepath.Join(vf.ownerDir(bob), OverridesFileName)
+	newer := `{"version":2,"collections":{"` + vf.cal.ID + `":{"display_name":"Team"}}}`
+	if err := os.WriteFile(path, []byte(newer), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	view := vf.newView(t)
+	c, err := view.GetCollection(ctx, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Props.DisplayName != "Work (Alice A)" {
+		t.Fatalf("display name = %q, the override of version 2 was read", c.Props.DisplayName)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil || string(got) != newer {
+		t.Fatalf("the file was changed by reading it: %q, %v", got, err)
+	}
+}
+
 func TestRecipientMayNotChangeOtherProperties(t *testing.T) {
 	vf := newViewFixture(t)
 	vf.grant(t, user("u-bob", ReadWrite))
