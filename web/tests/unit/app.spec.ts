@@ -27,6 +27,7 @@ vi.mock('../../src/composables/useApi', async () => {
   )
   const client = {
     listCalendars: () => Promise.resolve(calendars.value),
+    calendarView: () => Promise.resolve([]),
     listContactFolders: () => Promise.resolve(folders.value)
   }
   return { useApi: () => ({ client, run: (_t: string, f: (c: unknown) => unknown) => f(client) }) }

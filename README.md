@@ -153,6 +153,14 @@ typed client lives in `web/src/api`; its types follow the golden files in
 unit tests of `web/` load, so a change of shape on either side fails a test. A failed
 call shows an error toast with the server's message.
 
+The calendar page draws the user's calendars with FullCalendar (MIT, bundled into
+`groupware.js`) in month, week and day views. The events come from the server-expanded
+calendar view for the range on screen, so recurring events need no recurrence library in
+the browser. Each calendar has a switch in the list beside the grid; which calendars are
+switched off is kept in the browser's local storage. A calendar without a colour gets one
+from a fixed palette that depends only on its id. Event times are converted from the
+zone the server reports to the browser's zone.
+
 Development needs Node 24:
 
 ```sh
