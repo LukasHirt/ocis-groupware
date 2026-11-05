@@ -100,6 +100,15 @@ func New(cfg Config, opts ...Option) (*Handler, error) {
 		{http.MethodGet, strings.Split("me/calendars/{id}", "/"), a.getCalendar},
 		{http.MethodPatch, strings.Split("me/calendars/{id}", "/"), a.patchCalendar},
 		{http.MethodDelete, strings.Split("me/calendars/{id}", "/"), a.deleteCalendar},
+		{http.MethodGet, strings.Split("me/events", "/"), a.listEvents(true)},
+		{http.MethodGet, strings.Split("me/events/{eid}", "/"), a.getEvent(false, false)},
+		{http.MethodGet, strings.Split("me/calendar/events", "/"), a.listEvents(true)},
+		{http.MethodGet, strings.Split("me/calendar/events/{eid}", "/"), a.getEvent(true, true)},
+		{http.MethodGet, strings.Split("me/calendars/{id}/events", "/"), a.listEvents(false)},
+		{http.MethodGet, strings.Split("me/calendars/{id}/events/{eid}", "/"), a.getEvent(false, true)},
+		{http.MethodGet, strings.Split("me/calendarView", "/"), a.calendarView("all")},
+		{http.MethodGet, strings.Split("me/calendar/calendarView", "/"), a.calendarView("default")},
+		{http.MethodGet, strings.Split("me/calendars/{id}/calendarView", "/"), a.calendarView("calendar")},
 	}
 	for _, opt := range opts {
 		opt(a)

@@ -223,6 +223,27 @@ that is not one of the user's calendars answers `404`, whether it does not exist
 belongs to someone else. Calendars made here hold events, and the DAV URL of a new one
 carries a generated name.
 
+### Events
+
+| Request | Answer |
+|---|---|
+| `GET /graph/v1.0/me/events`, `/me/calendar/events` | The events of the default calendar, the oldest one the user owns. A series is one item, its master |
+| `GET /graph/v1.0/me/calendars/{id}/events` | The events of one calendar, own or shared |
+| `GET /graph/v1.0/me/events/{id}`, `/me/calendars/{id}/events/{id}` | One event, or one occurrence of a series |
+| `GET /graph/v1.0/me/calendarView?startDateTime=&endDateTime=` | The occurrences that overlap the window, series expanded, from every calendar the user sees; also below `/me/calendar` and `/me/calendars/{id}` |
+
+An event id is the calendar id, a dot and the URL-safe base64 form of the object's name in the
+calendar. An occurrence id adds a dot and the occurrence's `RECURRENCE-ID` in UTC, such as
+`...20261120T090000Z`. `@odata.etag` carries the object's ETag as a weak validator, and
+`changeKey` the bare value. Events in the calendar view come with `type` `singleInstance`,
+`occurrence` or `exception`, and occurrences have a `seriesMasterId`. The window may be up to five
+years long; times without an offset are UTC. An exception date is left out, a moved occurrence
+shows at its new time, and an occurrence that overlaps the window by any amount is included.
+
+Times are shown in UTC, or in the zone of `Prefer: outlook.timezone="..."`, which the answer
+repeats in `Preference-Applied`. `$top` and `$skip` page every list. `$filter`, `$select`,
+`$orderby`, `$expand`, `$count`, `$search`, `delta` and `/instances` answer `501`.
+
 ### Event mapping
 
 Events are stored as iCalendar and shown as Graph events. The mapping loses some detail,
