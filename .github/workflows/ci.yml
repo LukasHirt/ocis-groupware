@@ -22,6 +22,33 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    # The classic database reader is tested against real databases loaded
+    # from the dumps in test/classic.
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: classic
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: pg
+          POSTGRES_DB: classic
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      CLASSIC_REQUIRE_DB: "1"
+      CLASSIC_TEST_MYSQL_DSN: root:root@tcp(127.0.0.1:3306)/classic
+      CLASSIC_TEST_POSTGRES_URL: postgres://postgres:pg@127.0.0.1:5432/classic?sslmode=disable
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
