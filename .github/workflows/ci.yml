@@ -145,7 +145,8 @@ jobs:
   # groupware paths (docker-compose.yml as it is), with the classic DAV paths
   # on top of that (deploy/compose/compat-paths.yml), and with the oCIS proxy
   # forwarding them (deploy/compose/ocis-proxy.yml on top). The tests know
-  # which route they are on through STACK_ROUTE and STACK_COMPAT.
+  # which route they are on through STACK_ROUTE and STACK_COMPAT. The classic
+  # paths entry also migrates the classic fixture into the running stack.
   stack:
     name: stack (${{ matrix.name }})
     runs-on: ubuntu-latest
@@ -214,6 +215,15 @@ jobs:
         env:
           STACK_URL: https://ocis.localhost
         run: npm run test:e2e
+      # Changes the stack's data and restarts the service, so it runs last.
+      # Needs the classic paths, which only this entry of the matrix has.
+      - name: Migrate the classic fixture into the stack
+        if: matrix.compat == 'true'
+        env:
+          STACK_CA_FILE: ${{ runner.temp }}/cert.pem
+          STACK_MIGRATE: "true"
+          STACK_WAIT: 5m
+        run: go test -tags stack -count=1 -v -run TestMigrateClassicInstance ./test/stack/
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
