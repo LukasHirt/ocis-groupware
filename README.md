@@ -429,6 +429,10 @@ MariaDB and PostgreSQL dumps of it. It uses its own compose project and ports, s
 runs next to the stack above. The dumps are what tests read; the compose file and the
 seeding script regenerate them. See [test/classic/README.md](test/classic/README.md).
 
+`internal/migrate/classic` reads such a database (MariaDB, MySQL or PostgreSQL) and its
+tests load the dumps into real databases. The schema it assumes is in
+[docs/classic-database.md](docs/classic-database.md).
+
 ### Stack tests
 
 `test/stack` holds end-to-end tests that need the running stack. They sign in as the
