@@ -19,16 +19,26 @@ const maxViewWindow = 5 * 366 * 24 * time.Hour
 // etagHeader is how an object's ETag shows in @odata.etag and in If-Match.
 func etagHeader(etag string) string { return `W/"` + etag + `"` }
 
-// unsupportedQuery answers 501 for the OData options the facade does not
-// serve, so a client never gets an unfiltered list in place of a filtered one.
-func unsupportedQuery(r *http.Request) *apiError {
-	q := r.URL.Query()
-	for _, k := range []string{"$filter", "$select", "$orderby", "$expand", "$count", "$search"} {
-		if q.Has(k) {
-			return newError(http.StatusNotImplemented, codeNotImplemented, k+" is not supported")
-		}
+// eventSpec is what event lists accept besides $top, $skip and $select.
+var eventSpec = &listSpec[eventJSON]{
+	order: map[string]func(a, b eventJSON) int{
+		"subject":         func(a, b eventJSON) int { return compareText(a.Subject, b.Subject, a.ID, b.ID) },
+		"start/dateTime":  func(a, b eventJSON) int { return compareText(a.Start.DateTime, b.Start.DateTime, a.ID, b.ID) },
+		"end/dateTime":    func(a, b eventJSON) int { return compareText(a.End.DateTime, b.End.DateTime, a.ID, b.ID) },
+		"createdDateTime": func(a, b eventJSON) int { return compareText(a.CreatedDateTime, b.CreatedDateTime, a.ID, b.ID) },
+		"lastModifiedDateTime": func(a, b eventJSON) int {
+			return compareText(a.LastModifiedDateTime, b.LastModifiedDateTime, a.ID, b.ID)
+		},
+	},
+}
+
+// compareText orders by x and y without regard to case, then by the ids, so
+// the order is the same on every request.
+func compareText(x, y, idX, idY string) int {
+	if c := strings.Compare(strings.ToLower(x), strings.ToLower(y)); c != 0 {
+		return c
 	}
-	return nil
+	return strings.Compare(idX, idY)
 }
 
 // unsupportedSegment is a path segment that stands for an operation the
@@ -114,7 +124,7 @@ func (a *Handler) scope(ctx context.Context, c *call, def bool) (CalendarEntry, 
 
 func (a *Handler) listEvents(def bool) func(http.ResponseWriter, *http.Request, *call) {
 	return func(w http.ResponseWriter, r *http.Request, c *call) {
-		if aerr := unsupportedQuery(r); aerr != nil {
+		if aerr := checkOptions(r); aerr != nil {
 			writeError(w, aerr)
 			return
 		}
@@ -144,7 +154,7 @@ func (a *Handler) listEvents(def bool) func(http.ResponseWriter, *http.Request, 
 				out = append(out, e)
 			}
 		}
-		writeCollection(w, r, out)
+		writeList(w, r, out, eventSpec)
 	}
 }
 
@@ -250,7 +260,7 @@ func (a *Handler) getEvent(def, scoped bool) func(http.ResponseWriter, *http.Req
 			writeError(w, aerr)
 			return
 		}
-		if aerr := unsupportedQuery(r); aerr != nil {
+		if aerr := checkOptions(r); aerr != nil {
 			writeError(w, aerr)
 			return
 		}
@@ -291,7 +301,7 @@ func (a *Handler) getEvent(def, scoped bool) func(http.ResponseWriter, *http.Req
 			writeError(w, notFound("the event does not exist"))
 			return
 		}
-		writeJSON(w, http.StatusOK, e)
+		writeItem(w, r, http.StatusOK, e)
 	}
 }
 
@@ -313,7 +323,7 @@ type viewItem struct {
 
 func (a *Handler) calendarView(mode string) func(http.ResponseWriter, *http.Request, *call) {
 	return func(w http.ResponseWriter, r *http.Request, c *call) {
-		if aerr := unsupportedQuery(r); aerr != nil {
+		if aerr := checkOptions(r); aerr != nil {
 			writeError(w, aerr)
 			return
 		}
@@ -382,7 +392,7 @@ func (a *Handler) calendarView(mode string) func(http.ResponseWriter, *http.Requ
 		for i, it := range items {
 			out[i] = it.event
 		}
-		writeCollection(w, r, out)
+		writeList(w, r, out, eventSpec)
 	}
 }
 

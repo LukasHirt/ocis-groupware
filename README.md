@@ -277,6 +277,18 @@ are shared with: the URL-safe base64 form, without padding, of the collection id
 answers carry `@odata.nextLink` when more items follow; `$top` (1 to 1000, default 100)
 and `$skip` select the page.
 
+Lists and single items take `$select` with top-level property names, such as
+`$select=subject,start`. `id` and `@odata.etag` are always included. An unknown name is
+`400`, and a nested one such as `start/dateTime` is `501`. Event and contact lists also take
+`$orderby` with one property and an optional `asc` or `desc`. The order is applied before the
+page is cut, and the next link keeps all options. Events can be ordered by `subject`,
+`start/dateTime`, `end/dateTime`, `createdDateTime` and `lastModifiedDateTime`; contacts by
+`displayName` (the default), `givenName`, `surname`, `companyName` and
+`lastModifiedDateTime`. Text sorts without regard to case. More than one property, or a
+property outside these lists, is `501`; a property the resource does not have is `400`.
+`$expand`, `$count`, `$search`, `$filter` (until noted below) and any other `$` option answer
+`501`.
+
 ### Calendars
 
 | Request | Answer |
@@ -345,8 +357,7 @@ whose access to the calendar is read-only gets `403`. A `PATCH` on an occurrence
 updates are sent to attendees.
 
 Times are shown in UTC, or in the zone of `Prefer: outlook.timezone="..."`, which the answer
-repeats in `Preference-Applied`. `$top` and `$skip` page every list. `$filter`, `$select`,
-`$orderby`, `$expand`, `$count`, `$search`, `delta` and `/instances` answer `501`.
+repeats in `Preference-Applied`. `$filter`, `delta` and `/instances` answer `501`.
 
 ### Event mapping
 
@@ -396,8 +407,7 @@ the facade does not write them. `If-Match` is honoured on `PATCH` and `DELETE` a
 with the code `preconditionFailed`. A `PATCH` that changes nothing does not write the card. A
 user with read-only access to the address book, and anyone but the owner changing the folder
 itself, gets `403`. Contacts made here show up for CardDAV clients at the next sync like any other
-write. `$filter`, `$select`, `$orderby`, `$expand`, `$count`, `$search`, `delta` and child folders
-answer `501`.
+write. `$filter`, `delta` and child folders answer `501`.
 
 ### Contact photos
 

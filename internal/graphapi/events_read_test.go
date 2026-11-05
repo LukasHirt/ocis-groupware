@@ -123,7 +123,7 @@ func TestListEvents(t *testing.T) {
 
 func TestUnsupportedODataQueryOptions(t *testing.T) {
 	f := newFixture(t)
-	for _, q := range []string{"$filter=subject eq 'x'", "$select=subject", "$orderby=subject", "$expand=attachments", "$count=true", "$search=x"} {
+	for _, q := range []string{"$filter=subject eq 'x'", "$expand=attachments", "$count=true", "$search=x"} {
 		target := "/graph/v1.0/me/events?" + strings.Replace(url.QueryEscape(q), "%3D", "=", 1)
 		if rec, _ := getEvents(t, f, target); rec.Code != http.StatusNotImplemented {
 			t.Errorf("%s: %d, want 501", q, rec.Code)
