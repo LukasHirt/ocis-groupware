@@ -114,3 +114,36 @@ digest, which is why tokens are matched by name.
 Two objects in one calendar can share a UID in a classic database. Both are
 copied; the second one is stored without an entry in the UID index, and the report
 names it.
+
+## What the stack test covers
+
+`test/stack/migrate_test.go` runs the move in the compose stack with oCIS 8.2.2 and
+the classic paths switched on. CI runs it on the `ingress-compat` entry after the
+other stack tests. The fixture's MariaDB dump is loaded into a database, and users
+`alice` and `bob` and a group `team` are created in oCIS. The command is run once
+while the service is up, where it has to refuse, and then with the service stopped,
+as a dry run and for real, mapping users and groups through oCIS with an
+administrator's token. Then the service starts again, and the test acts as the
+devices would:
+
+- A phone signs in at `/remote.php/dav/calendars/alice/work/` with the classic login
+  and the app token from the fixture. The sync token of the classic server is
+  refused with `valid-sync-token`, a full sync returns all 5,000 events under the
+  same addresses, and the address book holds its 120 cards.
+- The data directory holds the token as the classic digest before its first use and
+  as a bcrypt hash after it. A token that was not used keeps its digest, and a wrong
+  token is refused.
+- `alice` and `bob` sign in to oCIS and find their calendars, which binds the
+  migrated data to them. Their tokens are still listed, and the phone still signs in.
+- A user who has the calendar only through the group reads all of it and is refused
+  a write. `bob`, who has it with read and write access, can write.
+
+Some things are outside what CI can do. The test sends the requests a client sends,
+but no client program is involved, so the quirks of Apple, DAVx5, Thunderbird or
+Evolution against a migrated instance are for a manual check. The stack test uses the
+MariaDB dump only; the PostgreSQL dump is covered by the reader's own tests. The
+classic server is not run: the dump stands in for it, so sync tokens and ETags the
+real server would have handed out are not replayed, and the sync token in the test is
+one it would have used. The usernames are equal in both servers, so the case of a
+classic login that differs from the oCIS login is covered only by the mapper's tests
+with CSV files.

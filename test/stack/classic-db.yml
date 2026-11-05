@@ -1,0 +1,23 @@
+# Adds a MariaDB with the classic fixture to the compose stack, and gives the
+# service the secret the fixture's app tokens were made with. Only the
+# migration test (STACK_MIGRATE=true) uses this file, and it passes it to
+# `docker compose` itself, after the files in COMPOSE_FILE.
+#
+# CLASSIC_DUMP is the path of test/classic/dumps/mariadb.sql; the test sets it.
+
+services:
+  classic-db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: classic
+    volumes:
+      - ${CLASSIC_DUMP:?set CLASSIC_DUMP}:/docker-entrypoint-initdb.d/classic.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+  ocis-groupware:
+    environment:
+      GROUPWARE_LEGACY_TOKEN_SECRET: ${CLASSIC_SECRET:?set CLASSIC_SECRET}
