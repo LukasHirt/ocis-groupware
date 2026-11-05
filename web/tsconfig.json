@@ -1,0 +1,13 @@
+{
+  "extends": "@ownclouders/tsconfig",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "paths": {
+      // The package lists its types outside its exports map, so TypeScript
+      // would otherwise treat it as untyped.
+      "vue3-gettext": ["./node_modules/vue3-gettext/dist/types/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*", "tests/**/*", "types/**/*", "vite.config.ts", "eslint.config.js"]
+}

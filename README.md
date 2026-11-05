@@ -77,7 +77,28 @@ The service serves its web application, a build of `web/`, under `/web/` without
 authentication. The build output is embedded in the binary at compile time from
 `web/dist`. That directory holds only a placeholder in git, so a binary built without
 the web build answers `404` for every path under `/web/`, and the Go tests do not need
-Node.
+Node. The Docker image always contains the build.
+
+`web/` is a Vue 3 and TypeScript project built with ownCloud's extension SDK. It is an
+application for ownCloud Web, with Calendar and Contacts entries in the sidebar. oCIS
+Web loads `/web/groupware.js` when the Web configuration lists the application under
+`external_apps`, and provides `vue`, `pinia`, `luxon`, `vue3-gettext`,
+`@ownclouders/web-pkg` and `@ownclouders/web-client` to it at run time, so the bundle
+contains none of them. `vue-router` is not provided; the application imports only
+its types and routes through the composables of `web-pkg`. The ownCloud packages are
+pinned to the Web version that the supported oCIS release ships (Web 12.5.0 in oCIS
+8.2.x) and are updated by hand with it.
+
+Development needs Node 24:
+
+```sh
+task web:install   # npm ci
+task web:check     # eslint, vue-tsc, vitest and the build, what CI runs
+task web:build     # writes web/dist; the next go build embeds it
+```
+
+In `web/`, `npm run dev` rebuilds on every change. A running local stack then serves
+the new build only after the Go binary is rebuilt, since it is embedded.
 
 Only `GET` and `HEAD` are answered, and only for plain files: no directory listings, no
 index, nothing whose name starts with a dot. Each response carries its content type

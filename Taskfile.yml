@@ -18,7 +18,7 @@ tasks:
     desc: Check gofmt formatting
     cmds:
       - |
-        unformatted=$(gofmt -l .)
+        unformatted=$(gofmt -l $(go list -f '{{.Dir}}' ./...))
         if [ -n "$unformatted" ]; then
           echo "$unformatted"
           exit 1
@@ -51,6 +51,24 @@ tasks:
       - task: vet
       - task: lint
       - task: test
+
+  web:install:
+    desc: Install the web application's dependencies
+    dir: web
+    cmds:
+      - npm ci --no-audit --no-fund
+
+  web:build:
+    desc: Build the web application into web/dist, which the Go build embeds
+    dir: web
+    cmds:
+      - npm run build
+
+  web:check:
+    desc: Lint, type-check, test and build the web application (what CI runs)
+    dir: web
+    cmds:
+      - npm run check
 
   docker:build:
     desc: Build the docker image

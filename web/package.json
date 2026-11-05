@@ -1,0 +1,39 @@
+{
+  "name": "groupware",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Calendar and contacts application for ownCloud Web",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch --mode development",
+    "lint": "eslint .",
+    "check:types": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run lint && npm run check:types && npm run test && npm run build"
+  },
+  "dependencies": {
+    "@ownclouders/web-client": "12.5.0",
+    "@ownclouders/web-pkg": "12.5.0"
+  },
+  "devDependencies": {
+    "@ownclouders/eslint-config": "12.5.0",
+    "@ownclouders/extension-sdk": "12.5.0",
+    "@ownclouders/tsconfig": "0.0.7",
+    "@types/node": "24.19.2",
+    "@vue/test-utils": "2.5.1",
+    "eslint": "9.39.5",
+    "happy-dom": "20.14.5",
+    "typescript": "5.9.3",
+    "vite": "7.3.7",
+    "vitest": "4.1.11",
+    "vue": "3.5.43",
+    "vue-router": "5.0.6",
+    "vue-tsc": "3.1.4",
+    "vue3-gettext": "2.4.0"
+  }
+}
