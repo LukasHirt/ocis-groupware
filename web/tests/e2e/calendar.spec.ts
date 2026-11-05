@@ -181,3 +181,60 @@ test('an all-day event is made by clicking a day', async ({ page }) => {
   await page.getByTestId('dialog-confirm').click()
   await expect(event).toHaveCount(0)
 })
+
+function firstOfMonth(): string {
+  return today().slice(0, 8) + '01'
+}
+
+test('a repeating event can be changed for one day or for all days', async ({ page }) => {
+  await openCalendar(page)
+  const events = page.locator('.fc-event', { hasText: 'Stand-up' })
+  const day = firstOfMonth()
+
+  await page.getByTestId('event-add').click()
+  await page.getByTestId('event-subject').fill('Stand-up')
+  await page.getByTestId('event-start-date').fill(day)
+  await page.getByTestId('event-start-time').fill('09:00')
+  await page.getByTestId('event-end-date').fill(day)
+  await page.getByTestId('event-end-time').fill('09:30')
+  await page.getByTestId('repeat-frequency').selectOption('daily')
+  await page.getByTestId('repeat-end').selectOption('count')
+  await page.getByTestId('repeat-count').fill('3')
+  await page.getByTestId('dialog-confirm').click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(events).toHaveCount(3)
+
+  // One day only.
+  await events.first().click()
+  await page.getByTestId('scope-this').click()
+  await expect(page.getByTestId('repeat-frequency')).toHaveCount(0)
+  await page.getByTestId('event-subject').fill('Stand-up moved')
+  await page.getByTestId('dialog-confirm').click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(page.locator('.fc-event', { hasText: 'Stand-up moved' })).toHaveCount(1)
+  await expect(events).toHaveCount(3)
+
+  // The whole series: the pattern comes back as it was written.
+  await events.last().click()
+  await page.getByTestId('scope-all').click()
+  await expect(page.getByTestId('repeat-frequency')).toHaveValue('daily')
+  await expect(page.getByTestId('repeat-end')).toHaveValue('count')
+  await expect(page.getByTestId('repeat-count')).toHaveValue('3')
+  await page.getByTestId('repeat-count').fill('2')
+  await page.getByTestId('dialog-confirm').click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(events).toHaveCount(2)
+
+  // Delete one day, then the rest.
+  await events.last().click()
+  await page.getByTestId('scope-this').click()
+  await page.getByTestId('event-delete').click()
+  await page.getByTestId('dialog-confirm').click()
+  await expect(events).toHaveCount(1)
+
+  await events.first().click()
+  await page.getByTestId('scope-all').click()
+  await page.getByTestId('event-delete').click()
+  await page.getByTestId('dialog-confirm').click()
+  await expect(events).toHaveCount(0)
+})

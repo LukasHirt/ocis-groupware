@@ -5,6 +5,7 @@ import { blankForm, formFromEvent } from '../../../src/calendar/eventForm'
 import { zoneNames } from '../../../src/calendar/zones'
 import type { GraphCalendar, GraphEvent } from '../../../src/api/types'
 import calendars from '../../../../internal/graphapi/testdata/contract/calendars.json'
+import eventSeries from '../../../../internal/graphapi/testdata/contract/event-series.json'
 import calendarview from '../../../../internal/graphapi/testdata/contract/calendarview.json'
 
 vi.mock('vue3-gettext', () => ({
@@ -166,5 +167,127 @@ describe('EventDialog, editing', () => {
     expect(wrapper.find('[data-testid="dialog-confirm"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="event-delete"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('Shared read-only.')
+  })
+})
+
+describe('EventDialog, repeating', () => {
+  const setRepeat = (wrapper: ReturnType<typeof create>, value: string) =>
+    wrapper.get('[data-testid="repeat-frequency"]').setValue(value)
+  const saved = (wrapper: ReturnType<typeof create>) =>
+    (wrapper.emitted('save') as [[{ input: Record<string, any> }]])[0][0].input
+
+  it('does not repeat by default and shows no pattern fields', () => {
+    const wrapper = create()
+    expect(wrapper.get<HTMLSelectElement>('[data-testid="repeat-frequency"]').element.value).toBe('none')
+    expect(wrapper.find('[data-testid="repeat-interval"]').exists()).toBe(false)
+  })
+
+  it('saves a weekly pattern with the days that were ticked', async () => {
+    const wrapper = create()
+    await setRepeat(wrapper, 'weekly')
+    // 10 November 2026 is a Tuesday, which starts out ticked.
+    expect(wrapper.get<HTMLInputElement>('[data-testid="repeat-day-tuesday"]').element.checked).toBe(true)
+    await wrapper.get('[data-testid="repeat-day-friday"]').setValue(true)
+    await wrapper.get('[data-testid="repeat-interval"]').setValue('2')
+    await wrapper.get('form').trigger('submit')
+    expect(saved(wrapper).recurrence).toMatchObject({
+      pattern: { type: 'weekly', interval: 2, daysOfWeek: ['tuesday', 'friday'] },
+      range: { type: 'noEnd', startDate: '2026-11-10', recurrenceTimeZone: 'UTC' }
+    })
+  })
+
+  it('offers a day of the month or a weekday for monthly patterns', async () => {
+    const wrapper = create()
+    await setRepeat(wrapper, 'monthly')
+    expect(wrapper.get<HTMLInputElement>('[data-testid="repeat-day-of-month"]').element.value).toBe('10')
+    await wrapper.get('[data-testid="repeat-monthly-by"]').setValue('weekday')
+    await wrapper.get('[data-testid="repeat-index"]').setValue('second')
+    await wrapper.get('form').trigger('submit')
+    expect(saved(wrapper).recurrence.pattern).toMatchObject({
+      type: 'relativeMonthly',
+      index: 'second',
+      daysOfWeek: ['tuesday']
+    })
+  })
+
+  it('asks for the month of a yearly pattern', async () => {
+    const wrapper = create()
+    await setRepeat(wrapper, 'yearly')
+    expect(wrapper.get<HTMLSelectElement>('[data-testid="repeat-month"]').element.value).toBe('11')
+  })
+
+  it('ends after a number of times or on a date', async () => {
+    const wrapper = create()
+    await setRepeat(wrapper, 'daily')
+    await wrapper.get('[data-testid="repeat-end"]').setValue('count')
+    await wrapper.get('[data-testid="repeat-count"]').setValue('4')
+    await wrapper.get('form').trigger('submit')
+    expect(saved(wrapper).recurrence.range).toMatchObject({ type: 'numbered', numberOfOccurrences: 4 })
+
+    const other = create()
+    await setRepeat(other, 'daily')
+    await other.get('[data-testid="repeat-end"]').setValue('date')
+    await other.get('[data-testid="repeat-end-date"]').setValue('2026-12-24')
+    await other.get('form').trigger('submit')
+    expect(saved(other).recurrence.range).toMatchObject({ type: 'endDate', endDate: '2026-12-24' })
+  })
+
+  it('refuses a bad pattern and names the field', async () => {
+    const wrapper = create()
+    await setRepeat(wrapper, 'weekly')
+    await wrapper.get('[data-testid="repeat-day-tuesday"]').setValue(false)
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('save')).toBeUndefined()
+    expect(wrapper.get('[data-testid="repeat-error"]').text()).toContain('day')
+
+    await wrapper.get('[data-testid="repeat-day-tuesday"]').setValue(true)
+    await wrapper.get('[data-testid="repeat-interval"]').setValue('0')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.get('[data-testid="repeat-error"]').text()).toContain('1 and 99')
+  })
+
+  it('starts from the pattern of a series and saves only a change to it', async () => {
+    const wrapper = mount(EventDialog, {
+      props: {
+        title: 'All events',
+        calendars: editable,
+        existing: true,
+        form: formFromEvent(eventSeries as unknown as GraphEvent)
+      }
+    })
+    expect(wrapper.get<HTMLSelectElement>('[data-testid="repeat-frequency"]').element.value).toBe('weekly')
+    expect(wrapper.get<HTMLInputElement>('[data-testid="repeat-day-friday"]').element.checked).toBe(true)
+    await wrapper.get('[data-testid="repeat-end"]').setValue('never')
+    await wrapper.get('form').trigger('submit')
+    const input = (wrapper.emitted('save') as [[{ input: Record<string, any> }]])[0][0].input
+    expect(Object.keys(input)).toEqual(['recurrence'])
+    expect(input.recurrence.range.type).toBe('noEnd')
+  })
+
+  it('can stop a series from repeating', async () => {
+    const wrapper = mount(EventDialog, {
+      props: {
+        title: 'All events',
+        calendars: editable,
+        existing: true,
+        form: formFromEvent(eventSeries as unknown as GraphEvent)
+      }
+    })
+    await setRepeat(wrapper as never, 'none')
+    await wrapper.get('form').trigger('submit')
+    expect((wrapper.emitted('save') as [[{ input: object }]])[0][0].input).toEqual({ recurrence: null })
+  })
+
+  it('has no repeat section for one occurrence of a series', () => {
+    const wrapper = mount(EventDialog, {
+      props: {
+        title: 'This event',
+        calendars: editable,
+        existing: true,
+        hideRecurrence: true,
+        form: formFromEvent(planning)
+      }
+    })
+    expect(wrapper.find('[data-testid="repeat-frequency"]').exists()).toBe(false)
   })
 })

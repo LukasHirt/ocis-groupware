@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import CalendarPage from '../../../src/pages/CalendarPage.vue'
 import calendars from '../../../../internal/graphapi/testdata/contract/calendars.json'
+import eventSeries from '../../../../internal/graphapi/testdata/contract/event-series.json'
 import calendarview from '../../../../internal/graphapi/testdata/contract/calendarview.json'
 
 vi.mock('vue3-gettext', () => ({
@@ -38,6 +39,7 @@ vi.mock('../../../src/composables/useApi', () => {
     Promise.resolve({ ...calendars.value.find((c) => c.id === id), ...input })
   )
   api.deleteCalendar = vi.fn(() => Promise.resolve())
+  api.getEvent = vi.fn(() => Promise.resolve(eventSeries))
   api.createEvent = vi.fn(() => Promise.resolve({}))
   api.updateEvent = vi.fn(() => Promise.resolve({}))
   api.deleteEvent = vi.fn(() => Promise.resolve())
@@ -210,11 +212,94 @@ describe('the calendar page', () => {
       expect(calendarViewCalls).toHaveLength(1)
     })
 
-    it('opens a repeating event for reading only', async () => {
-      const wrapper = await mountPage()
-      await eventByTitle(wrapper, 'Standup').trigger('click')
-      expect(wrapper.get('fieldset').attributes('disabled')).toBeDefined()
-      expect(wrapper.find('[data-testid="dialog-confirm"]').exists()).toBe(false)
+    describe('a repeating event', () => {
+      const occurrence = calendarview.value[1]
+
+      it('asks whether to change this event or all of them, after reading the series', async () => {
+        const wrapper = await mountPage()
+        await eventByTitle(wrapper, 'Standup').trigger('click')
+        await flushPromises()
+        expect(hoisted.api.getEvent).toHaveBeenCalledWith(occurrence.seriesMasterId, expect.any(String))
+        expect(wrapper.find('[data-testid="scope-this"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="scope-all"]').exists()).toBe(true)
+        await wrapper.get('[data-testid="dialog-cancel"]').trigger('click')
+        expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+      })
+
+      it('changes one event by the id of the occurrence, without a pattern', async () => {
+        const wrapper = await mountPage()
+        await eventByTitle(wrapper, 'Standup').trigger('click')
+        await flushPromises()
+        await wrapper.get('[data-testid="scope-this"]').trigger('click')
+        expect(wrapper.find('[data-testid="repeat-frequency"]').exists()).toBe(false)
+        await wrapper.get('[data-testid="event-subject"]').setValue('Standup, moved')
+        await wrapper.get('form').trigger('submit')
+        await flushPromises()
+        expect(hoisted.api.updateEvent).toHaveBeenCalledWith(
+          occurrence.id,
+          { subject: 'Standup, moved' },
+          occurrence['@odata.etag']
+        )
+      })
+
+      it('changes all events by the id of the series, with its pattern', async () => {
+        const wrapper = await mountPage()
+        await eventByTitle(wrapper, 'Standup').trigger('click')
+        await flushPromises()
+        await wrapper.get('[data-testid="scope-all"]').trigger('click')
+        expect(wrapper.get<HTMLSelectElement>('[data-testid="repeat-frequency"]').element.value).toBe('weekly')
+        await wrapper.get('[data-testid="repeat-day-monday"]').setValue(true)
+        await wrapper.get('form').trigger('submit')
+        await flushPromises()
+        const [id, input, etag] = hoisted.api.updateEvent.mock.calls[0]
+        expect(id).toBe(eventSeries.id)
+        expect(etag).toBe(eventSeries['@odata.etag'])
+        expect(input.recurrence.pattern.daysOfWeek).toEqual(['monday', 'friday'])
+      })
+
+      it('deletes one occurrence, or the whole series, after a confirmation', async () => {
+        const wrapper = await mountPage()
+        await eventByTitle(wrapper, 'Standup').trigger('click')
+        await flushPromises()
+        await wrapper.get('[data-testid="scope-this"]').trigger('click')
+        await wrapper.get('[data-testid="event-delete"]').trigger('click')
+        expect(wrapper.text()).toContain('Delete this event')
+        await wrapper.get('[data-testid="dialog-confirm"]').trigger('click')
+        await flushPromises()
+        expect(hoisted.api.deleteEvent).toHaveBeenLastCalledWith(occurrence.id, occurrence['@odata.etag'])
+
+        await eventByTitle(wrapper, 'Standup').trigger('click')
+        await flushPromises()
+        await wrapper.get('[data-testid="scope-all"]').trigger('click')
+        await wrapper.get('[data-testid="event-delete"]').trigger('click')
+        expect(wrapper.text()).toContain('Delete all events')
+        await wrapper.get('[data-testid="dialog-confirm"]').trigger('click')
+        await flushPromises()
+        expect(hoisted.api.deleteEvent).toHaveBeenLastCalledWith(eventSeries.id, eventSeries['@odata.etag'])
+      })
+
+      it('is read-only when the series has a rule the editor cannot show', async () => {
+        hoisted.api.getEvent.mockResolvedValueOnce({
+          ...eventSeries,
+          recurrence: null,
+          'groupware.recurrenceEditable': false
+        })
+        const wrapper = await mountPage()
+        await eventByTitle(wrapper, 'Standup').trigger('click')
+        await flushPromises()
+        expect(wrapper.find('[data-testid="scope-this"]').exists()).toBe(false)
+        expect(wrapper.get('fieldset').attributes('disabled')).toBeDefined()
+        expect(wrapper.get('[data-testid="event-notice"]').text()).toContain('cannot')
+        expect(wrapper.find('[data-testid="dialog-confirm"]').exists()).toBe(false)
+      })
+
+      it('says nothing more when the series cannot be read', async () => {
+        hoisted.api.getEvent.mockResolvedValueOnce(undefined as never)
+        const wrapper = await mountPage()
+        await eventByTitle(wrapper, 'Standup').trigger('click')
+        await flushPromises()
+        expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+      })
     })
 
     it('keeps the dialog open when the server refuses the change', async () => {
