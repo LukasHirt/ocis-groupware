@@ -113,8 +113,13 @@ func run(args []string, stderr io.Writer) error {
 	}
 	identities := provision.NewIdentities(registry, graph, logger)
 
+	_, view, err := openSharing(store, registry, logger)
+	if err != nil {
+		return err
+	}
+
 	dav, wellKnown, err := davmount.New(davmount.Config{
-		Store:      store,
+		Store:      view,
 		Registry:   registry,
 		Verifier:   verifier,
 		Identities: identities,
