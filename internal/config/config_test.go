@@ -137,3 +137,43 @@ func TestValidate(t *testing.T) {
 		}
 	}
 }
+
+func TestAdminSocketDefaultsToDataDir(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "groupware.yaml")
+	if err := os.WriteFile(path, []byte("data_dir: /srv/groupware\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load(%q): unexpected error: %v", path, err)
+	}
+	if cfg.AdminSocket != "/srv/groupware/admin.sock" {
+		t.Errorf("AdminSocket = %q, want %q", cfg.AdminSocket, "/srv/groupware/admin.sock")
+	}
+}
+
+func TestAdminSocketFromFileAndEnv(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "groupware.yaml")
+	yamlContent := "data_dir: /srv/groupware\nadmin_socket: /run/groupware.sock\n"
+	if err := os.WriteFile(path, []byte(yamlContent), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load(%q): unexpected error: %v", path, err)
+	}
+	if cfg.AdminSocket != "/run/groupware.sock" {
+		t.Errorf("AdminSocket = %q, want file value", cfg.AdminSocket)
+	}
+
+	t.Setenv("GROUPWARE_ADMIN_SOCKET", "/tmp/gw.sock")
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatalf("Load(%q): unexpected error: %v", path, err)
+	}
+	if cfg.AdminSocket != "/tmp/gw.sock" {
+		t.Errorf("AdminSocket = %q, want env value", cfg.AdminSocket)
+	}
+}

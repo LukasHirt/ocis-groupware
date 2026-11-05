@@ -5,6 +5,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 
@@ -24,6 +25,9 @@ type Config struct {
 	OIDCCAFile string `yaml:"oidc_ca_file"`
 	// DataDir is the directory that holds all service state. It must be writable.
 	DataDir string `yaml:"data_dir"`
+	// AdminSocket is the path of the unix socket that serves the admin API.
+	// It defaults to admin.sock in DataDir.
+	AdminSocket string `yaml:"admin_socket"`
 }
 
 // Default returns the built-in configuration defaults.
@@ -68,6 +72,12 @@ func Load(path string) (Config, error) {
 	}
 	if v, ok := os.LookupEnv("GROUPWARE_DATA_DIR"); ok {
 		cfg.DataDir = v
+	}
+	if v, ok := os.LookupEnv("GROUPWARE_ADMIN_SOCKET"); ok {
+		cfg.AdminSocket = v
+	}
+	if cfg.AdminSocket == "" && cfg.DataDir != "" {
+		cfg.AdminSocket = filepath.Join(cfg.DataDir, "admin.sock")
 	}
 
 	return cfg, nil

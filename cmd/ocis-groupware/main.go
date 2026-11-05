@@ -7,12 +7,14 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/LukasHirt/groupkit/store/filestore"
 
+	"github.com/owncloud/ocis-groupware/internal/admin"
 	"github.com/owncloud/ocis-groupware/internal/api"
 	"github.com/owncloud/ocis-groupware/internal/auth"
 	"github.com/owncloud/ocis-groupware/internal/config"
@@ -73,6 +75,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	// The socket is created once the store's lock is held, so a socket file
+	// found there is from a service that is gone.
+	adminSocket, err := openAdminSocket(cfg.AdminSocket)
+	if err != nil {
+		return err
+	}
+
 	dav, wellKnown, err := davmount.New(davmount.Config{
 		Store:    store,
 		Registry: registry,
@@ -87,7 +96,41 @@ func run() error {
 		server.WithReadiness(dataDirWritable(cfg.DataDir)),
 		server.WithDAV(dav, wellKnown),
 		server.WithAppPasswords(api.AppPasswords(registry, logger)))
-	return srv.Run(ctx)
+
+	// On shutdown the public server drains first, then the admin server,
+	// then the socket file goes, and the store is closed last (its deferred
+	// Close runs after this function returns).
+	adminCtx, stopAdmin := context.WithCancel(ctx)
+	defer stopAdmin()
+	adminErr := make(chan error, 1)
+	go func() {
+		logger.Info("admin socket listening", "path", cfg.AdminSocket)
+		adminErr <- serveAdmin(adminCtx, adminSocket, cfg.AdminSocket, registry, logger)
+	}()
+	err = srv.Run(ctx)
+	stopAdmin()
+	return errors.Join(err, <-adminErr)
+}
+
+// openAdminSocket creates the admin socket at path. The service does not
+// start without it: a service that cannot be administered should not run
+// quietly. The error names the setting, since the fix is a different path.
+func openAdminSocket(path string) (*net.UnixListener, error) {
+	l, err := admin.Listen(path)
+	if err != nil {
+		return nil, fmt.Errorf("%w; set admin_socket (GROUPWARE_ADMIN_SOCKET) to a short path on a local filesystem", err)
+	}
+	return l, nil
+}
+
+// serveAdmin serves the admin API on l until ctx is cancelled, then removes
+// the socket file at path.
+func serveAdmin(ctx context.Context, l *net.UnixListener, path string, reg *principals.Registry, logger *slog.Logger) error {
+	err := admin.Serve(ctx, l, reg, logger)
+	if rmErr := os.Remove(path); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
+		logger.Error("removing the admin socket", "path", path, "error", rmErr)
+	}
+	return err
 }
 
 // openStore opens the file store in dir. The error from a directory held by
