@@ -11,6 +11,10 @@ type accountJSON struct {
 	Username    string  `json:"username"`
 	DisplayName string  `json:"displayName"`
 	DAV         davJSON `json:"dav"`
+	// UsernameConflict is true when the user's oCIS username is held by
+	// another account that can still use it. The username is then empty, and
+	// DAV and app passwords do not work until an administrator frees the name.
+	UsernameConflict bool `json:"username_conflict"`
 	// AppPasswordsValidUntil is when the user's app passwords stop working
 	// unless oCIS confirms the user again: the time of the last
 	// confirmation plus the identity lease. It is null when the lease is
@@ -34,6 +38,7 @@ func (a *Handler) accountInfo(w http.ResponseWriter, r *http.Request, c *call) {
 		Username:               c.caller.Username,
 		DisplayName:            c.caller.DisplayName,
 		DAV:                    davAddresses(requestOrigin(r), c.caller.Username),
+		UsernameConflict:       c.caller.UsernameConflict,
 		AppPasswordsValidUntil: a.appPasswordsValidUntil(c.caller.Owner),
 	})
 }

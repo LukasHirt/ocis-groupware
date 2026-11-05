@@ -161,6 +161,15 @@ func (f *fixture) passwordTTL() time.Duration {
 	return time.Hour
 }
 
+// confirm records that oCIS confirmed the principal now, as a bearer sign-in
+// does.
+func (f *fixture) confirm(t *testing.T, sub string) {
+	t.Helper()
+	if err := f.reg.SetIdentity(context.Background(), sub, principals.Identity{OCISID: "id-" + sub, At: f.clock.Now()}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // user provisions a principal and returns an app password for it.
 func (f *fixture) user(t *testing.T, sub, username string) string {
 	t.Helper()
@@ -665,24 +674,53 @@ func TestPathTricks(t *testing.T) {
 	}
 }
 
-// TestUsernameTakeover follows a username that moves to another subject: the
-// new holder sees only its own data under the name, and the old holder's app
-// password stops working.
+// TestUsernameTakeover follows a username that moves to another subject once
+// its holder can no longer use it: the new holder sees only its own data under
+// the name, and the old holder's app password stays refused.
 func TestUsernameTakeover(t *testing.T) {
-	f := newFixture(t)
+	f := newFixtureWithLease(t, testLease)
 	old := f.user(t, "sub-old", "alice")
+	f.confirm(t, "sub-old")
 	rec := f.do(t, http.MethodPut, "/dav/addressbooks/alice/contacts/ada.vcf", vcard,
 		"Authorization", basic("alice", old), "Content-Type", "text/vcard")
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("PUT: %d %q", rec.Code, rec.Body.String())
 	}
 
+	// The old holder's lease runs out, then the name moves.
+	f.clock.advance(testLease)
 	f.verifier.tokens["tok-new"] = auth.Claims{Subject: "sub-new", PreferredUsername: "alice"}
 	rec = f.do(t, http.MethodGet, "/dav/addressbooks/alice/contacts/ada.vcf", "", "Authorization", "Bearer tok-new")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("new holder GET: status = %d, want 404 (own, empty address book); body %q", rec.Code, rec.Body.String())
 	}
 	assertUnauthorized(t, f.do(t, "PROPFIND", "/dav/", propfindPrincipal, "Authorization", basic("alice", old)))
+}
+
+// A user who signs in with the username of an active account does not take it
+// over: the holder's device keeps working and nothing of the holder's data is
+// reachable for the newcomer.
+func TestUsernameTakeoverOfAnActiveHolderIsRefused(t *testing.T) {
+	f := newFixtureWithLease(t, testLease)
+	holder := f.user(t, "sub-holder", "alice")
+	f.confirm(t, "sub-holder")
+	rec := f.do(t, http.MethodPut, "/dav/addressbooks/alice/contacts/ada.vcf", vcard,
+		"Authorization", basic("alice", holder), "Content-Type", "text/vcard")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("PUT: %d %q", rec.Code, rec.Body.String())
+	}
+
+	f.verifier.tokens["tok-new"] = auth.Claims{Subject: "sub-new", PreferredUsername: "alice"}
+	for range 3 {
+		rec = f.do(t, http.MethodGet, "/dav/addressbooks/alice/contacts/ada.vcf", "", "Authorization", "Bearer tok-new")
+		if rec.Code == http.StatusOK || strings.Contains(rec.Body.String(), "Lovelace") {
+			t.Fatalf("the newcomer reached the holder's contact: status %d", rec.Code)
+		}
+	}
+	rec = f.do(t, http.MethodGet, "/dav/addressbooks/alice/contacts/ada.vcf", "", "Authorization", basic("alice", holder))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Lovelace") {
+		t.Fatalf("the holder's device after the attempt: status %d, body %q", rec.Code, rec.Body.String())
+	}
 }
 
 func TestWellKnownRedirectsWithoutCredentials(t *testing.T) {

@@ -290,6 +290,9 @@ export interface AppPasswordInput {
 export interface Account {
   username: string
   displayName: string
+  // True when the user's oCIS username is held by another account that can
+  // still use it. username is then empty.
+  username_conflict?: boolean
   dav: {
     url: string
     calendarHomeUrl: string

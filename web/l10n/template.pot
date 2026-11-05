@@ -14,6 +14,9 @@ msgstr ""
 msgid "%{n} minutes before"
 msgstr ""
 
+msgid "%{total} found: %{created} added, %{updated} replaced, %{failed} failed."
+msgstr ""
+
 msgid "1 minute before"
 msgstr ""
 
@@ -198,6 +201,9 @@ msgid "Could not delete the event"
 msgstr ""
 
 msgid "Could not download the address book"
+msgstr ""
+
+msgid "Could not export the calendar"
 msgstr ""
 
 msgid "Could not change the access"
@@ -434,6 +440,12 @@ msgstr ""
 msgid "Expires after"
 msgstr ""
 
+msgid "Export"
+msgstr ""
+
+msgid "Export %{name}"
+msgstr ""
+
 msgid "February"
 msgstr ""
 
@@ -491,7 +503,13 @@ msgstr ""
 msgid "Choose another colour"
 msgstr ""
 
+msgid "Import"
+msgstr ""
+
 msgid "Import finished: %{created} created, %{updated} updated, %{failed} failed."
+msgstr ""
+
+msgid "Import into %{name}"
 msgstr ""
 
 msgid "Import vCard"
@@ -606,6 +624,9 @@ msgid "Notes"
 msgstr ""
 
 msgid "November"
+msgstr ""
+
+msgid "Number %{n}"
 msgstr ""
 
 msgid "October"
@@ -812,6 +833,9 @@ msgstr ""
 msgid "There are no contacts here yet."
 msgstr ""
 
+msgid "These could not be stored:"
+msgstr ""
+
 msgid "These settings are kept in this browser."
 msgstr ""
 
@@ -930,4 +954,7 @@ msgid "Your DAV username is not available. If another user has taken over your n
 msgstr ""
 
 msgid "Your new app password"
+msgstr ""
+
+msgid "Your user name is in use by another account. Ask your administrator."
 msgstr ""

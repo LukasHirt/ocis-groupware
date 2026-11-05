@@ -282,7 +282,9 @@ func TestDisabledPrincipalCannotManageAppPasswords(t *testing.T) {
 }
 
 func TestListPrincipals(t *testing.T) {
-	f := newAppFixture(t)
+	// With a lease, principals that oCIS never confirmed do not hold on to
+	// their usernames, which the takeovers below rely on.
+	f := newLeaseFixture(t)
 	if got := f.r.ListPrincipals(context.Background()); len(got) != 1 || got[0].Sub != "sub-1" {
 		t.Fatalf("ListPrincipals = %+v, want alice only", got)
 	}

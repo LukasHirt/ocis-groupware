@@ -55,6 +55,10 @@ type Principal struct {
 	// IdentityAt is when oCIS last confirmed the user, which is the time of
 	// the identity snapshot. It is the zero time if no snapshot was taken.
 	IdentityAt time.Time
+	// UsernameConflict is set by Provision, and only there, when the user's
+	// oCIS username is held by another principal that can still use it. The
+	// principal then has no username, see Provision.
+	UsernameConflict bool
 }
 
 var (
@@ -141,6 +145,9 @@ type Registry struct {
 	dummyHash []byte
 	// identityMaxAge is the identity lease, see WithIdentityMaxAge.
 	identityMaxAge time.Duration
+	// claimLogged is when a refused username claim of an owner was last
+	// logged. It is guarded by mu.
+	claimLogged map[string]time.Time
 	// Legacy tokens, see legacy.go.
 	legacySecret string
 	legacyTTL    time.Duration
@@ -182,21 +189,22 @@ func NewRegistry(dataDir string, st store.Store, ownerDir func(owner string) str
 		logger = slog.New(slog.DiscardHandler)
 	}
 	r := &Registry{
-		dataDir:    dataDir,
-		st:         st,
-		ownerDir:   ownerDir,
-		logger:     logger,
-		now:        time.Now,
-		syncDir:    syncDir,
-		principals: make(map[string]record),
-		byUsername: make(map[string]string),
-		bySub:      make(map[string]string),
-		bcryptCost: defaultBcryptCost,
-		compare:    bcrypt.CompareHashAndPassword,
-		hash:       bcrypt.GenerateFromPassword,
-		legacyTTL:  defaultLegacyTokenLifetime,
-		cache:      newCredentialCache(cacheTTL),
-		apps:       make(map[string]*appSet),
+		dataDir:     dataDir,
+		st:          st,
+		ownerDir:    ownerDir,
+		logger:      logger,
+		now:         time.Now,
+		syncDir:     syncDir,
+		principals:  make(map[string]record),
+		byUsername:  make(map[string]string),
+		bySub:       make(map[string]string),
+		claimLogged: make(map[string]time.Time),
+		bcryptCost:  defaultBcryptCost,
+		compare:     bcrypt.CompareHashAndPassword,
+		hash:        bcrypt.GenerateFromPassword,
+		legacyTTL:   defaultLegacyTokenLifetime,
+		cache:       newCredentialCache(cacheTTL),
+		apps:        make(map[string]*appSet),
 	}
 	for _, opt := range opts {
 		opt(r)
@@ -336,9 +344,17 @@ func (r *Registry) readRecord(dir string) (record, error) {
 // For an existing principal, a changed username or display name is written
 // to its file.
 //
-// The username is the most recent login's: if another principal holds it,
-// that principal loses it (its Username becomes empty) and a warning is
-// logged.
+// A sign-in moves a username away from the principal that holds it only if
+// that holder can no longer use it: the holder is disabled, or its identity
+// lease has run out (with the lease off, only a disabled holder frees a
+// name). The holder's Username becomes empty and a warning is logged.
+// Otherwise the user is provisioned, or kept, without a username: the
+// returned principal has an empty Username and UsernameConflict set, and a
+// warning names both owners. Nothing about the holder changes. The claim is
+// made again at every sign-in, and the principal file is written only when
+// the outcome changes, so a name frees up on its own when the holder's lease
+// runs out, or when an administrator disables the holder. A user who renames
+// in oCIS gives up the old name in either case.
 //
 // The default collections are ensured until that succeeded once, which the
 // principal file records. A crash between writing the principal file and
@@ -367,7 +383,7 @@ func (r *Registry) Provision(ctx context.Context, sub, username, displayName str
 		return rec.principal(), false, nil
 	}
 
-	rec, created, err := r.save(sub, username, displayName)
+	rec, created, conflict, err := r.save(sub, username, displayName)
 	if err != nil {
 		return Principal{}, false, err
 	}
@@ -378,12 +394,33 @@ func (r *Registry) Provision(ctx context.Context, sub, username, displayName str
 		}
 		r.markDefaultsCreated(rec.Owner)
 	}
-	return rec.principal(), created, nil
+	p := rec.principal()
+	p.UsernameConflict = conflict
+	return p, created, nil
+}
+
+// claimLogInterval is the least time between two log lines about the same
+// refused username claim. A user whose claim is refused tries again with
+// every request.
+const claimLogInterval = time.Hour
+
+// holderCanUse reports whether the principal can still sign in with its
+// username: it is not disabled and, with the identity lease on, oCIS has
+// confirmed the user within the lease.
+func (r *Registry) holderCanUse(rec record, now time.Time) bool {
+	if rec.Disabled {
+		return false
+	}
+	if r.identityMaxAge <= 0 {
+		return true
+	}
+	return !rec.IdentityAt.IsZero() && now.Before(rec.IdentityAt.Add(r.identityMaxAge))
 }
 
 // save writes the principal if it is new or its names changed, and updates
-// the index. It returns the current record.
-func (r *Registry) save(sub, username, displayName string) (record, bool, error) {
+// the index. It returns the current record and whether the username was
+// refused because an active principal holds it.
+func (r *Registry) save(sub, username, displayName string) (rec record, created, conflict bool, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -391,40 +428,54 @@ func (r *Registry) save(sub, username, displayName string) (record, bool, error)
 	if !exists {
 		owner = sub
 		if _, taken := r.principals[owner]; taken {
-			return record{}, false, fmt.Errorf("principals: %q is the owner of another principal", sub)
+			return record{}, false, false, fmt.Errorf("principals: %q is the owner of another principal", sub)
 		}
 	}
 	old := r.principals[owner]
 	if exists && old.Disabled {
 		// Checked again under the lock: the principal may have been disabled
 		// since Provision looked.
-		return record{}, false, ErrDisabled
-	}
-	if exists && old.Username == username && old.DisplayName == displayName {
-		return old, false, nil
+		return record{}, false, false, ErrDisabled
 	}
 	now := r.now().UTC()
-	rec := record{Owner: owner, Sub: sub, CreatedAt: now}
+
+	granted := username
+	if holder, ok := r.byUsername[username]; ok && holder != owner && r.holderCanUse(r.principals[holder], now) {
+		granted, conflict = "", true
+		if last, seen := r.claimLogged[owner]; !seen || now.Sub(last) >= claimLogInterval {
+			r.claimLogged[owner] = now
+			r.logger.Warn("username is held by another principal, the sign-in goes on without it",
+				"username", username, "owner", owner, "holder", holder)
+		}
+	} else {
+		delete(r.claimLogged, owner)
+	}
+	if exists && old.Username == granted && old.DisplayName == displayName {
+		return old, false, conflict, nil
+	}
+	rec = record{Owner: owner, Sub: sub, CreatedAt: now}
 	if exists {
 		rec = old
 	}
-	rec.Username = username
+	rec.Username = granted
 	rec.DisplayName = displayName
 	rec.UpdatedAt = now
 	if err := r.writeRecord(rec); err != nil {
-		return record{}, false, err
+		return record{}, false, false, err
 	}
 
-	if exists && old.Username != username && r.byUsername[old.Username] == owner {
+	if exists && old.Username != granted && r.byUsername[old.Username] == owner {
 		delete(r.byUsername, old.Username)
 	}
-	if holder, ok := r.byUsername[username]; ok && holder != owner {
-		r.release(holder, username, now)
+	if granted != "" {
+		if holder, ok := r.byUsername[granted]; ok && holder != owner {
+			r.release(holder, granted, now)
+		}
+		r.byUsername[granted] = owner
 	}
-	r.byUsername[username] = owner
 	r.bySub[sub] = owner
 	r.principals[owner] = rec
-	return rec, !exists, nil
+	return rec, !exists, conflict, nil
 }
 
 // markDefaultsCreated saves the flag on the current record. It re-reads the

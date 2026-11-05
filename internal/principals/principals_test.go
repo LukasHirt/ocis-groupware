@@ -408,10 +408,17 @@ func TestEmptyDataDir(t *testing.T) {
 	assertLookup(t, r, "alice", "")
 }
 
-func TestUsernameCollisionMostRecentLoginWins(t *testing.T) {
+// A username moves to the newest login when its holder can no longer use it.
+// holder_test.go covers the holders that keep it.
+func TestUsernameCollisionStaleHolderLosesTheName(t *testing.T) {
 	f := newFixture(t)
-	r := f.open(t, nil)
+	clock := newFakeClock()
+	r := f.openWith(t, nil, WithClock(clock.Now), WithBcryptCost(bcrypt.MinCost), WithIdentityMaxAge(testLease))
 	mustProvision(t, r, "sub-a", "alice", "Alice A")
+	if err := r.SetIdentity(context.Background(), "sub-a", Identity{OCISID: "id-a", At: clock.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	clock.Add(testLease)
 
 	logger, logs := bufferLogger()
 	r.logger = logger
@@ -435,7 +442,12 @@ func TestUsernameCollisionMostRecentLoginWins(t *testing.T) {
 	reopened := f.open(t, nil)
 	assertLookup(t, reopened, "alice", "sub-b")
 
-	// The old holder logs in again and takes the name back.
+	// The old holder logs in again, which renews its lease, and takes the
+	// name back from sub-b, whose lease never started.
+	reopened = f.openWith(t, nil, WithClock(clock.Now), WithBcryptCost(bcrypt.MinCost), WithIdentityMaxAge(testLease))
+	if err := reopened.SetIdentity(context.Background(), "sub-a", Identity{OCISID: "id-a", At: clock.Now()}); err != nil {
+		t.Fatal(err)
+	}
 	mustProvision(t, reopened, "sub-a", "alice", "Alice A")
 	assertLookup(t, reopened, "alice", "sub-a")
 	b, err := reopened.Get("sub-b")
@@ -688,7 +700,8 @@ func (s *blockingStore) ListCollections(ctx context.Context, owner string, kind 
 func TestFlagWriteDoesNotRestoreReleasedUsername(t *testing.T) {
 	st := &blockingStore{Store: memory.New(), owner: "sub-a", entered: make(chan struct{}), release: make(chan struct{})}
 	f := fixture{dataDir: t.TempDir(), st: st}
-	r := f.open(t, nil)
+	// sub-a was never confirmed by oCIS, so with a lease it cannot hold the name.
+	r := f.openWith(t, nil, WithBcryptCost(bcrypt.MinCost), WithIdentityMaxAge(time.Hour))
 
 	done := make(chan error, 1)
 	go func() {

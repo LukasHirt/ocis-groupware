@@ -469,15 +469,18 @@ func TestFailedVerifyIsNotCached(t *testing.T) {
 }
 
 // When a username moves to another principal, a cached credential for the
-// old holder no longer authenticates under that name.
+// old holder no longer authenticates under that name. A name moves from a
+// holder whose identity lease has run out.
 func TestCacheIsNotUsedAfterRename(t *testing.T) {
-	f := newAppFixture(t)
-	_, secret := mustIssue(t, f.r, "sub-1", "Phone", 0)
+	f := newLeaseFixture(t)
+	_, secret := mustIssue(t, f.r, "sub-1", "Phone", 100*testLease)
 	mustVerify(t, f.r, "alice", secret, "sub-1")
 
+	f.clock.Add(testLease)
 	mustProvision(t, f.r, "sub-2", "alice", "Alice B")
 	assertVerifyErr(t, f.r, "alice", secret, ErrInvalidCredentials)
 
+	f.renew(t)
 	mustProvision(t, f.r, "sub-1", "alice-a", "Alice A")
 	mustVerify(t, f.r, "alice-a", secret, "sub-1")
 }
