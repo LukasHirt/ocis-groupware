@@ -16,25 +16,7 @@ import (
 // snapshots come from the principals registry, which also learns to remove a
 // purged user's shares.
 func openSharing(st *filestore.Store, reg *principals.Registry, logger *slog.Logger) (*sharing.Shares, *sharing.View, error) {
-	shares, err := sharing.Open(sharing.Config{
-		OwnerDir: st.OwnerDir,
-		Owners: func() []string {
-			all := reg.ListPrincipals(context.Background())
-			owners := make([]string, 0, len(all))
-			for _, p := range all {
-				owners = append(owners, p.Owner)
-			}
-			return owners
-		},
-		OCISID: func(owner string) string {
-			id, err := reg.Identity(owner)
-			if err != nil {
-				return ""
-			}
-			return id.OCISID
-		},
-		Logger: logger,
-	})
+	shares, err := openShares(st, reg, logger)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -76,4 +58,28 @@ func openSharing(st *filestore.Store, reg *principals.Registry, logger *slog.Log
 		return nil, nil, err
 	}
 	return shares, view, nil
+}
+
+// openShares loads the shares in the data directory. It changes nothing on
+// disk besides removing temporary files a crash left behind.
+func openShares(st *filestore.Store, reg *principals.Registry, logger *slog.Logger) (*sharing.Shares, error) {
+	return sharing.Open(sharing.Config{
+		OwnerDir: st.OwnerDir,
+		Owners: func() []string {
+			all := reg.ListPrincipals(context.Background())
+			owners := make([]string, 0, len(all))
+			for _, p := range all {
+				owners = append(owners, p.Owner)
+			}
+			return owners
+		},
+		OCISID: func(owner string) string {
+			id, err := reg.Identity(owner)
+			if err != nil {
+				return ""
+			}
+			return id.OCISID
+		},
+		Logger: logger,
+	})
 }

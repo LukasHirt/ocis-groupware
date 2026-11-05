@@ -1,0 +1,38 @@
+User admin: skipped, no oCIS user for this login, its data is not migrated
+User alice (owner migrated-ocis-alice): created
+  calendar personal: created; 3 added, 0 unchanged
+  calendar work: created; 5000 added, 0 unchanged
+  calendar archive: created; 2 added, 0 unchanged
+  address book contacts: created; 120 added, 0 unchanged
+  address book friends: created; 15 added, 0 unchanged
+  app tokens: 2 imported, 0 existing
+User bob (owner migrated-ocis-bob): created
+  calendar personal: created; 0 added, 0 unchanged
+  calendar projects: created; 3 added, 0 unchanged
+  address book contacts: created; 10 added, 0 unchanged
+  app tokens: 1 imported, 0 existing
+User carol (owner migrated-ocis-carol): created
+
+Shares
+  addressbook alice/friends with group team (read-only): created
+  addressbook alice/friends with user bob (read-write): created
+  calendar alice/personal with user carol (read-only): created
+  calendar alice/work with group team (read-only): created
+  calendar alice/work with user bob (read-write): created
+  addressbook bob/contacts with user alice (read-only): created
+  calendar bob/projects with user alice (read-write): created
+
+Not migrated
+  birthday calendar alice/contact_birthdays: classic generates it from the birthdays on contacts
+  birthday calendar bob/contact_birthdays: classic generates it from the birthdays on contacts
+  birthday calendar system/contact_birthdays: classic generates it from the birthdays on contacts
+  public link alice/work: recreate it in the new service if it is still needed
+  subscription alice/Holidays: https://calendar.invalid/holidays.ics
+  subscription bob/Holidays: https://calendar.invalid/holidays.ics
+  system address book system: classic generates it from the list of users
+
+Without an oCIS counterpart
+  user admin: not found
+  group admin: not found
+
+Summary: 4 users (1 skipped), 8 collections, 5153 objects added, 3 app tokens imported, 7 shares written, 7 not migrated, 0 problems

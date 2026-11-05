@@ -37,7 +37,8 @@ sub.
 The command talks to the running service over its admin socket, so the
 configuration (--config, GROUPWARE_DATA_DIR, GROUPWARE_ADMIN_SOCKET) must name
 the same data directory as the service.
-`
+
+` + migrateUsage
 
 // adminCommand is a parsed admin command line.
 type adminCommand struct {
@@ -49,6 +50,8 @@ type adminCommand struct {
 	owner      string
 	json       bool
 	yes        bool
+	// migrate is set for "migrate classic".
+	migrate *migrateOptions
 }
 
 // runAdmin runs "ocis-groupware admin ..." and returns the exit code: 0 on
@@ -59,6 +62,9 @@ func runAdmin(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, "ocis-groupware:", err)
 		_, _ = fmt.Fprint(stderr, adminUsage)
 		return 2
+	}
+	if cmd.migrate != nil {
+		return runMigrate(cmd.configPath, cmd.migrate, stdout, stderr)
 	}
 	if err := cmd.run(stdout); err != nil {
 		if !errors.Is(err, errDryRun) {
@@ -80,7 +86,12 @@ func parseAdmin(args []string) (adminCommand, error) {
 	if err := shared.Parse(args); err != nil {
 		return cmd, err
 	}
+	var err error
 	rest := shared.Args()
+	if len(rest) > 0 && rest[0] == "migrate" {
+		cmd.migrate, err = parseMigrate(rest[1:])
+		return cmd, err
+	}
 	if len(rest) < 2 || rest[0] != "principals" {
 		return cmd, errors.New(`expected "principals <command>"`)
 	}

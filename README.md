@@ -456,7 +456,7 @@ docker exec <container> /ocis-groupware admin principals purge alice --yes
 Outside the container, pass `--config <file>` or set `GROUPWARE_DATA_DIR` (or
 `GROUPWARE_ADMIN_SOCKET`); `--socket <path>` names the socket directly. The command
 exits with 1 and says so when the service is not running: it has no way to open the
-data directory itself.
+data directory itself. `migrate classic` is the exception and needs the service stopped.
 
 `list` prints one user per line with the username, display name, state, creation time and
 sub; `--json` prints the admin API's answer as it is. A user whose username was taken
@@ -489,6 +489,15 @@ its `principal.json`, say after an interrupted purge; such a directory does not 
 `list`. For a directory named after a sub, `--sub <sub>` does the same.
 
 Every change is logged by the service at Info with the owner and username.
+
+### Migrating from a classic installation
+
+`admin migrate classic` copies calendars, address books, shares and app tokens from a
+classic ownCloud database into the data directory. Unlike the commands above it opens the
+data directory itself, so the service has to be stopped while it runs; it refuses to start
+otherwise. It supports `--dry-run`, `--user <login>` for one user at a time and repeated
+runs, and prints a report that lists public links and subscriptions as not migrated. See
+[docs/classic-migrate.md](docs/classic-migrate.md).
 
 ## Docker
 
@@ -530,6 +539,7 @@ tests load the dumps into real databases. The schema it assumes is in
 [docs/classic-database.md](docs/classic-database.md).
 `internal/migrate/idmap` maps the classic user and group ids it finds to oCIS ids, from CSV
 files or the Graph API; see [docs/classic-user-mapping.md](docs/classic-user-mapping.md).
+`internal/migrate` runs the migration; see [docs/classic-migrate.md](docs/classic-migrate.md).
 
 ### Stack tests
 

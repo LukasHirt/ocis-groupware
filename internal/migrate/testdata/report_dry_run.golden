@@ -1,0 +1,40 @@
+Dry run: nothing was written. The report says what a real run would do.
+
+User admin: skipped, no oCIS user for this login, its data is not migrated
+User alice (owner migrated-ocis-alice): would be created
+  calendar personal: would create; 3 to add, 0 unchanged
+  calendar work: would create; 5000 to add, 0 unchanged
+  calendar archive: would create; 2 to add, 0 unchanged
+  address book contacts: would create; 120 to add, 0 unchanged
+  address book friends: would create; 15 to add, 0 unchanged
+  app tokens: 2 to import, 0 existing
+User bob (owner migrated-ocis-bob): would be created
+  calendar personal: would create; 0 to add, 0 unchanged
+  calendar projects: would create; 3 to add, 0 unchanged
+  address book contacts: would create; 10 to add, 0 unchanged
+  app tokens: 1 to import, 0 existing
+User carol (owner migrated-ocis-carol): would be created
+
+Shares
+  addressbook alice/friends with group team (read-only): would create
+  addressbook alice/friends with user bob (read-write): would create
+  calendar alice/personal with user carol (read-only): would create
+  calendar alice/work with group team (read-only): would create
+  calendar alice/work with user bob (read-write): would create
+  addressbook bob/contacts with user alice (read-only): would create
+  calendar bob/projects with user alice (read-write): would create
+
+Not migrated
+  birthday calendar alice/contact_birthdays: classic generates it from the birthdays on contacts
+  birthday calendar bob/contact_birthdays: classic generates it from the birthdays on contacts
+  birthday calendar system/contact_birthdays: classic generates it from the birthdays on contacts
+  public link alice/work: recreate it in the new service if it is still needed
+  subscription alice/Holidays: https://calendar.invalid/holidays.ics
+  subscription bob/Holidays: https://calendar.invalid/holidays.ics
+  system address book system: classic generates it from the list of users
+
+Without an oCIS counterpart
+  user admin: not found
+  group admin: not found
+
+Summary: 4 users (1 skipped), 8 collections, 5153 objects to add, 3 app tokens to import, 7 shares to write, 7 not migrated, 0 problems
