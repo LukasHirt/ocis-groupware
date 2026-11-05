@@ -278,9 +278,16 @@ export interface IssuedAppPassword extends AppPassword {
   password: string
 }
 
+// The list of app passwords with the longest lifetime the server accepts.
+export interface AppPasswordList {
+  appPasswords: AppPassword[]
+  maxLifetimeDays: number
+}
+
 export interface AppPasswordInput {
   name: string
-  // Shortens the lifetime, 1 to 365. The server's default is 365.
+  // Shortens the lifetime, 1 to the list's maxLifetimeDays. Left out, the
+  // server uses maxLifetimeDays.
   expires_in_days?: number
 }
 

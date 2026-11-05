@@ -30,7 +30,7 @@ const (
 	// defaultBcryptCost is the bcrypt cost of new app passwords.
 	defaultBcryptCost = 10
 	// defaultAppPasswordLifetime applies when IssueAppPassword gets no
-	// lifetime.
+	// lifetime, unless WithAppPasswordLifetime sets another.
 	defaultAppPasswordLifetime = 365 * 24 * time.Hour
 	// lastUsedInterval is the least time between two writes of an app
 	// password's last use.
@@ -159,6 +159,21 @@ func WithIdentityMaxAge(maxAge time.Duration) Option {
 	return func(r *Registry) { r.identityMaxAge = maxAge }
 }
 
+// WithAppPasswordLifetime sets the lifetime of an app password that is issued
+// without one, and of an imported token after its first sign-in. The default
+// is 365 days. Passwords that exist keep their expiry.
+func WithAppPasswordLifetime(d time.Duration) Option {
+	return func(r *Registry) {
+		if d > 0 {
+			r.appLifetime = d
+		}
+	}
+}
+
+// AppPasswordLifetime returns the lifetime of an app password issued without
+// one. It is also the longest the API lets a request ask for.
+func (r *Registry) AppPasswordLifetime() time.Duration { return r.appLifetime }
+
 // IdentityMaxAge returns the identity lease, 0 if it is off.
 func (r *Registry) IdentityMaxAge() time.Duration { return r.identityMaxAge }
 
@@ -186,7 +201,8 @@ func (r *Registry) leaseValid(owner string, now time.Time) bool {
 
 // IssueAppPassword creates an app password for the principal and returns it
 // together with its secret. The secret is not stored and cannot be shown
-// again. A ttl of 0 means 365 days. It returns ErrTooManyAppPasswords when
+// again. A ttl of 0 means the lifetime set with WithAppPasswordLifetime, 365
+// days by default. It returns ErrTooManyAppPasswords when
 // the principal has MaxAppPasswords already.
 func (r *Registry) IssueAppPassword(ctx context.Context, owner, name string, ttl time.Duration) (AppPassword, string, error) {
 	if err := ctx.Err(); err != nil {
@@ -202,7 +218,7 @@ func (r *Registry) IssueAppPassword(ctx context.Context, owner, name string, ttl
 	case ttl < 0:
 		return AppPassword{}, "", errors.New("principals: app password lifetime is negative")
 	case ttl == 0:
-		ttl = defaultAppPasswordLifetime
+		ttl = r.appLifetime
 	}
 
 	secret, err := newSecret()

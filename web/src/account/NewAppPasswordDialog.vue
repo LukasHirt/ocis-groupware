@@ -96,19 +96,27 @@ import { copyText } from './clipboard'
 
 defineOptions({ name: 'NewAppPasswordDialog' })
 
+const props = defineProps<{
+  // The longest lifetime the server accepts, which is also its default.
+  maxLifetimeDays: number
+}>()
 const emit = defineEmits<{ cancel: []; done: [] }>()
 
 const { $gettext } = useGettext()
 const { run } = useApi()
 
-// The server's limit is 100 bytes of text, and its default lifetime is the
-// longest one it accepts.
+// The server's limit is 100 bytes of text. Its default lifetime is the longest
+// one it accepts, so the choices are that and the shorter standard ones.
 const maxNameBytes = 100
-const defaultDays = 365
-const lifetimes = [defaultDays, 90, 30, 7]
+const defaultDays = computed(() => props.maxLifetimeDays)
+const lifetimes = computed(() =>
+  [...new Set([props.maxLifetimeDays, 90, 30, 7])]
+    .filter((d) => d <= props.maxLifetimeDays)
+    .sort((a, b) => b - a)
+)
 
 const name = ref('')
-const days = ref(String(defaultDays))
+const days = ref(String(props.maxLifetimeDays))
 const nameError = ref('')
 const busy = ref(false)
 const issued = ref<IssuedAppPassword>()
@@ -136,7 +144,7 @@ async function submit() {
     return
   }
   const input: AppPasswordInput = { name: name.value.trim() }
-  if (Number(days.value) !== defaultDays) {
+  if (Number(days.value) !== defaultDays.value) {
     input.expires_in_days = Number(days.value)
   }
   busy.value = true

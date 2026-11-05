@@ -3,6 +3,7 @@ import type {
   Account,
   AppPassword,
   AppPasswordInput,
+  AppPasswordList,
   IssuedAppPassword,
   CalendarInput,
   ContactFolderInput,
@@ -246,8 +247,13 @@ export function createClient(transport: Transport) {
 
     // The list never carries a secret. createAppPassword answers with the
     // secret once; revokeAppPassword refuses the clients that use it.
-    listAppPasswords: async () =>
-      (await send<{ app_passwords: AppPassword[] }>({ method: 'GET', url: appPasswords })).app_passwords,
+    listAppPasswords: async (): Promise<AppPasswordList> => {
+      const body = await send<{ app_passwords: AppPassword[]; max_lifetime_days: number }>({
+        method: 'GET',
+        url: appPasswords
+      })
+      return { appPasswords: body.app_passwords, maxLifetimeDays: body.max_lifetime_days }
+    },
     createAppPassword: (input: AppPasswordInput) =>
       send<IssuedAppPassword>({ method: 'POST', url: appPasswords, data: input }),
     revokeAppPassword: (id: string) =>

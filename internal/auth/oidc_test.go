@@ -270,6 +270,34 @@ func TestOIDCVerifierClients(t *testing.T) {
 	}
 }
 
+func TestOIDCVerifierReportsTheClient(t *testing.T) {
+	idp := newFakeIdP(t, false)
+	tests := []struct {
+		name    string
+		clients []string
+		claims  map[string]any
+		want    string
+	}{
+		{"azp wins", []string{"web"}, map[string]any{"aud": "account", "azp": "web"}, "web"},
+		{"aud is the client", []string{"web"}, map[string]any{"aud": "web"}, "web"},
+		{"the matching entry of an aud list", []string{"web"}, map[string]any{"aud": []string{"other", "web"}}, "web"},
+		{"wildcard reports the aud", []string{"*"}, map[string]any{"aud": "desktop"}, "desktop"},
+		{"wildcard without aud or azp", []string{"*"}, nil, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := newVerifier(t, OIDCConfig{Issuer: idp.URL, Clients: tt.clients})
+			claims, err := v.Verify(context.Background(), idp.token(t, tt.claims))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if claims.Client != tt.want {
+				t.Fatalf("Client = %q, want %q", claims.Client, tt.want)
+			}
+		})
+	}
+}
+
 func TestNewOIDCVerifierRequiresClients(t *testing.T) {
 	if _, err := NewOIDCVerifier(OIDCConfig{Issuer: "https://idp.example"}); err == nil {
 		t.Fatal("no clients: want an error, so a forgotten setting cannot turn the check off")

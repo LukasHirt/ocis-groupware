@@ -34,6 +34,10 @@ type Claims struct {
 	// DisplayName is the name to show for the user: the name claim, or for oCIS
 	// access tokens the display name in the lg.i claim. It can be empty.
 	DisplayName string
+	// Client is the OAuth client the token was issued to, for the audit
+	// log: the azp claim, else the audience entry that matched a configured
+	// client, else the first audience. It can be empty.
+	Client string
 }
 
 // Verifier checks a raw bearer token and returns the identity it carries.

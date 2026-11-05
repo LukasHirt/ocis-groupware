@@ -156,7 +156,7 @@ func (r *Registry) swapLegacy(owner, id, password string, now time.Time) (appRec
 	records[i].LegacySHA512 = ""
 	records[i].Hash = string(hash)
 	records[i].Hint = secretHint(password)
-	records[i].ExpiresAt = used.Add(defaultAppPasswordLifetime)
+	records[i].ExpiresAt = used.Add(r.appLifetime)
 	records[i].LastUsedAt = &used
 	if err := r.writeAppPasswords(owner, records); err != nil {
 		return appRecord{}, err

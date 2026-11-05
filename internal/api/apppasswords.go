@@ -22,10 +22,6 @@ import (
 // password and may shorten its lifetime.
 const maxBody = 4 << 10
 
-// maxLifetimeDays is the longest lifetime a request can ask for, which is also
-// the default.
-const maxLifetimeDays = 365
-
 // appPasswordJSON is an app password as the API shows it. The hash is never
 // part of it.
 type appPasswordJSON struct {
@@ -49,6 +45,16 @@ type issuedJSON struct {
 	Password string `json:"password"`
 }
 
+// Option configures the handler returned by AppPasswords.
+type Option func(*appPasswords)
+
+// WithClientAddr sets how the handler finds the address of the client for the
+// audit log, which is the address the sign-in rate limiter counts, behind
+// trusted proxies only. Without it the log carries no address.
+func WithClientAddr(f func(*http.Request) string) Option {
+	return func(h *appPasswords) { h.clientAddr = f }
+}
+
 // AppPasswords returns the handler for GET and POST /groupware/v1/app-passwords
 // and DELETE /groupware/v1/app-passwords/{id}. Register it for those two paths
 // without a method, so that it answers every other method with a JSON 405 and
@@ -59,7 +65,11 @@ type issuedJSON struct {
 //
 // ids refreshes the caller's oCIS identity snapshot at each sign-in. It may be
 // nil, which signs in without a lookup.
-func AppPasswords(reg *principals.Registry, ids *provision.Identities, logger *slog.Logger) http.Handler {
+//
+// The longest lifetime a request can ask for, and the default, is the
+// registry's app password lifetime. Issuing and revoking are logged at Info
+// with the owner, the id, the token's client and the client address.
+func AppPasswords(reg *principals.Registry, ids *provision.Identities, logger *slog.Logger, opts ...Option) http.Handler {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
@@ -67,6 +77,9 @@ func AppPasswords(reg *principals.Registry, ids *provision.Identities, logger *s
 		ids = provision.NewIdentities(reg, nil, logger)
 	}
 	h := &appPasswords{reg: reg, ids: ids, logger: logger}
+	for _, opt := range opts {
+		opt(h)
+	}
 	return http.HandlerFunc(h.serve)
 }
 
@@ -81,9 +94,30 @@ func NotFound() http.Handler {
 }
 
 type appPasswords struct {
-	reg    *principals.Registry
-	ids    *provision.Identities
-	logger *slog.Logger
+	reg        *principals.Registry
+	ids        *provision.Identities
+	logger     *slog.Logger
+	clientAddr func(*http.Request) string
+}
+
+// maxLifetimeDays is the longest lifetime a request can ask for, in whole days.
+func (h *appPasswords) maxLifetimeDays() int {
+	return int(h.reg.AppPasswordLifetime() / (24 * time.Hour))
+}
+
+// audit returns the log attributes that say who acted: the owner, the OAuth
+// client of the token and the client address.
+func (h *appPasswords) audit(r *http.Request, owner string) []any {
+	attrs := []any{"owner", owner}
+	if claims, ok := auth.ClaimsFromContext(r.Context()); ok && claims.Client != "" {
+		attrs = append(attrs, "client", claims.Client)
+	}
+	if h.clientAddr != nil {
+		if addr := h.clientAddr(r); addr != "" {
+			attrs = append(attrs, "address", addr)
+		}
+	}
+	return attrs
 }
 
 func (h *appPasswords) serve(w http.ResponseWriter, r *http.Request) {
@@ -136,7 +170,7 @@ func (h *appPasswords) list(w http.ResponseWriter, p principals.Principal) {
 	for _, ap := range list {
 		out = append(out, toJSON(ap))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"app_passwords": out})
+	writeJSON(w, http.StatusOK, map[string]any{"app_passwords": out, "max_lifetime_days": h.maxLifetimeDays()})
 }
 
 func (h *appPasswords) create(w http.ResponseWriter, r *http.Request, p principals.Principal) {
@@ -146,7 +180,7 @@ func (h *appPasswords) create(w http.ResponseWriter, r *http.Request, p principa
 	}
 	var req struct {
 		Name string `json:"name"`
-		// ExpiresInDays shortens the lifetime. Absent means 365 days.
+		// ExpiresInDays shortens the lifetime. Absent means the maximum.
 		ExpiresInDays *int `json:"expires_in_days"`
 	}
 	if status, msg := decodeBody(w, r, &req); status != 0 {
@@ -155,8 +189,8 @@ func (h *appPasswords) create(w http.ResponseWriter, r *http.Request, p principa
 	}
 	var ttl time.Duration
 	if d := req.ExpiresInDays; d != nil {
-		if *d < 1 || *d > maxLifetimeDays {
-			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid expires_in_days: use 1 to %d", maxLifetimeDays))
+		if max := h.maxLifetimeDays(); *d < 1 || *d > max {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid expires_in_days: use 1 to %d", max))
 			return
 		}
 		ttl = time.Duration(*d) * 24 * time.Hour
@@ -175,7 +209,8 @@ func (h *appPasswords) create(w http.ResponseWriter, r *http.Request, p principa
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	h.logger.Info("app password issued", "owner", p.Owner, "id", ap.ID)
+	h.logger.Info("app password issued", append(h.audit(r, p.Owner),
+		"id", ap.ID, "name", ap.Name, "expires_at", ap.ExpiresAt.Format(time.RFC3339))...)
 	writeJSON(w, http.StatusCreated, issuedJSON{appPasswordJSON: toJSON(ap), Password: secret})
 }
 
@@ -183,7 +218,7 @@ func (h *appPasswords) revoke(w http.ResponseWriter, r *http.Request, p principa
 	err := h.reg.RevokeAppPassword(r.Context(), p.Owner, id)
 	switch {
 	case err == nil:
-		h.logger.Info("app password revoked", "owner", p.Owner, "id", clip(id))
+		h.logger.Info("app password revoked", append(h.audit(r, p.Owner), "id", clip(id))...)
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, principals.ErrNotFound):
 		// The same answer for an unknown id and for another principal's.

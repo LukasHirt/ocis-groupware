@@ -64,7 +64,10 @@ type fixture struct {
 	handler  http.Handler
 }
 
-func newFixture(t *testing.T) *fixture {
+func newFixture(t *testing.T) *fixture { return newFixtureWith(t, nil, nil) }
+
+// newFixtureWith is newFixture with options for the registry and the handler.
+func newFixtureWith(t *testing.T, regOpts []principals.Option, apiOpts []Option) *fixture {
 	t.Helper()
 	dir := t.TempDir()
 	st, err := filestore.Open(dir)
@@ -74,16 +77,16 @@ func newFixture(t *testing.T) *fixture {
 	t.Cleanup(func() { _ = st.Close() })
 	logs := &syncBuffer{}
 	logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	reg, err := principals.NewRegistry(dir, st, st.OwnerDir, logger, principals.WithBcryptCost(bcrypt.MinCost))
+	reg, err := principals.NewRegistry(dir, st, st.OwnerDir, logger, append([]principals.Option{principals.WithBcryptCost(bcrypt.MinCost)}, regOpts...)...)
 	if err != nil {
 		t.Fatal(err)
 	}
 	v := &fakeVerifier{tokens: map[string]auth.Claims{
-		"tok-alice": {Subject: "sub-alice", PreferredUsername: "alice"},
+		"tok-alice": {Subject: "sub-alice", PreferredUsername: "alice", Client: "web"},
 		"tok-bob":   {Subject: "sub-bob", PreferredUsername: "bob"},
 		"tok-bad":   {Subject: "sub-bad", PreferredUsername: "bad/name"},
 	}}
-	h := AppPasswords(reg, nil, logger)
+	h := AppPasswords(reg, nil, logger, apiOpts...)
 	mux := http.NewServeMux()
 	mux.Handle(base, h)
 	mux.Handle(base+"/{id}", h)
@@ -252,7 +255,8 @@ func TestListHidesSecretAndHash(t *testing.T) {
 		t.Errorf("Content-Type = %q", ct)
 	}
 	var got struct {
-		AppPasswords []map[string]any `json:"app_passwords"`
+		AppPasswords    []map[string]any `json:"app_passwords"`
+		MaxLifetimeDays int              `json:"max_lifetime_days"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
@@ -280,7 +284,7 @@ func TestListHidesSecretAndHash(t *testing.T) {
 func TestListEmptyIsAnArray(t *testing.T) {
 	f := newFixture(t)
 	rec := f.do(http.MethodGet, base, "tok-alice", "")
-	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"app_passwords":[]}` {
+	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"app_passwords":[],"max_lifetime_days":365}` {
 		t.Fatalf("status %d, body %q", rec.Code, rec.Body.String())
 	}
 }
@@ -662,5 +666,90 @@ func TestSignInRecordsTheIdentity(t *testing.T) {
 	f.do(http.MethodGet, base, "tok-alice", "")
 	if len(g.tokens) != 1 {
 		t.Fatalf("%d lookups, want 1", len(g.tokens))
+	}
+}
+
+// The configured lifetime is the default and the ceiling.
+func TestLifetimeFollowsTheConfiguredMaximum(t *testing.T) {
+	f := newFixtureWith(t, []principals.Option{principals.WithAppPasswordLifetime(30 * 24 * time.Hour)}, nil)
+
+	lifetime := func(body string) (time.Duration, *httptest.ResponseRecorder) {
+		rec := f.do(http.MethodPost, base, "tok-alice", body)
+		if rec.Code != http.StatusCreated {
+			return 0, rec
+		}
+		var c created
+		if err := json.Unmarshal(rec.Body.Bytes(), &c); err != nil {
+			t.Fatal(err)
+		}
+		created, _ := time.Parse(time.RFC3339, c.CreatedAt)
+		expires, _ := time.Parse(time.RFC3339, c.ExpiresAt)
+		return expires.Sub(created), rec
+	}
+	if got, rec := lifetime(`{"name":"a"}`); got != 30*24*time.Hour {
+		t.Errorf("default lifetime = %v, want 30 days (status %d)", got, rec.Code)
+	}
+	if got, rec := lifetime(`{"name":"b","expires_in_days":30}`); got != 30*24*time.Hour {
+		t.Errorf("the maximum itself = %v, want 30 days (status %d)", got, rec.Code)
+	}
+	_, rec := lifetime(`{"name":"c","expires_in_days":31}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("31 days: status %d, want 400", rec.Code)
+	}
+	if msg := errorBody(t, rec); !strings.Contains(msg, "1 to 30") {
+		t.Errorf("message %q does not name the limit", msg)
+	}
+
+	rec = f.do(http.MethodGet, base, "tok-alice", "")
+	var got struct {
+		MaxLifetimeDays int `json:"max_lifetime_days"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || got.MaxLifetimeDays != 30 {
+		t.Fatalf("max_lifetime_days = %d (%v), body %s", got.MaxLifetimeDays, err, rec.Body.String())
+	}
+}
+
+// Issuing and revoking leave an audit line with who, what, with which token
+// and from where, and never the secret.
+func TestIssueAndRevokeAreLogged(t *testing.T) {
+	f := newFixtureWith(t, nil, []Option{WithClientAddr(func(r *http.Request) string { return "203.0.113.9" })})
+	c := f.create(t, "tok-alice", "Phone")
+	if rec := f.do(http.MethodDelete, base+"/"+c.ID, "tok-alice", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("revoke: status %d", rec.Code)
+	}
+	logs := f.logs.String()
+	for _, line := range []string{"app password issued", "app password revoked"} {
+		var got string
+		for _, l := range strings.Split(logs, "\n") {
+			if strings.Contains(l, line) {
+				got = l
+			}
+		}
+		if got == "" {
+			t.Fatalf("no %q line in the logs:\n%s", line, logs)
+		}
+		for _, want := range []string{"owner=sub-alice", "id=" + c.ID, "client=web", "address=203.0.113.9"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("%q line lacks %s:\n%s", line, want, got)
+			}
+		}
+		if strings.Contains(line, "issued") {
+			for _, want := range []string{"name=Phone", "expires_at="} {
+				if !strings.Contains(got, want) {
+					t.Errorf("%q line lacks %s:\n%s", line, want, got)
+				}
+			}
+		}
+	}
+	if strings.Contains(logs, c.Password) {
+		t.Error("the secret was logged")
+	}
+}
+
+func TestAuditAddressIsOmittedWithoutAFunction(t *testing.T) {
+	f := newFixture(t)
+	f.create(t, "tok-alice", "Phone")
+	if strings.Contains(f.logs.String(), "address=") {
+		t.Errorf("an address was logged without a source for it:\n%s", f.logs.String())
 	}
 }

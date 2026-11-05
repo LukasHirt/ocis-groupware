@@ -82,6 +82,10 @@ spec:
             - name: GROUPWARE_IDENTITY_MAX_AGE
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.config.appPasswordMaxLifetime }}
+            - name: GROUPWARE_APP_PASSWORD_MAX_LIFETIME
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.config.adminSocket }}
             - name: GROUPWARE_ADMIN_SOCKET
               value: {{ . | quote }}

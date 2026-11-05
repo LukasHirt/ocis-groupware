@@ -55,6 +55,7 @@ repository for what each one does.
 | `config.compatPaths` | `GROUPWARE_COMPAT_PATHS` | `false` | Serve the classic DAV layout; adds those paths to the Ingress |
 | `config.legacyTokenTtl` | `GROUPWARE_LEGACY_TOKEN_TTL` | `""` | A Go duration; the service default is `4320h` |
 | `config.identityMaxAge` | `GROUPWARE_IDENTITY_MAX_AGE` | `""` | A Go duration; the service default is `720h`. `0` turns the check off |
+| `config.appPasswordMaxLifetime` | `GROUPWARE_APP_PASSWORD_MAX_LIFETIME` | `""` | A Go duration of at least `24h`; the service default is `4320h` |
 | `config.adminSocket` | `GROUPWARE_ADMIN_SOCKET` | `""` | See the socket path limit below |
 | `persistence.mountPath` | `GROUPWARE_DATA_DIR` | `/data` | Where the volume is mounted |
 | `oidcCA.pem` | `GROUPWARE_OIDC_CA_FILE` | `""` | CA bundle text; the chart stores it in a ConfigMap and sets the key to the mounted file |

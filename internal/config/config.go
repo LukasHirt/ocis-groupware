@@ -60,6 +60,11 @@ type Config struct {
 	// of a user removed from a group, can keep working. A Go duration such as
 	// 720h. 0 turns the check off.
 	IdentityMaxAge time.Duration `yaml:"identity_max_age"`
+	// AppPasswordMaxLifetime is the lifetime of a new app password when the
+	// request names none, and the longest one a request can ask for. A Go
+	// duration such as 4320h, at least 24h. Passwords that exist keep the
+	// expiry they were created with.
+	AppPasswordMaxLifetime time.Duration `yaml:"app_password_max_lifetime"`
 	// TrustedProxies lists the addresses and networks of the reverse proxies
 	// in front of the service. Only requests from them are believed when they
 	// say who the client is in X-Forwarded-For. The sign-in rate limiter
@@ -72,6 +77,10 @@ type Config struct {
 	// AuthFailureWindow is how long failed sign-ins count.
 	AuthFailureWindow time.Duration `yaml:"auth_failure_window"`
 }
+
+// MinAppPasswordMaxLifetime is the least AppPasswordMaxLifetime: the shortest
+// lifetime a request can ask for is one day.
+const MinAppPasswordMaxLifetime = 24 * time.Hour
 
 // StringList is a list of strings that YAML may spell as a list or as one
 // scalar. A scalar may hold several entries separated by commas, as the
@@ -120,7 +129,9 @@ func Default() Config {
 		OIDCAudience: StringList{"web"},
 
 		LegacyTokenTTL: 180 * 24 * time.Hour,
-		IdentityMaxAge: 720 * time.Hour,
+
+		AppPasswordMaxLifetime: 4320 * time.Hour,
+		IdentityMaxAge:         720 * time.Hour,
 
 		AuthMaxFailures:   10,
 		AuthFailureWindow: 15 * time.Minute,
@@ -188,6 +199,13 @@ func Load(path string) (Config, error) {
 		}
 		cfg.IdentityMaxAge = d
 	}
+	if v, ok := os.LookupEnv("GROUPWARE_APP_PASSWORD_MAX_LIFETIME"); ok {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("config: GROUPWARE_APP_PASSWORD_MAX_LIFETIME: %w", err)
+		}
+		cfg.AppPasswordMaxLifetime = d
+	}
 	if v, ok := os.LookupEnv("GROUPWARE_COMPAT_PATHS"); ok {
 		on, err := strconv.ParseBool(v)
 		if err != nil {
@@ -241,6 +259,9 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.IdentityMaxAge < 0 {
 		return fmt.Errorf("config: identity_max_age must not be negative")
+	}
+	if cfg.AppPasswordMaxLifetime < MinAppPasswordMaxLifetime {
+		return fmt.Errorf("config: app_password_max_lifetime must be at least %v", MinAppPasswordMaxLifetime)
 	}
 	if cfg.AuthMaxFailures < 1 {
 		return fmt.Errorf("config: auth_max_failures must be at least 1")

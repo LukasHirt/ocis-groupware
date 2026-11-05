@@ -143,6 +143,8 @@ type Registry struct {
 	// dummyHash is compared against when a check has no stored hash, so
 	// that it costs the same as checking a wrong password.
 	dummyHash []byte
+	// appLifetime is the lifetime of an app password issued without one.
+	appLifetime time.Duration
 	// identityMaxAge is the identity lease, see WithIdentityMaxAge.
 	identityMaxAge time.Duration
 	// claimLogged is when a refused username claim of an owner was last
@@ -203,6 +205,7 @@ func NewRegistry(dataDir string, st store.Store, ownerDir func(owner string) str
 		compare:     bcrypt.CompareHashAndPassword,
 		hash:        bcrypt.GenerateFromPassword,
 		legacyTTL:   defaultLegacyTokenLifetime,
+		appLifetime: defaultAppPasswordLifetime,
 		cache:       newCredentialCache(cacheTTL),
 		apps:        make(map[string]*appSet),
 	}
