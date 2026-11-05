@@ -5,6 +5,13 @@ import { openApp, openNav, calendarAction, pickOption, selectBox, signIn, textFi
 // checks of times below.
 test.use({ timezoneId: 'Europe/Prague' })
 
+// settled waits until the page is done reading events. The grid draws its
+// events again when the answer arrives, and a click that lands in between
+// would hit an element that is replaced.
+async function settled(page: Page) {
+  await expect(page.locator('.gw-events-progress')).toHaveCount(0)
+}
+
 async function openCalendar(page: Page) {
   await signIn(page)
   await openApp(page, 'Calendar')
@@ -96,79 +103,134 @@ function today(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-test('an event can be created, changed and deleted', async ({ page }) => {
+test('an event can be created, shown in the sidebar, changed and deleted', async ({ page }) => {
   await openCalendar(page)
   const event = (title: string) => page.locator('.fc-event', { hasText: title })
+  const details = page.getByTestId('event-details')
 
   await page.getByTestId('event-add').click()
-  await page.getByTestId('event-subject').fill('Beam time')
-  await page.getByTestId('event-start-date').fill(today())
-  await page.getByTestId('event-start-time').fill('09:00')
-  await page.getByTestId('event-end-date').fill(today())
-  await page.getByTestId('event-end-time').fill('10:30')
-  await page.getByTestId('event-zone').selectOption('Europe/Prague')
-  await page.getByTestId('event-location').fill('Hall 2')
-  await page.getByTestId('event-status').selectOption('tentative')
-  await page.getByTestId('event-categories').fill('Lab, Beam')
-  await page.getByTestId('event-reminder').selectOption('30')
-  await page.getByTestId('attendee-input').fill('marie@example.com')
+  await textField(page, 'event-subject').fill('Beam time')
+  await textField(page, 'event-start-date').fill(today())
+  await textField(page, 'event-start-time').fill('09:00')
+  await textField(page, 'event-end-date').fill(today())
+  await textField(page, 'event-end-time').fill('10:30')
+  await pickOption(page, 'event-zone', 'Europe/Prague')
+  await textField(page, 'event-location').fill('Hall 2')
+  await pickOption(page, 'event-status', 'Tentative')
+  await textField(page, 'event-categories').fill('Lab, Beam')
+  await pickOption(page, 'event-reminder', '30 minutes before')
+  await textField(page, 'attendee-input').fill('marie@example.com')
   await page.getByTestId('attendee-add').click()
-  await page.getByTestId('event-notes').fill('Bring the detector.')
+  await textField(page, 'event-notes').fill('Bring the detector.')
   await page.getByTestId('dialog-confirm').click()
   await expect(page.getByRole('dialog')).toBeHidden()
   await expect(event('Beam time')).toHaveCount(1)
 
-  // What was written comes back in the zone it was written in.
+  // A click shows the event in the sidebar, in the zone it was written in.
+  await settled(page)
   await event('Beam time').click()
-  await expect(page.getByTestId('event-subject')).toHaveValue('Beam time')
-  await expect(page.getByTestId('event-start-time')).toHaveValue('09:00')
-  await expect(page.getByTestId('event-end-time')).toHaveValue('10:30')
-  await expect(page.getByTestId('event-zone')).toHaveValue('Europe/Prague')
-  await expect(page.getByTestId('event-location')).toHaveValue('Hall 2')
-  await expect(page.getByTestId('event-status')).toHaveValue('tentative')
-  await expect(page.getByTestId('event-categories')).toHaveValue('Lab, Beam')
-  await expect(page.getByTestId('event-reminder')).toHaveValue('30')
-  await expect(page.getByTestId('attendee')).toContainText('marie@example.com')
-  await expect(page.getByTestId('event-notes')).toHaveValue('Bring the detector.')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(details.getByTestId('event-title')).toHaveText('Beam time')
+  await expect(details.getByTestId('event-when')).toContainText('9:00')
+  await expect(details.getByTestId('event-when')).toContainText('10:30')
+  await expect(details).toContainText('Europe/Prague')
+  await expect(details.getByTestId('event-place')).toHaveText('Hall 2')
+  await expect(details.getByTestId('event-status-text')).toHaveText('Tentative')
+  await expect(details.getByTestId('event-reminder-text')).toHaveText('30 minutes before')
+  await expect(details.getByTestId('event-tags')).toContainText('Lab')
+  await expect(details.getByTestId('event-tags')).toContainText('Beam')
+  await expect(details.getByTestId('event-attendee')).toContainText('marie@example.com')
+  await expect(details.getByTestId('event-notes')).toHaveText('Bring the detector.')
 
-  // An end before the start is refused.
-  await page.getByTestId('event-end-time').fill('08:00')
+  // Edit opens the editor with the same values.
+  await details.getByTestId('event-edit').click()
+  await expect(textField(page, 'event-subject')).toHaveValue('Beam time')
+  await expect(textField(page, 'event-start-time')).toHaveValue('09:00')
+  await expect(textField(page, 'event-end-time')).toHaveValue('10:30')
+  await expect(selectBox(page, 'event-zone')).toContainText('Europe/Prague')
+  await expect(textField(page, 'event-location')).toHaveValue('Hall 2')
+  await expect(selectBox(page, 'event-status')).toContainText('Tentative')
+  await expect(textField(page, 'event-categories')).toHaveValue('Lab, Beam')
+  await expect(selectBox(page, 'event-reminder')).toContainText('30 minutes before')
+  await expect(page.getByRole('dialog').getByTestId('attendee')).toContainText('marie@example.com')
+  await expect(textField(page, 'event-notes')).toHaveValue('Bring the detector.')
+
+  // An end before the start is refused, and the message belongs to the field.
+  await textField(page, 'event-end-time').fill('08:00')
   await page.getByTestId('dialog-confirm').click()
-  await expect(page.getByTestId('event-end-error')).toBeVisible()
+  await expect(page.locator('#gw-event-end-time-message')).toBeVisible()
 
-  await page.getByTestId('event-end-time').fill('11:00')
-  await page.getByTestId('event-subject').fill('Beam time 2')
+  await textField(page, 'event-end-time').fill('11:00')
+  await textField(page, 'event-subject').fill('Beam time 2')
   await page.getByTestId('attendee-remove').click()
-  await page.getByTestId('event-reminder').selectOption('none')
+  await pickOption(page, 'event-reminder', 'No reminder')
   await page.getByTestId('dialog-confirm').click()
   await expect(page.getByRole('dialog')).toBeHidden()
   await expect(event('Beam time 2')).toHaveCount(1)
-  await event('Beam time 2').click()
-  await expect(page.getByTestId('event-end-time')).toHaveValue('11:00')
-  await expect(page.getByTestId('attendee')).toHaveCount(0)
-  await expect(page.getByTestId('event-reminder')).toHaveValue('none')
-  await expect(page.getByTestId('event-location')).toHaveValue('Hall 2')
 
-  await page.getByTestId('event-delete').click()
+  // The sidebar follows the change.
+  await expect(details.getByTestId('event-title')).toHaveText('Beam time 2')
+  await expect(details.getByTestId('event-when')).toContainText('11:00')
+  await expect(details.getByTestId('event-attendee')).toHaveCount(0)
+  await expect(details.getByTestId('event-reminder-text')).toHaveCount(0)
+  await expect(details.getByTestId('event-place')).toHaveText('Hall 2')
+
+  await details.getByTestId('event-delete').click()
   await page.getByTestId('dialog-confirm').click()
   await expect(page.getByRole('dialog')).toBeHidden()
   await expect(event('Beam time 2')).toHaveCount(0)
 })
 
+test('an event opens in the editor when it is clicked twice', async ({ page }) => {
+  await openCalendar(page)
+  const event = (title: string) => page.locator('.fc-event', { hasText: title })
+  await page.getByTestId('event-add').click()
+  await textField(page, 'event-subject').fill('Quick one')
+  // The default is the next hour, which late in the evening runs into the next day and shows twice.
+  await textField(page, 'event-start-date').fill(today())
+  await textField(page, 'event-start-time').fill('09:00')
+  await textField(page, 'event-end-date').fill(today())
+  await textField(page, 'event-end-time').fill('10:00')
+  await page.getByTestId('dialog-confirm').click()
+  await expect(event('Quick one')).toHaveCount(1)
+
+  // The sidebar opens beside the grid and moves the events, so the double
+  // click is on an event that stays where it is: the first click opens it.
+  await settled(page)
+  await event('Quick one').click()
+  await expect(page.getByTestId('event-title')).toHaveText('Quick one')
+  await event('Quick one').dblclick()
+  await expect(textField(page, 'event-subject')).toHaveValue('Quick one')
+  await page.getByTestId('dialog-cancel').click()
+
+  // A click within half a second of the last one counts as the second of two.
+  await page.waitForTimeout(600)
+  await settled(page)
+  await event('Quick one').click()
+  await page.getByTestId('event-delete').click()
+  await page.getByTestId('dialog-confirm').click()
+  await expect(event('Quick one')).toHaveCount(0)
+})
+
 test('an all-day event is made by clicking a day', async ({ page }) => {
   await openCalendar(page)
   await page.locator(`.fc-daygrid-day[data-date="${today()}"]`).click()
-  await expect(page.getByTestId('event-all-day')).toBeChecked()
-  await page.getByTestId('event-subject').fill('Conference')
+  await expect(page.getByTestId('event-all-day').getByRole('checkbox')).toBeChecked()
+  await textField(page, 'event-subject').fill('Conference')
   await page.getByTestId('dialog-confirm').click()
   await expect(page.getByRole('dialog')).toBeHidden()
   const event = page.locator('.fc-event', { hasText: 'Conference' })
   await expect(event).toHaveCount(1)
 
+  await settled(page)
   await event.click()
-  await expect(page.getByTestId('event-all-day')).toBeChecked()
-  await expect(page.getByTestId('event-start-date')).toHaveValue(today())
-  await expect(page.getByTestId('event-end-date')).toHaveValue(today())
+  await expect(page.getByTestId('event-title')).toHaveText('Conference')
+  await expect(page.getByTestId('event-when')).not.toContainText(':')
+  await page.getByTestId('event-edit').click()
+  await expect(page.getByTestId('event-all-day').getByRole('checkbox')).toBeChecked()
+  await expect(textField(page, 'event-start-date')).toHaveValue(today())
+  await expect(textField(page, 'event-end-date')).toHaveValue(today())
+  await page.getByTestId('dialog-cancel').click()
   await page.getByTestId('event-delete').click()
   await page.getByTestId('dialog-confirm').click()
   await expect(event).toHaveCount(0)
@@ -184,51 +246,115 @@ test('a repeating event can be changed for one day or for all days', async ({ pa
   const day = firstOfMonth()
 
   await page.getByTestId('event-add').click()
-  await page.getByTestId('event-subject').fill('Stand-up')
-  await page.getByTestId('event-start-date').fill(day)
-  await page.getByTestId('event-start-time').fill('09:00')
-  await page.getByTestId('event-end-date').fill(day)
-  await page.getByTestId('event-end-time').fill('09:30')
-  await page.getByTestId('repeat-frequency').selectOption('daily')
-  await page.getByTestId('repeat-end').selectOption('count')
-  await page.getByTestId('repeat-count').fill('3')
+  await textField(page, 'event-subject').fill('Stand-up')
+  await textField(page, 'event-start-date').fill(day)
+  await textField(page, 'event-start-time').fill('09:00')
+  await textField(page, 'event-end-date').fill(day)
+  await textField(page, 'event-end-time').fill('09:30')
+  await pickOption(page, 'repeat-frequency', 'Daily')
+  await pickOption(page, 'repeat-end', 'After a number of times')
+  await textField(page, 'repeat-count').fill('3')
   await page.getByTestId('dialog-confirm').click()
   await expect(page.getByRole('dialog')).toBeHidden()
   await expect(events).toHaveCount(3)
 
-  // One day only.
+  // The sidebar says how it repeats, and nothing is asked before an action.
+  await settled(page)
   await events.first().click()
+  await expect(page.getByTestId('event-repeats')).toContainText('Every day')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+
+  // One day only.
+  await page.getByTestId('event-edit').click()
   await page.getByTestId('scope-this').click()
   await expect(page.getByTestId('repeat-frequency')).toHaveCount(0)
-  await page.getByTestId('event-subject').fill('Stand-up moved')
+  await textField(page, 'event-subject').fill('Stand-up moved')
   await page.getByTestId('dialog-confirm').click()
   await expect(page.getByRole('dialog')).toBeHidden()
   await expect(page.locator('.fc-event', { hasText: 'Stand-up moved' })).toHaveCount(1)
   await expect(events).toHaveCount(3)
 
-  // The whole series: the pattern comes back as it was written.
+  // The whole series: the pattern comes back as it was written. The weekday
+  // buttons are not shown for a daily pattern.
+  await settled(page)
   await events.last().click()
+  await page.getByTestId('event-edit').click()
   await page.getByTestId('scope-all').click()
-  await expect(page.getByTestId('repeat-frequency')).toHaveValue('daily')
-  await expect(page.getByTestId('repeat-end')).toHaveValue('count')
-  await expect(page.getByTestId('repeat-count')).toHaveValue('3')
-  await page.getByTestId('repeat-count').fill('2')
+  await expect(selectBox(page, 'repeat-frequency')).toContainText('Daily')
+  await expect(selectBox(page, 'repeat-end')).toContainText('After a number of times')
+  await expect(textField(page, 'repeat-count')).toHaveValue('3')
+  await textField(page, 'repeat-count').fill('2')
   await page.getByTestId('dialog-confirm').click()
   await expect(page.getByRole('dialog')).toBeHidden()
   await expect(events).toHaveCount(2)
 
   // Delete one day, then the rest.
+  await settled(page)
   await events.last().click()
-  await page.getByTestId('scope-this').click()
   await page.getByTestId('event-delete').click()
+  await page.getByTestId('scope-this').click()
   await page.getByTestId('dialog-confirm').click()
   await expect(events).toHaveCount(1)
 
+  await settled(page)
   await events.first().click()
-  await page.getByTestId('scope-all').click()
   await page.getByTestId('event-delete').click()
+  await page.getByTestId('scope-all').click()
   await page.getByTestId('dialog-confirm').click()
   await expect(events).toHaveCount(0)
+})
+
+test('a weekly pattern is set with the weekday buttons', async ({ page }) => {
+  await openCalendar(page)
+  await page.getByTestId('event-add').click()
+  await textField(page, 'event-subject').fill('Weekly sync')
+  await pickOption(page, 'repeat-frequency', 'Weekly')
+  const group = page.getByRole('group', { name: 'Repeat on' })
+  await expect(group.getByRole('button')).toHaveCount(7)
+  const friday = page.getByTestId('repeat-day-friday')
+  await expect(friday).toHaveAttribute('aria-pressed', 'false')
+  await friday.click()
+  await expect(friday).toHaveAttribute('aria-pressed', 'true')
+  await friday.click()
+  await expect(friday).toHaveAttribute('aria-pressed', 'false')
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toBeHidden()
+})
+
+test('Escape closes every dialog of the calendar', async ({ page }) => {
+  await openCalendar(page)
+  const dialog = page.getByRole('dialog')
+  const closesOnEscape = async (open: () => Promise<void>) => {
+    await open()
+    await expect(dialog).toBeVisible()
+    // The dialog takes the focus when it opens; Escape goes to the focused element.
+    await expect(dialog.locator(':focus')).toHaveCount(1)
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+  }
+
+  await closesOnEscape(() => page.getByTestId('event-add').click())
+  await closesOnEscape(() => page.getByTestId('settings-open').click())
+  await closesOnEscape(() => page.getByTestId('calendar-add').click())
+  const item = page.getByTestId('calendar-item').first()
+  await closesOnEscape(() => calendarAction(page, item, 'calendar-edit'))
+  await closesOnEscape(() => calendarAction(page, item, 'calendar-share'))
+
+  // A confirmation and a question about a series, from the sidebar.
+  await page.getByTestId('event-add').click()
+  await textField(page, 'event-subject').fill('Escape test')
+  await textField(page, 'event-start-time').fill('09:00')
+  await textField(page, 'event-end-date').fill(today())
+  await textField(page, 'event-end-time').fill('10:00')
+  await page.getByTestId('dialog-confirm').click()
+  const event = page.locator('.fc-event', { hasText: 'Escape test' })
+  await expect(event).toHaveCount(1)
+  await settled(page)
+  await event.click()
+  await closesOnEscape(() => page.getByTestId('event-delete').click())
+  await page.getByTestId('event-delete').click()
+  await page.getByTestId('dialog-confirm').click()
+  await expect(event).toHaveCount(0)
 })
 
 test('the settings change the first day, week numbers and time zone, and are kept', async ({ page }) => {
@@ -247,7 +373,7 @@ test('the settings change the first day, week numbers and time zone, and are kep
 
   // A new event is written in the chosen zone.
   await page.getByTestId('event-add').click()
-  await expect(page.getByTestId('event-zone')).toHaveValue('Asia/Tokyo')
+  await expect(selectBox(page, 'event-zone')).toContainText('Asia/Tokyo')
   await page.getByTestId('dialog-cancel').click()
 
   // The settings are still there when the page is opened again.
