@@ -1,0 +1,9 @@
+# Web service configuration that makes oCIS Web load the groupware
+# application, read by the web service from /etc/ocis/web.yaml. The path is
+# relative to the oCIS URL: Web resolves it against the server it was loaded
+# from, so it must reach ocis-groupware on the same domain.
+web:
+  config:
+    external_apps:
+      - id: groupware
+        path: /web/groupware.js

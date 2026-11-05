@@ -67,6 +67,8 @@ services:
     volumes:
       - ocis-config:/etc/ocis
       - ocis-data:/var/lib/ocis
+      # Makes oCIS Web load the groupware application from /web/.
+      - ./deploy/ocis/web.yaml:/etc/ocis/web.yaml:ro
     labels:
       traefik.enable: "true"
       traefik.http.routers.ocis.rule: Host(`${OCIS_DOMAIN:-ocis.localhost}`)
