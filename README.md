@@ -82,7 +82,8 @@ Node. The Docker image always contains the build.
 `web/` is a Vue 3 and TypeScript project built with ownCloud's extension SDK. It is an
 application for ownCloud Web, with Calendar and Contacts entries in the sidebar. oCIS
 Web loads `/web/groupware.js` when the Web configuration lists the application under
-`external_apps`, and provides `vue`, `pinia`, `luxon`, `vue3-gettext`,
+`external_apps` (`deploy/ocis/web.yaml` is such a configuration, which the compose
+stack mounts as `/etc/ocis/web.yaml`), and provides `vue`, `pinia`, `luxon`, `vue3-gettext`,
 `@ownclouders/web-pkg` and `@ownclouders/web-client` to it at run time, so the bundle
 contains none of them. `vue-router` is not provided; the application imports only
 its types and routes through the composables of `web-pkg`. The ownCloud packages are
@@ -210,9 +211,11 @@ those paths and has the same routing for Traefik's file provider, nginx and Cadd
 task stack:up
 ```
 
-Then open <https://ocis.localhost> (`admin` / `admin`). A `certs` service generates a
-self-signed certificate on each start. Your browser will warn about it; ocis-groupware
-trusts it through `GROUPWARE_OIDC_CA_FILE`.
+Then open <https://ocis.localhost> (`admin` / `admin`). The application menu lists
+"Calendar and Contacts", which oCIS Web loads from ocis-groupware because the stack
+mounts `deploy/ocis/web.yaml` into the oCIS configuration directory. A `certs` service
+generates a self-signed certificate on each start. Your browser will warn about it;
+ocis-groupware trusts it through `GROUPWARE_OIDC_CA_FILE`.
 Set `OCIS_DOMAIN`, `OCIS_VERSION` or `IDM_ADMIN_PASSWORD` in the environment
 or a `.env` file to override the defaults. This stack is for development only.
 
@@ -222,7 +225,8 @@ or a `.env` file to override the defaults. This stack is for development only.
 demo users through the oCIS identity provider, create app passwords and run CalDAV and
 CardDAV client flows against `https://ocis.localhost/dav`: discovery through the
 well-known paths, calendars and address books with their objects, queries, sync, and
-the refusal of requests without credentials. The Go tests use the
+the refusal of requests without credentials. They also check that oCIS announces the
+web application in its Web configuration and serves its entry. The Go tests use the
 [go-webdav](https://github.com/emersion/go-webdav) client. One test runs the Python
 caldav client check that ships with groupkit, which also exercises occurrence
 expansion.
