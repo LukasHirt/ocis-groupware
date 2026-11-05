@@ -1,0 +1,50 @@
+{
+  "value": [
+    {
+      "id": "cGVyc29uYWwtY2Fs",
+      "name": "Personal",
+      "color": "auto",
+      "hexColor": "",
+      "isDefaultCalendar": true,
+      "changeKey": "1",
+      "canShare": true,
+      "canViewPrivateItems": true,
+      "canEdit": true,
+      "isRemovable": true,
+      "owner": {
+        "name": "Albert Einstein"
+      }
+    },
+    {
+      "id": "d29yay1jYWw",
+      "name": "Work",
+      "color": "auto",
+      "hexColor": "#3366cc",
+      "isDefaultCalendar": false,
+      "changeKey": "3",
+      "canShare": true,
+      "canViewPrivateItems": true,
+      "canEdit": true,
+      "isRemovable": true,
+      "owner": {
+        "name": "Albert Einstein"
+      }
+    },
+    {
+      "id": "c2hhcmVkLWNhbA",
+      "name": "Team",
+      "color": "auto",
+      "hexColor": "",
+      "isDefaultCalendar": false,
+      "changeKey": "7",
+      "canShare": false,
+      "canViewPrivateItems": true,
+      "canEdit": false,
+      "isRemovable": false,
+      "owner": {
+        "name": "Marie Curie"
+      }
+    }
+  ]
+}
+

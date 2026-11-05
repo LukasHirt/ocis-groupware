@@ -1,0 +1,16 @@
+{
+  "id": "cGVyc29uYWwtY2Fs",
+  "name": "Personal",
+  "color": "auto",
+  "hexColor": "",
+  "isDefaultCalendar": true,
+  "changeKey": "1",
+  "canShare": true,
+  "canViewPrivateItems": true,
+  "canEdit": true,
+  "isRemovable": true,
+  "owner": {
+    "name": "Albert Einstein"
+  }
+}
+

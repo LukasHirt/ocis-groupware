@@ -37,7 +37,7 @@ type fixture struct {
 
 // newFixture serves the facade behind the same authentication middleware the
 // service uses. Tokens "einstein" and "marie" sign in as those users.
-func newFixture(t *testing.T, opts ...Option) *fixture {
+func newFixture(t *testing.T, mods ...func(*Config)) *fixture {
 	t.Helper()
 	dir := t.TempDir()
 	st, err := filestore.Open(dir)
@@ -53,7 +53,11 @@ func newFixture(t *testing.T, opts ...Option) *fixture {
 		"einstein": {Subject: "sub-einstein", PreferredUsername: "einstein", DisplayName: "Albert Einstein"},
 		"marie":    {Subject: "sub-marie", PreferredUsername: "marie", DisplayName: "Marie Curie"},
 	}}
-	h, err := New(Config{Store: st, Registry: reg, Logger: testLogger()}, opts...)
+	cfg := Config{Store: st, Registry: reg, Logger: testLogger()}
+	for _, mod := range mods {
+		mod(&cfg)
+	}
+	h, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,0 +1,16 @@
+{
+  "id": "c2hhcmVkLWNhbA",
+  "name": "Team",
+  "color": "auto",
+  "hexColor": "",
+  "isDefaultCalendar": false,
+  "changeKey": "7",
+  "canShare": false,
+  "canViewPrivateItems": true,
+  "canEdit": false,
+  "isRemovable": false,
+  "owner": {
+    "name": "Marie Curie"
+  }
+}
+
