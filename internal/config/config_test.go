@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLoadDefaults(t *testing.T) {
@@ -124,6 +125,7 @@ func TestValidate(t *testing.T) {
 		{"empty addr", Config{HTTPAddr: "", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
 		{"bad level", Config{HTTPAddr: ":8080", LogLevel: "bogus", OIDCIssuer: "https://ocis.example", DataDir: "/data"}, true},
 		{"missing issuer", Config{HTTPAddr: ":8080", LogLevel: "info", DataDir: "/data"}, true},
+		{"negative legacy lifetime", Config{HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example", DataDir: "/data", LegacyTokenTTL: -time.Hour}, true},
 		{"missing data dir", Config{HTTPAddr: ":8080", LogLevel: "info", OIDCIssuer: "https://ocis.example"}, true},
 	}
 
@@ -208,5 +210,42 @@ func TestOCISURLFromFileAndEnv(t *testing.T) {
 	}
 	if cfg.OCISURL != "http://other:9200" {
 		t.Errorf("OCISURL = %q, want the env value", cfg.OCISURL)
+	}
+}
+
+func TestLegacyTokenSettings(t *testing.T) {
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.LegacyTokenSecret != "" || cfg.LegacyTokenTTL != 180*24*time.Hour {
+		t.Fatalf("defaults = %q, %v", cfg.LegacyTokenSecret, cfg.LegacyTokenTTL)
+	}
+
+	path := filepath.Join(t.TempDir(), "groupware.yaml")
+	if err := os.WriteFile(path, []byte("legacy_token_secret: from-file\nlegacy_token_ttl: 720h\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.LegacyTokenSecret != "from-file" || cfg.LegacyTokenTTL != 720*time.Hour {
+		t.Fatalf("file = %q, %v", cfg.LegacyTokenSecret, cfg.LegacyTokenTTL)
+	}
+
+	t.Setenv("GROUPWARE_LEGACY_TOKEN_SECRET", "from-env")
+	t.Setenv("GROUPWARE_LEGACY_TOKEN_TTL", "48h")
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.LegacyTokenSecret != "from-env" || cfg.LegacyTokenTTL != 48*time.Hour {
+		t.Fatalf("env = %q, %v", cfg.LegacyTokenSecret, cfg.LegacyTokenTTL)
+	}
+
+	t.Setenv("GROUPWARE_LEGACY_TOKEN_TTL", "soon")
+	if _, err := Load(path); err == nil {
+		t.Fatal("a lifetime that is not a duration was accepted")
 	}
 }

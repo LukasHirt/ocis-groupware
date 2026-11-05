@@ -96,7 +96,8 @@ func run(args []string, stderr io.Writer) error {
 		}
 	}()
 
-	registry, err := principals.NewRegistry(cfg.DataDir, store, store.OwnerDir, logger)
+	registry, err := principals.NewRegistry(cfg.DataDir, store, store.OwnerDir, logger,
+		principals.WithLegacyTokens(cfg.LegacyTokenSecret, cfg.LegacyTokenTTL))
 	if err != nil {
 		return err
 	}
