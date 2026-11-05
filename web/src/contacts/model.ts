@@ -68,13 +68,3 @@ export function sortContacts(
     return sign * (collator.compare(x, y) || collator.compare(contactName(a), contactName(b)))
   })
 }
-
-// initials gives the first letter of the first and of the last word of a
-// name, for the avatar of a contact without a photo.
-export function initials(name: string): string {
-  const words = name.split(/\s+/).filter(Boolean)
-  if (words.length === 0) return ''
-  const first = Array.from(words[0])[0]
-  const last = words.length > 1 ? Array.from(words[words.length - 1])[0] : ''
-  return (first + last).toUpperCase()
-}

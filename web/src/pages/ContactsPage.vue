@@ -273,6 +273,14 @@
       @cancel="dialog = null"
       @confirm="deleteGroup"
     />
+    <confirm-dialog
+      v-else-if="dialog?.kind === 'deleteContact' && selected"
+      :title="$gettext('Delete contact')"
+      :message="$gettext('Delete this contact?')"
+      :confirm-label="$gettext('Delete')"
+      @cancel="dialog = null"
+      @confirm="removeSelected"
+    />
     <contact-import-report
       v-if="importReport"
       :report="importReport"
@@ -421,6 +429,7 @@ type Dialog =
   | { kind: 'deleteBook' }
   | { kind: 'renameGroup'; from: string }
   | { kind: 'deleteGroup' }
+  | { kind: 'deleteContact' }
 const dialog = ref<Dialog | null>(null)
 
 // Another address book or group ends an edit in progress, and the contact
@@ -629,7 +638,10 @@ async function saveEdit(input: ContactInput) {
   editing.value = null
 }
 
-async function remove(contact: GraphContact) {
+async function removeSelected() {
+  dialog.value = null
+  const contact = selected.value
+  if (!contact) return
   const done = await run($gettext('Could not delete the contact'), async (c) => {
     await c.deleteContact(contact.parentFolderId ?? '', contact.id, contact['@odata.etag'])
     return true
@@ -646,7 +658,12 @@ const sideBarPanels: SideBarPanel<Item, Item, Item>[] = [
     name: 'details',
     icon: 'information',
     iconFillType: 'line',
-    title: () => $gettext('Details'),
+    title: () =>
+      editing.value === 'new'
+        ? $gettext('New contact')
+        : editing.value === 'edit'
+          ? $gettext('Edit contact')
+          : $gettext('Details'),
     isVisible: () => true,
     isRoot: () => true,
     component: ContactPanel as Component as SideBarPanel<Item, Item, Item>['component'],
@@ -659,7 +676,7 @@ const sideBarPanels: SideBarPanel<Item, Item, Item>[] = [
       suggestions: groups.value.map((g) => g.name),
       onEdit: () => (editing.value = 'edit'),
       onCancel: () => (editing.value = null),
-      onDelete: () => selected.value && remove(selected.value),
+      onDelete: () => (dialog.value = { kind: 'deleteContact' }),
       onPhotoChanged: () => selected.value && reload(selected.value),
       onSaveNew: saveNew,
       onSaveEdit: saveEdit,

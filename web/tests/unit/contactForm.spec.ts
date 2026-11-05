@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
 import contact from '../../../internal/graphapi/testdata/contract/contact.json'
 import type { GraphContact } from '../../src/api/types'
 import { buildInput, emptyDraft, toDraft } from '../../src/contacts/form'
+import ContactForm from '../../src/contacts/ContactForm.vue'
+
+vi.mock('vue3-gettext', () => ({
+  useGettext: () => ({ $gettext: (s: string) => s })
+}))
 
 const marie = contact as unknown as GraphContact
 
@@ -88,5 +94,124 @@ describe('buildInput', () => {
       surname: 'Lovelace',
       emailAddresses: [{ name: 'ada@example.org', address: 'ada@example.org' }]
     })
+  })
+})
+
+describe('the contact form', () => {
+  const folders = [
+    { id: 'a', displayName: 'Contacts' },
+    { id: 'b', displayName: 'Clients' }
+  ] as never[]
+  const mountIt = (props: Record<string, unknown> = {}) =>
+    mount(ContactForm, {
+      props: { folders: folders.slice(0, 1), ...props },
+      global: { mocks: { $gettext: (s: string) => s } }
+    })
+  const find = (w: ReturnType<typeof mountIt>, id: string) => w.find(`[data-testid="${id}"]`)
+
+  it('starts a new contact empty, with a hint, and cannot be saved yet', () => {
+    const w = mountIt()
+    expect(find(w, 'form-hint').exists()).toBe(true)
+    expect(find(w, 'form-save').attributes('disabled')).toBeDefined()
+    expect(find(w, 'field-givenName').exists()).toBe(true)
+  })
+
+  it('saves what was typed into the address book it was started for', async () => {
+    const w = mountIt()
+    await find(w, 'field-givenName').setValue('Ada')
+    await find(w, 'emails-0').setValue('ada@example.org')
+    expect(find(w, 'form-hint').exists()).toBe(false)
+    await w.find('form').trigger('submit')
+    expect(w.emitted('save')).toEqual([
+      [
+        { givenName: 'Ada', emailAddresses: [{ name: 'ada@example.org', address: 'ada@example.org' }] },
+        'a'
+      ]
+    ])
+  })
+
+  it('lets the user choose the address book of a new contact when there are several', async () => {
+    const w = mountIt({ folders })
+    const select = find(w, 'form-folder')
+    expect(select.exists()).toBe(true)
+    const option = select.findAll('option').find((o) => o.text() === 'Clients')!
+    await select.setValue((option.element as HTMLOptionElement).value)
+    await find(w, 'field-givenName').setValue('Ada')
+    await w.find('form').trigger('submit')
+    expect(w.emitted('save')![0][1]).toBe('b')
+    expect(mountIt({ folders: folders.slice(0, 1) }).find('[data-testid="form-folder"]').exists()).toBe(false)
+  })
+
+  it('shows no choice of address book while editing', () => {
+    const w = mountIt({ contact: marie, folders })
+    expect(find(w, 'form-folder').exists()).toBe(false)
+    expect(find(w, 'form-hint').exists()).toBe(false)
+  })
+
+  it('keeps the rarely used name fields behind a button, unless the contact has one', async () => {
+    const fresh = mountIt()
+    expect(find(fresh, 'field-nickName').exists()).toBe(false)
+    await find(fresh, 'name-more').trigger('click')
+    expect(find(fresh, 'field-nickName').exists()).toBe(true)
+    expect(find(fresh, 'name-more').attributes('aria-expanded')).toBe('true')
+    // Marie has a nickname and a middle name.
+    expect(find(mountIt({ contact: marie }), 'field-nickName').exists()).toBe(true)
+  })
+
+  it('opens the home address for a new contact and the addresses that hold data', async () => {
+    const fresh = mountIt()
+    expect(find(fresh, 'homeAddress-city').exists()).toBe(true)
+    expect(find(fresh, 'businessAddress-city').exists()).toBe(false)
+    await find(fresh, 'businessAddress-toggle').trigger('click')
+    expect(find(fresh, 'businessAddress-city').exists()).toBe(true)
+
+    const edit = mountIt({ contact: marie })
+    expect(find(edit, 'homeAddress-city').exists()).toBe(true)
+    expect(find(edit, 'businessAddress-city').exists()).toBe(true)
+    expect(find(edit, 'otherAddress-city').exists()).toBe(false)
+    // An address that is closed again keeps what was typed.
+    await find(edit, 'homeAddress-toggle').trigger('click')
+    expect(find(edit, 'homeAddress-city').exists()).toBe(false)
+    await find(edit, 'homeAddress-toggle').trigger('click')
+    expect((find(edit, 'homeAddress-city').element as HTMLInputElement).value).toBe('Sceaux')
+  })
+
+  it('opens the more-details group for a contact that has a value in it', async () => {
+    expect(find(mountIt(), 'field-businessHomePage').exists()).toBe(false)
+    expect(find(mountIt({ contact: marie }), 'field-businessHomePage').exists()).toBe(true)
+    const fresh = mountIt()
+    await find(fresh, 'details-more').trigger('click')
+    expect(find(fresh, 'field-businessHomePage').exists()).toBe(true)
+  })
+
+  it('adds and removes rows of a field with several values, and keeps one row', async () => {
+    const w = mountIt({ contact: marie })
+    expect(find(w, 'emails-1').exists()).toBe(true)
+    await find(w, 'emails-add').trigger('click')
+    expect(find(w, 'emails-2').exists()).toBe(true)
+    await find(w, 'emails-remove-0').trigger('click')
+    await find(w, 'emails-remove-0').trigger('click')
+    await find(w, 'emails-remove-0').trigger('click')
+    expect(find(w, 'emails-0').exists()).toBe(true)
+    expect(find(w, 'emails-1').exists()).toBe(false)
+  })
+
+  it('saves only what changed in an edited contact and not an unchanged one', async () => {
+    const w = mountIt({ contact: marie })
+    expect(find(w, 'form-save').attributes('disabled')).toBeDefined()
+    await find(w, 'field-jobTitle').setValue('Director')
+    await w.find('form').trigger('submit')
+    expect(w.emitted('save')).toEqual([[{ jobTitle: 'Director' }, marie.parentFolderId]])
+  })
+
+  it('shows a note for a birthday without a year', () => {
+    const w = mountIt({ contact: marie })
+    expect(w.text()).toContain('birthday without a year')
+  })
+
+  it('asks to cancel', async () => {
+    const w = mountIt()
+    await find(w, 'form-cancel').trigger('click')
+    expect(w.emitted('cancel')).toHaveLength(1)
   })
 })

@@ -1,58 +1,74 @@
 <template>
-  <section class="contact-groups oc-mt-m" :aria-label="$gettext('Groups')">
-    <span class="oc-text-muted">{{ $gettext('Groups') }}</span>
-    <ul class="oc-list oc-flex oc-flex-wrap oc-mt-xs">
-      <li v-for="name in contact.categories" :key="name" class="chip oc-mr-xs oc-mb-xs">
-        <span data-testid="membership-name">{{ name }}</span>
-        <button
-          v-if="canEdit"
-          type="button"
-          class="oc-button oc-button-s oc-button-passive"
-          :aria-label="$gettext('Remove from group %{name}', { name })"
-          data-testid="membership-remove"
-          @click="emit('change', removeFromGroup(contact.categories, name))"
+  <section class="gw-contact-groups" :aria-label="$gettext('Groups')">
+    <h4 class="gw-section-label">{{ $gettext('Groups') }}</h4>
+    <ul class="oc-list gw-group-tags">
+      <li v-for="name in contact.categories" :key="name">
+        <oc-tag rounded size="small">
+          <span data-testid="membership-name">{{ name }}</span>
+          <oc-button
+            v-if="canEdit"
+            appearance="raw"
+            size="small"
+            :aria-label="$gettext('Remove from group %{name}', { name })"
+            data-testid="membership-remove"
+            @click="emit('change', removeFromGroup(contact.categories, name))"
+          >
+            <oc-icon name="close" fill-type="line" size="small" />
+          </oc-button>
+        </oc-tag>
+      </li>
+      <li v-if="canEdit && !adding">
+        <oc-button
+          appearance="raw"
+          size="small"
+          data-testid="membership-start"
+          @click="startAdding"
         >
-          &times;
-        </button>
+          <oc-icon name="add" fill-type="line" size="small" />
+          {{ $gettext('Add') }}
+        </oc-button>
       </li>
     </ul>
-    <p v-if="contact.categories.length === 0" class="oc-text-muted oc-m-rm">
+    <p v-if="contact.categories.length === 0 && !canEdit" class="oc-text-muted oc-m-rm">
       {{ $gettext('Not in any group.') }}
     </p>
-    <div v-if="canEdit" class="oc-flex oc-flex-middle oc-mt-xs">
-      <input
+    <div v-if="canEdit && adding" class="gw-group-add oc-flex oc-flex-bottom">
+      <oc-text-input
+        id="gw-membership-input"
         v-model="newName"
-        list="contact-group-names"
-        class="oc-text-input oc-mr-s"
-        :aria-label="$gettext('Add to group')"
-        :placeholder="$gettext('Add to group')"
+        list="gw-contact-group-names"
+        class="gw-group-input"
+        :label="$gettext('Add to group')"
         data-testid="membership-input"
         @keydown.enter.prevent="add"
+        @keydown.esc.stop="stopAdding"
       />
-      <datalist id="contact-group-names">
+      <datalist id="gw-contact-group-names">
         <option v-for="s in suggestions" :key="s" :value="s" />
       </datalist>
-      <button
-        type="button"
-        class="oc-button oc-button-s oc-button-passive"
+      <oc-button
+        variation="primary"
+        appearance="filled"
         :disabled="!newName.trim()"
         data-testid="membership-add"
         @click="add"
       >
         {{ $gettext('Add') }}
-      </button>
+      </oc-button>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { useGettext } from 'vue3-gettext'
 import type { GraphContact } from '../api/types'
 import { addToGroup, removeFromGroup } from './groups'
 
 defineOptions({ name: 'ContactGroups' })
 
+// The groups a contact is in, as tags. Someone who may change the contact can
+// remove a tag and add a group; the field for a name opens on a button.
 const props = defineProps<{
   contact: GraphContact
   canEdit: boolean
@@ -62,21 +78,46 @@ const props = defineProps<{
 const emit = defineEmits<{ change: [categories: string[]] }>()
 const { $gettext } = useGettext()
 const newName = ref('')
+const adding = ref(false)
+
+// The field takes the focus when it opens, so the name can be typed at once.
+async function startAdding() {
+  adding.value = true
+  await nextTick()
+  document.getElementById('gw-membership-input')?.focus()
+}
+
+// Another contact starts with the field closed.
+watch(
+  () => props.contact.id,
+  () => stopAdding()
+)
+
+function stopAdding() {
+  newName.value = ''
+  adding.value = false
+}
 
 function add() {
   const next = addToGroup(props.contact.categories, newName.value)
-  newName.value = ''
+  stopAdding()
   if (next !== props.contact.categories) emit('change', next)
 }
 </script>
 
-<style scoped>
-.chip {
-  display: inline-flex;
+<style>
+.gw-group-tags {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  padding-left: var(--oc-space-small);
-  border-radius: var(--oc-space-medium);
-  background: var(--oc-color-background-highlight);
-  list-style: none;
+  gap: var(--oc-space-xsmall);
+}
+.gw-group-add {
+  gap: var(--oc-space-small);
+  margin-top: var(--oc-space-small);
+}
+.gw-group-input {
+  flex: 1;
+  min-width: 0;
 }
 </style>

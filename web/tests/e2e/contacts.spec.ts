@@ -48,14 +48,18 @@ test('a contact can be created, found, edited, given a photo and a group, and de
   await openContacts(page)
 
   await page.getByTestId('contact-new').click()
-  await page.getByTestId('field-givenName').fill('Ada')
-  await page.getByTestId('field-surname').fill('Lovelace')
-  await page.getByTestId('emails-0').fill('ada@example.org')
-  await page.getByTestId('homeAddress-city').fill('London')
+  await textField(page, 'field-givenName').fill('Ada')
+  await textField(page, 'field-surname').fill('Lovelace')
+  await textField(page, 'emails-0').fill('ada@example.org')
+  await textField(page, 'homeAddress-city').fill('London')
   await page.getByTestId('form-save').click()
 
   const detail = page.getByTestId('contact-detail')
   await expect(detail).toContainText('Ada Lovelace')
+  await expect(detail.getByRole('link', { name: 'ada@example.org' })).toHaveAttribute(
+    'href',
+    'mailto:ada@example.org'
+  )
   await expect(detail).toContainText('ada@example.org')
   await expect(detail).toContainText('London')
 
@@ -63,7 +67,7 @@ test('a contact can be created, found, edited, given a photo and a group, and de
   await expect(page.getByTestId('contact-item')).toHaveCount(1)
 
   await page.getByTestId('contact-edit').click()
-  await page.getByTestId('field-jobTitle').fill('Mathematician')
+  await textField(page, 'field-jobTitle').fill('Mathematician')
   await page.getByTestId('form-save').click()
   await expect(detail).toContainText('Mathematician')
 
@@ -77,7 +81,8 @@ test('a contact can be created, found, edited, given a photo and a group, and de
 
   // Groups are categories: adding one lists it in the sidebar, where it can
   // be chosen, renamed and removed again.
-  await page.getByTestId('membership-input').fill('Pioneers')
+  await page.getByTestId('membership-start').click()
+  await textField(page, 'membership-input').fill('Pioneers')
   await page.getByTestId('membership-add').click()
   await page.getByTestId('group-item').filter({ hasText: 'Pioneers' }).click()
   await expect(page.getByTestId('contact-item')).toHaveCount(1)
@@ -91,8 +96,14 @@ test('a contact can be created, found, edited, given a photo and a group, and de
   await expect(page.getByTestId('group-item')).toHaveCount(0)
   await expect(page.getByTestId('membership-name')).toHaveCount(0)
 
+  // Escape leaves the question without deleting.
   await page.getByTestId('contact-delete').click()
-  await page.getByTestId('contact-delete-confirm').click()
+  await expect(page.getByTestId('dialog-cancel')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('dialog-confirm')).toHaveCount(0)
+  await expect(page.getByTestId('contact-item')).toHaveCount(1)
+  await page.getByTestId('contact-delete').click()
+  await page.getByTestId('dialog-confirm').click()
   await expect(page.getByTestId('no-contacts')).toBeVisible()
 
   expect(pageErrors).toEqual([])
@@ -104,6 +115,12 @@ test('an address book can be created, renamed, filled from a vCard file, downloa
 
   await signIn(page)
   await openContacts(page)
+
+  // Escape closes a dialog without doing what it asks.
+  await page.getByTestId('book-new').click()
+  await expect(textField(page, 'book-new-input')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(textField(page, 'book-new-input')).toHaveCount(0)
 
   await page.getByTestId('book-new').click()
   await textField(page, 'book-new-input').fill('Clients')
@@ -149,7 +166,7 @@ test('an address book can be created, renamed, filled from a vCard file, downloa
 
   // A contact can be put into it.
   await page.getByTestId('contact-new').click()
-  await page.getByTestId('field-givenName').fill('Grace')
+  await textField(page, 'field-givenName').fill('Grace')
   await page.getByTestId('form-save').click()
   await expect(page.getByTestId('contact-item')).toHaveCount(3)
 

@@ -233,7 +233,8 @@ describe('the contacts page', () => {
       await marie(w).trigger('click')
       await w.find('[data-testid="contact-delete"]').trigger('click')
       expect(deleteContact).not.toHaveBeenCalled()
-      await w.find('[data-testid="contact-delete-confirm"]').trigger('click')
+      expect(w.find('[role="dialog"]').text()).toContain('Delete this contact?')
+      await w.find('[data-testid="dialog-confirm"]').trigger('click')
       await flushPromises()
       expect(deleteContact).toHaveBeenCalledWith(
         contact.parentFolderId,
@@ -312,6 +313,7 @@ describe('the contacts page', () => {
         .findAll('[data-testid="contact-item"]')
         .find((i) => i.text().includes('Marie'))!
         .trigger('click')
+      await w.find('[data-testid="membership-start"]').trigger('click')
       await w.find('[data-testid="membership-input"]').setValue('Colleagues')
       await w.find('[data-testid="membership-add"]').trigger('click')
       await flushPromises()

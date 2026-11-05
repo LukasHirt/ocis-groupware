@@ -1,39 +1,45 @@
 <template>
-  <div class="contact-photo oc-flex oc-flex-middle oc-mb-m">
+  <div class="gw-contact-photo">
     <img
       v-if="url"
       :src="url"
       :alt="$gettext('Photo of %{name}', { name })"
-      class="avatar"
+      class="gw-photo-image"
       data-testid="photo-image"
     />
-    <span v-else class="avatar initials" aria-hidden="true" data-testid="photo-initials">{{
-      initials(name)
-    }}</span>
-    <div v-if="canEdit" class="oc-ml-m">
-      <label class="oc-button oc-button-s oc-button-passive photo-choose">
+    <oc-avatar v-else :user-name="name" :width="80" data-testid="photo-initials" />
+    <div v-if="canEdit" class="gw-photo-actions oc-flex oc-flex-center">
+      <oc-button
+        appearance="raw"
+        size="small"
+        data-testid="photo-choose"
+        @click="input?.click()"
+      >
         {{ contact['groupware.hasPhoto'] ? $gettext('Change photo') : $gettext('Add photo') }}
-        <input
-          type="file"
-          accept="image/jpeg,image/png"
-          class="oc-invisible-sr"
-          data-testid="photo-input"
-          @change="onChoose"
-        />
-      </label>
-      <button
+      </oc-button>
+      <input
+        ref="input"
+        type="file"
+        accept="image/jpeg,image/png"
+        class="oc-invisible-sr"
+        tabindex="-1"
+        aria-hidden="true"
+        data-testid="photo-input"
+        @change="onChoose"
+      />
+      <oc-button
         v-if="contact['groupware.hasPhoto']"
-        type="button"
-        class="oc-button oc-button-s oc-button-passive oc-ml-xs"
+        appearance="raw"
+        size="small"
         data-testid="photo-remove"
         @click="remove"
       >
         {{ $gettext('Remove photo') }}
-      </button>
-      <p v-if="error" class="oc-text-error oc-text-small oc-m-rm" role="alert" data-testid="photo-error">
-        {{ error }}
-      </p>
+      </oc-button>
     </div>
+    <p v-if="error" class="gw-photo-error" role="alert" data-testid="photo-error">
+      {{ error }}
+    </p>
   </div>
 </template>
 
@@ -42,7 +48,6 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { useGettext } from 'vue3-gettext'
 import type { GraphContact } from '../api/types'
 import { useApi } from '../composables/useApi'
-import { initials } from './model'
 import { checkPhoto } from './photo'
 
 defineOptions({ name: 'ContactPhoto' })
@@ -59,6 +64,7 @@ const { $gettext } = useGettext()
 const { run } = useApi()
 const url = ref('')
 const error = ref('')
+const input = ref<HTMLInputElement | null>(null)
 
 function release() {
   if (url.value) URL.revokeObjectURL(url.value)
@@ -118,22 +124,26 @@ async function remove() {
 }
 </script>
 
-<style scoped>
-.avatar {
-  width: 5rem;
-  height: 5rem;
+<style>
+.gw-contact-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--oc-space-xsmall);
+}
+.gw-photo-image {
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
   object-fit: cover;
-  flex: none;
 }
-.initials {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--oc-color-background-highlight);
-  font-size: 1.75rem;
+.gw-photo-actions {
+  gap: var(--oc-space-small);
+  margin-bottom: var(--oc-space-small);
 }
-.photo-choose {
-  cursor: pointer;
+.gw-photo-error {
+  margin: 0;
+  font-size: var(--oc-font-size-small);
+  color: var(--oc-color-swatch-danger-default);
 }
 </style>
