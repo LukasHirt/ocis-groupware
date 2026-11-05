@@ -13,12 +13,14 @@ type userList struct {
 	NextLink string       `json:"@odata.nextLink"`
 }
 
-// UsersByLogin returns the users whose onPremisesSamAccountName equals login.
-// The token must belong to someone who may list users, such as an
-// administrator. A well-formed answer without a match is an empty list.
+// UsersByLogin returns the users whose onPremisesSamAccountName is exactly
+// login. oCIS answers a $filter on that property with 501, so the users are
+// searched for and the answer is filtered here, as it is for groups. The token
+// must belong to someone who may list users, such as an administrator. A
+// well-formed answer without a match is an empty list.
 func (c *Client) UsersByLogin(ctx context.Context, token, login string) ([]User, error) {
 	u := c.base.JoinPath("/graph/v1.0/users")
-	u.RawQuery = query("$filter", "onPremisesSamAccountName eq '"+strings.ReplaceAll(login, "'", "''")+"'")
+	u.RawQuery = query("$search", `"`+strings.ReplaceAll(login, `"`, `\"`)+`"`)
 	var out []User
 	for next, pages := u.String(), 0; next != ""; pages++ {
 		if pages >= maxPages {
@@ -29,7 +31,7 @@ func (c *Client) UsersByLogin(ctx context.Context, token, login string) ([]User,
 			return nil, err
 		}
 		for _, v := range page.Value {
-			if v.ID != "" {
+			if v.ID != "" && v.Username == login {
 				out = append(out, User{ID: v.ID, Username: v.Username, DisplayName: v.DisplayName, Mail: v.Mail})
 			}
 		}

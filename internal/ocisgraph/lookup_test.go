@@ -10,10 +10,15 @@ import (
 )
 
 func TestUsersByLogin(t *testing.T) {
-	var gotAuth, gotPath, gotFilter, gotRaw string
+	var gotAuth, gotPath, gotSearch, gotRaw string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotAuth, gotPath, gotFilter, gotRaw = r.Header.Get("Authorization"), r.URL.Path, r.URL.Query().Get("$filter"), r.URL.RawQuery
-		_, _ = w.Write([]byte(`{"value":[{"id":"u-9","displayName":"O'Neil","mail":"o@example.org","onPremisesSamAccountName":"o'neil"}]}`))
+		gotAuth, gotPath, gotSearch, gotRaw = r.Header.Get("Authorization"), r.URL.Path, r.URL.Query().Get("$search"), r.URL.RawQuery
+		// The search matches parts of names, so other users come back too.
+		_, _ = w.Write([]byte(`{"value":[
+			{"id":"u-8","displayName":"O'Neil Jr","onPremisesSamAccountName":"o'neil.jr"},
+			{"id":"u-9","displayName":"O'Neil","mail":"o@example.org","onPremisesSamAccountName":"o'neil"},
+			{"id":"u-7","displayName":"O'Neil Sr","onPremisesSamAccountName":"O'Neil"},
+			{"displayName":"no id","onPremisesSamAccountName":"o'neil"}]}`))
 	}))
 	defer srv.Close()
 
@@ -24,9 +29,10 @@ func TestUsersByLogin(t *testing.T) {
 	if gotAuth != "Bearer adm" || gotPath != "/graph/v1.0/users" {
 		t.Errorf("request: %q %q", gotAuth, gotPath)
 	}
-	// A quote in the login is doubled so it cannot end the string.
-	if want := `onPremisesSamAccountName eq 'o''neil'`; gotFilter != want {
-		t.Errorf("filter = %q, want %q (raw %q)", gotFilter, want, gotRaw)
+	// oCIS does not support $filter on the login, so the search is used, and
+	// only the exact login is kept.
+	if want := `"o'neil"`; gotSearch != want {
+		t.Errorf("search = %q, want %q (raw %q)", gotSearch, want, gotRaw)
 	}
 	want := []User{{ID: "u-9", Username: "o'neil", DisplayName: "O'Neil", Mail: "o@example.org"}}
 	if !reflect.DeepEqual(users, want) {
