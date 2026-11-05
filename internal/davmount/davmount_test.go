@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -275,8 +276,9 @@ func TestBadCredentialsAreUnauthorized(t *testing.T) {
 }
 
 // TestRefusalsLookTheSame compares the answers to an unknown user, a wrong
-// password, an expired password and a password whose state cannot be read:
-// all of them must be identical, so a client cannot tell which users exist.
+// password, an expired password, a disabled principal's password and a
+// password whose state cannot be read: all of them must be identical, so a
+// client cannot tell which users exist or what state they are in.
 func TestRefusalsLookTheSame(t *testing.T) {
 	f := newFixture(t)
 	secret := f.user(t, "sub-alice", "alice")
@@ -284,6 +286,10 @@ func TestRefusalsLookTheSame(t *testing.T) {
 	expiredSecret := f.user(t, "sub-carol", "carol")
 	// The passwords were issued for an hour.
 	f.clock.advance(61 * time.Minute)
+	disabledSecret := f.user(t, "sub-dave", "dave")
+	if _, err := f.reg.SetDisabled(context.Background(), "sub-dave", true); err != nil {
+		t.Fatal(err)
+	}
 
 	// bob's app password file breaks; a fresh registry has to read it.
 	if err := os.WriteFile(filepath.Join(f.st.OwnerDir("sub-bob"), "app_passwords.json"), []byte("{broken"), 0o600); err != nil {
@@ -296,10 +302,11 @@ func TestRefusalsLookTheSame(t *testing.T) {
 		"unknown user":   basic("mallory", secret),
 		"wrong password": basic("alice", strings.Repeat("b", 32)),
 		"expired":        basic("carol", expiredSecret),
+		"disabled":       basic("dave", disabledSecret),
 		"state error":    basic("bob", brokenSecret),
 	}
 	var first *httptest.ResponseRecorder
-	for _, name := range []string{"unknown user", "wrong password", "expired", "state error"} {
+	for _, name := range []string{"unknown user", "wrong password", "expired", "disabled", "state error"} {
 		rec := f.do(t, "PROPFIND", "/dav/", propfindPrincipal, "Authorization", cases[name], "Depth", "0")
 		assertUnauthorized(t, rec)
 		if first == nil {
@@ -314,8 +321,10 @@ func TestRefusalsLookTheSame(t *testing.T) {
 				t.Errorf("%s: %s %q differs from %q", name, h, rec.Header().Get(h), first.Header().Get(h))
 			}
 		}
-		if strings.Contains(strings.ToLower(rec.Body.String()), "expire") {
-			t.Errorf("%s: body %q tells about expiry", name, rec.Body.String())
+		for _, word := range []string{"expire", "disabled"} {
+			if strings.Contains(strings.ToLower(rec.Body.String()), word) {
+				t.Errorf("%s: body %q tells about the state", name, rec.Body.String())
+			}
 		}
 	}
 
@@ -323,10 +332,60 @@ func TestRefusalsLookTheSame(t *testing.T) {
 	if !strings.Contains(logs, "expired") {
 		t.Errorf("expired app password not logged: %s", logs)
 	}
-	for _, s := range []string{secret, brokenSecret, expiredSecret, "Basic "} {
+	// The disabled principal's sign-in is an expected refusal: logged, with
+	// the username, but not as a fault.
+	i := slices.IndexFunc(strings.Split(logs, "\n"), func(line string) bool { return strings.Contains(line, "username=dave") })
+	if i < 0 {
+		t.Errorf("disabled principal's sign-in not logged: %s", logs)
+	} else if line := strings.Split(logs, "\n")[i]; !strings.Contains(line, "level=INFO") || !strings.Contains(line, "disabled") {
+		t.Errorf("disabled principal's sign-in logged as %q, want an INFO line that says disabled", line)
+	}
+	for _, s := range []string{secret, brokenSecret, expiredSecret, disabledSecret, "Basic "} {
 		if strings.Contains(logs, s) {
 			t.Errorf("logs contain a credential %q: %s", s, logs)
 		}
+	}
+}
+
+// A bearer token of a disabled principal is refused with 403. The caller
+// holds a valid token for that very user, so the answer can say so by its
+// status, and nothing is provisioned for the request.
+func TestDisabledBearerIsForbidden(t *testing.T) {
+	f := newFixture(t)
+	secret := f.user(t, "sub-alice", "alice")
+	if _, err := f.reg.SetDisabled(context.Background(), "sub-alice", true); err != nil {
+		t.Fatal(err)
+	}
+	f.verifier.tokens["tok"] = auth.Claims{Subject: "sub-alice", PreferredUsername: "alice-renamed", DisplayName: "Alice"}
+
+	for _, header := range []string{"Bearer tok", basic("alice", secret)} {
+		rec := f.do(t, "PROPFIND", "/dav/", propfindPrincipal, "Authorization", header, "Depth", "0")
+		if strings.HasPrefix(header, "Bearer") {
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("bearer: status = %d, want 403; body %q", rec.Code, rec.Body.String())
+			}
+			if got := rec.Body.String(); got != "forbidden\n" {
+				t.Errorf("bearer: body = %q, want %q", got, "forbidden\n")
+			}
+		} else {
+			assertUnauthorized(t, rec)
+		}
+	}
+	p, err := f.reg.Get("sub-alice")
+	if err != nil || p.Username != "alice" || !p.Disabled {
+		t.Errorf("principal changed by the refused request: %+v, %v", p, err)
+	}
+
+	if _, err := f.reg.SetDisabled(context.Background(), "sub-alice", false); err != nil {
+		t.Fatal(err)
+	}
+	rec := f.do(t, "PROPFIND", "/dav/", propfindPrincipal, "Authorization", "Bearer tok", "Depth", "0")
+	if rec.Code != http.StatusMultiStatus {
+		t.Fatalf("after enable: status = %d, want 207; body %q", rec.Code, rec.Body.String())
+	}
+	rec = f.do(t, "PROPFIND", "/dav/", propfindPrincipal, "Authorization", basic("alice-renamed", secret), "Depth", "0")
+	if rec.Code != http.StatusMultiStatus {
+		t.Fatalf("after enable, app password: status = %d, want 207; body %q", rec.Code, rec.Body.String())
 	}
 }
 
@@ -629,19 +688,26 @@ func TestWellKnownRedirectsWithoutCredentials(t *testing.T) {
 func TestLogsHoldNoCredentials(t *testing.T) {
 	f := newFixture(t)
 	secret := f.user(t, "sub-alice", "alice")
+	disabledSecret := f.user(t, "sub-dave", "dave")
+	if _, err := f.reg.SetDisabled(context.Background(), "sub-dave", true); err != nil {
+		t.Fatal(err)
+	}
 	f.verifier.tokens["tok-secret-value"] = auth.Claims{Subject: "sub-alice", PreferredUsername: "alice"}
+	f.verifier.tokens["tok-disabled-value"] = auth.Claims{Subject: "sub-dave", PreferredUsername: "dave"}
 	headers := []string{
 		basic("alice", secret),
 		basic("alice", "wrong-"+secret),
 		basic("nobody", secret),
+		basic("dave", disabledSecret),
 		"Bearer tok-secret-value",
 		"Bearer tok-unknown-value",
+		"Bearer tok-disabled-value",
 	}
 	for _, h := range headers {
 		f.do(t, "PROPFIND", "/dav/", propfindPrincipal, "Authorization", h, "Depth", "0")
 	}
 	logs := f.logs.String()
-	for _, s := range []string{secret, "tok-secret-value", "tok-unknown-value", "Authorization", "Basic "} {
+	for _, s := range []string{secret, disabledSecret, "tok-secret-value", "tok-unknown-value", "tok-disabled-value", "Authorization", "Basic "} {
 		if strings.Contains(logs, s) {
 			t.Errorf("logs contain %q:\n%s", s, logs)
 		}

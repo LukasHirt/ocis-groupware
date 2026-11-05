@@ -20,9 +20,12 @@ import (
 // creates it with its default collections on first use. The display name is the
 // one in the claims, or the username when the token has none.
 //
-// On failure it returns the HTTP status to refuse the request with: 403 for a
-// name that cannot be served, 500 for anything else. The faults are logged.
-func Principal(ctx context.Context, reg *principals.Registry, claims auth.Claims, logger *slog.Logger) (principals.Principal, int) {
+// On failure it returns the HTTP status to refuse the request with and a
+// short message for the body: 403 "forbidden" for a name that cannot be
+// served, 403 "account disabled" for a disabled principal, 500 "internal
+// error" for anything else. The caller decides whether the body shows the
+// message. Faults are logged as errors, refusals at a lower level.
+func Principal(ctx context.Context, reg *principals.Registry, claims auth.Claims, logger *slog.Logger) (principals.Principal, int, string) {
 	username := claims.PreferredUsername
 	displayName := claims.DisplayName
 	if displayName == "" {
@@ -31,12 +34,15 @@ func Principal(ctx context.Context, reg *principals.Registry, claims auth.Claims
 	p, _, err := reg.Provision(ctx, claims.Subject, username, displayName)
 	switch {
 	case err == nil:
-		return p, 0
+		return p, 0, ""
 	case errors.Is(err, store.ErrInvalidName):
 		logger.Warn("token names a user that cannot be served", "sub", claims.Subject, "error", err)
-		return principals.Principal{}, http.StatusForbidden
+		return principals.Principal{}, http.StatusForbidden, "forbidden"
+	case errors.Is(err, principals.ErrDisabled):
+		logger.Info("sign-in of a disabled principal refused", "sub", claims.Subject, "error", err)
+		return principals.Principal{}, http.StatusForbidden, "account disabled"
 	default:
 		logger.Error("could not provision principal", "sub", claims.Subject, "error", err)
-		return principals.Principal{}, http.StatusInternalServerError
+		return principals.Principal{}, http.StatusInternalServerError, "internal error"
 	}
 }

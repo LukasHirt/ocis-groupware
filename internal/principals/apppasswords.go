@@ -147,7 +147,7 @@ func (r *Registry) IssueAppPassword(ctx context.Context, sub, name string, ttl t
 	if err := ctx.Err(); err != nil {
 		return AppPassword{}, "", err
 	}
-	if _, err := r.Get(sub); err != nil {
+	if err := r.enabled(sub); err != nil {
 		return AppPassword{}, "", fmt.Errorf("principals: issue app password: %w", err)
 	}
 	if err := validateAppPasswordName(name); err != nil {
@@ -200,9 +200,10 @@ func (r *Registry) IssueAppPassword(ctx context.Context, sub, name string, ttl t
 }
 
 // ListAppPasswords returns the principal's app passwords, oldest first,
-// expired ones included. It returns ErrNotFound for an unknown principal.
+// expired ones included. It returns ErrNotFound for an unknown principal
+// and ErrDisabled for a disabled one.
 func (r *Registry) ListAppPasswords(sub string) ([]AppPassword, error) {
-	if _, err := r.Get(sub); err != nil {
+	if err := r.enabled(sub); err != nil {
 		return nil, fmt.Errorf("principals: list app passwords: %w", err)
 	}
 	set := r.appSet(sub)
@@ -221,12 +222,13 @@ func (r *Registry) ListAppPasswords(sub string) ([]AppPassword, error) {
 // RevokeAppPassword deletes an app password of the principal. Credentials
 // of the principal that were verified recently are forgotten, so the next
 // request with the revoked password fails. It returns ErrNotFound if the
-// principal has no app password with that id.
+// principal has no app password with that id and ErrDisabled for a disabled
+// principal.
 func (r *Registry) RevokeAppPassword(ctx context.Context, sub, id string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if _, err := r.Get(sub); err != nil {
+	if err := r.enabled(sub); err != nil {
 		return fmt.Errorf("principals: revoke app password: %w", err)
 	}
 	set := r.appSet(sub)
@@ -237,6 +239,19 @@ func (r *Registry) RevokeAppPassword(ctx context.Context, sub, id string) error 
 		return err
 	}
 	r.cache.invalidate(sub)
+	return nil
+}
+
+// enabled returns nil if sub is a principal that is not disabled, else
+// ErrNotFound or ErrDisabled.
+func (r *Registry) enabled(sub string) error {
+	p, err := r.Get(sub)
+	if err != nil {
+		return err
+	}
+	if p.Disabled {
+		return ErrDisabled
+	}
 	return nil
 }
 
@@ -262,12 +277,15 @@ func (r *Registry) removeAppPassword(sub, id string, set *appSet) error {
 //
 // It returns ErrInvalidCredentials for an unknown username and for a wrong
 // password alike, and both cost one bcrypt compare. ErrExpired means the
-// password was right but has expired. Other errors mean the app passwords
-// could not be read. No error contains the password.
+// password was right but has expired, ErrDisabled that it was right but the
+// principal is disabled; both are found out after the compare, so they cost
+// the same as a wrong password. Other errors mean the app passwords could
+// not be read. No error contains the password.
 //
 // A credential that was verified in the last five minutes is accepted
 // without a bcrypt compare, unless its app password expired or was revoked
-// since or the username moved to another principal.
+// since, the username moved to another principal or the principal was
+// disabled.
 func (r *Registry) VerifyBasic(ctx context.Context, username, password string) (Principal, error) {
 	if err := ctx.Err(); err != nil {
 		return Principal{}, err
@@ -275,7 +293,7 @@ func (r *Registry) VerifyBasic(ctx context.Context, username, password string) (
 	now := r.now()
 	key := r.cache.key(basicHeader(username, password))
 	if e, ok := r.cache.get(key, now); ok {
-		if p, ok := r.principalByName(e.sub, username); ok && r.touch(e.sub, e.id, now) {
+		if p, ok := r.principalByName(e.sub, username); ok && !p.Disabled && r.touch(e.sub, e.id, now) {
 			return p, nil
 		}
 	}
@@ -321,7 +339,13 @@ func (r *Registry) VerifyBasic(ctx context.Context, username, password string) (
 	// The username may have moved, or the password been revoked, while the
 	// hash was compared.
 	p, ok := r.principalByName(sub, username)
-	if !ok || !r.touch(sub, match.ID, now) {
+	if !ok {
+		return Principal{}, ErrInvalidCredentials
+	}
+	if p.Disabled {
+		return Principal{}, ErrDisabled
+	}
+	if !r.touch(sub, match.ID, now) {
 		return Principal{}, ErrInvalidCredentials
 	}
 	if r.beforeCachePut != nil {

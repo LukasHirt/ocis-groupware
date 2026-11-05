@@ -37,6 +37,13 @@ The image runs as uid 65532 and declares `/data` as a volume owned by that user.
 compose stack mounts the named volume `groupware-data` there. When you bind-mount a host
 directory instead, give uid 65532 write access to it.
 
+Each user has a directory below `owners/` with a `principal.json`. Its `disabled` field,
+when `true`, refuses every sign-in of that user, with app passwords and with bearer
+tokens alike, until it is `false` again. Nothing else changes: calendars, contacts and
+app passwords stay, so enabling the user restores every device without pairing it again.
+A file without the field counts as enabled. Releases before the field was added do not
+know it and ignore it, so a downgrade lets disabled users sign in again.
+
 ## Authentication
 
 Every request needs an `Authorization: Bearer <access token>` header, validated

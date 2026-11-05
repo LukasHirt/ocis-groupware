@@ -36,9 +36,9 @@ func fixture(t *testing.T) (*principals.Registry, *filestore.Store, *bytes.Buffe
 
 func TestPrincipalUsesUsernameAsDisplayName(t *testing.T) {
 	reg, _, logs, logger := fixture(t)
-	p, status := Principal(context.Background(), reg, auth.Claims{Subject: "sub-1", PreferredUsername: "alice"}, logger)
-	if status != 0 {
-		t.Fatalf("status %d", status)
+	p, status, msg := Principal(context.Background(), reg, auth.Claims{Subject: "sub-1", PreferredUsername: "alice"}, logger)
+	if status != 0 || msg != "" {
+		t.Fatalf("status %d, message %q", status, msg)
 	}
 	if p.Sub != "sub-1" || p.Username != "alice" || p.DisplayName != "alice" {
 		t.Errorf("principal %+v", p)
@@ -51,14 +51,14 @@ func TestPrincipalUsesUsernameAsDisplayName(t *testing.T) {
 		t.Errorf("a success logged %q", logs.String())
 	}
 	// A second call is idempotent.
-	if p2, status := Principal(context.Background(), reg, auth.Claims{Subject: "sub-1", PreferredUsername: "alice"}, logger); status != 0 || p2 != p {
+	if p2, status, _ := Principal(context.Background(), reg, auth.Claims{Subject: "sub-1", PreferredUsername: "alice"}, logger); status != 0 || p2 != p {
 		t.Errorf("second call: %+v, %d", p2, status)
 	}
 }
 
 func TestPrincipalUsesTheClaimsDisplayName(t *testing.T) {
 	reg, _, _, logger := fixture(t)
-	p, status := Principal(context.Background(), reg, auth.Claims{Subject: "sub-1", PreferredUsername: "alice", DisplayName: "Alice Liddell"}, logger)
+	p, status, _ := Principal(context.Background(), reg, auth.Claims{Subject: "sub-1", PreferredUsername: "alice", DisplayName: "Alice Liddell"}, logger)
 	if status != 0 {
 		t.Fatalf("status %d", status)
 	}
@@ -69,11 +69,29 @@ func TestPrincipalUsesTheClaimsDisplayName(t *testing.T) {
 
 func TestPrincipalInvalidNameIsForbidden(t *testing.T) {
 	reg, _, logs, logger := fixture(t)
-	_, status := Principal(context.Background(), reg, auth.Claims{Subject: "sub-1", PreferredUsername: "a/b"}, logger)
-	if status != http.StatusForbidden {
-		t.Fatalf("status %d, want 403", status)
+	_, status, msg := Principal(context.Background(), reg, auth.Claims{Subject: "sub-1", PreferredUsername: "a/b"}, logger)
+	if status != http.StatusForbidden || msg != "forbidden" {
+		t.Fatalf("status %d, message %q, want 403 and \"forbidden\"", status, msg)
 	}
 	assertLogged(t, logs.String(), "level=WARN")
+}
+
+func TestPrincipalDisabledIsForbidden(t *testing.T) {
+	reg, _, logs, logger := fixture(t)
+	claims := auth.Claims{Subject: "sub-1", PreferredUsername: "alice"}
+	if _, status, _ := Principal(context.Background(), reg, claims, logger); status != 0 {
+		t.Fatalf("status %d", status)
+	}
+	if _, err := reg.SetDisabled(context.Background(), "sub-1", true); err != nil {
+		t.Fatal(err)
+	}
+	logs.Reset()
+
+	_, status, msg := Principal(context.Background(), reg, claims, logger)
+	if status != http.StatusForbidden || msg != "account disabled" {
+		t.Fatalf("status %d, message %q, want 403 and \"account disabled\"", status, msg)
+	}
+	assertLogged(t, logs.String(), "level=INFO")
 }
 
 func TestPrincipalOtherErrorsAreInternal(t *testing.T) {
@@ -85,9 +103,9 @@ func TestPrincipalOtherErrorsAreInternal(t *testing.T) {
 	if err := os.WriteFile(st.OwnerDir("sub-1"), []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, status := Principal(context.Background(), reg, auth.Claims{Subject: "sub-1", PreferredUsername: "alice"}, logger)
-	if status != http.StatusInternalServerError {
-		t.Fatalf("status %d, want 500", status)
+	_, status, msg := Principal(context.Background(), reg, auth.Claims{Subject: "sub-1", PreferredUsername: "alice"}, logger)
+	if status != http.StatusInternalServerError || msg != "internal error" {
+		t.Fatalf("status %d, message %q, want 500 and \"internal error\"", status, msg)
 	}
 	assertLogged(t, logs.String(), "level=ERROR")
 }

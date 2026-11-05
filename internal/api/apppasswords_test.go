@@ -430,6 +430,40 @@ func TestUnservableUsernameIsForbidden(t *testing.T) {
 	}
 }
 
+// A disabled principal's bearer token is refused with 403 and a body that
+// says why: the caller holds a valid token for that very user.
+func TestDisabledPrincipalIsForbidden(t *testing.T) {
+	f := newFixture(t)
+	c := f.create(t, "tok-alice", "Phone")
+	if _, err := f.reg.SetDisabled(context.Background(), "sub-alice", true); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ method, target, body string }{
+		{http.MethodGet, base, ""},
+		{http.MethodPost, base, `{"name":"Tablet"}`},
+		{http.MethodDelete, base + "/" + c.ID, ""},
+	} {
+		rec := f.do(tc.method, tc.target, "tok-alice", tc.body)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("%s %s: status %d, want 403; body %q", tc.method, tc.target, rec.Code, rec.Body.String())
+		}
+		if body := errorBody(t, rec); body != "account disabled" {
+			t.Errorf("%s %s: body %q, want \"account disabled\"", tc.method, tc.target, body)
+		}
+	}
+	// bob is not affected, and alice's app password still exists.
+	if rec := f.do(http.MethodGet, base, "tok-bob", ""); rec.Code != http.StatusOK {
+		t.Errorf("bob: status %d, want 200", rec.Code)
+	}
+	if _, err := f.reg.SetDisabled(context.Background(), "sub-alice", false); err != nil {
+		t.Fatal(err)
+	}
+	rec := f.do(http.MethodGet, base, "tok-alice", "")
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), c.ID) {
+		t.Errorf("after enable: status %d, body %q", rec.Code, rec.Body.String())
+	}
+}
+
 func TestUnavailableStore(t *testing.T) {
 	f := newFixture(t)
 	// A file where the owner directory must go makes provisioning fail.
