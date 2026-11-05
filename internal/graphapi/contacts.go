@@ -39,7 +39,7 @@ type ContactFolderSource interface {
 type ownContactFolders struct{ st store.Store }
 
 func (o ownContactFolders) ContactFolders(ctx context.Context, user principals.Principal) ([]ContactFolderEntry, error) {
-	cols, err := o.st.ListCollections(ctx, user.Sub, store.KindAddressBook)
+	cols, err := o.st.ListCollections(ctx, user.Owner, store.KindAddressBook)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func (a *Handler) myContactFolders(ctx context.Context, user principals.Principa
 	if err != nil {
 		return nil, nil, -1, err
 	}
-	owned := func(e ContactFolderEntry) bool { return e.Collection.Ref.Owner == user.Sub }
+	owned := func(e ContactFolderEntry) bool { return e.Collection.Ref.Owner == user.Owner }
 	slices.SortFunc(entries, func(x, y ContactFolderEntry) int {
 		switch {
 		case owned(x) != owned(y):
@@ -204,7 +204,7 @@ func (a *Handler) createContactFolder(w http.ResponseWriter, r *http.Request, c 
 		writeError(w, badRequest("displayName must be valid, non-empty text of at most 255 bytes without control characters"))
 		return
 	}
-	ref := store.CollectionRef{Owner: c.caller.Sub, Kind: store.KindAddressBook, Name: newBookName()}
+	ref := store.CollectionRef{Owner: c.caller.Owner, Kind: store.KindAddressBook, Name: newBookName()}
 	col, err := a.cfg.Store.CreateCollection(r.Context(), ref, store.Props{DisplayName: *ch.DisplayName})
 	if err != nil {
 		writeError(w, a.storeError("create a contact folder", c.caller, err))
