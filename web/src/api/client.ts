@@ -12,11 +12,13 @@ import type {
 } from './types'
 
 export interface Request {
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE'
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   url: string
   params?: Record<string, string>
   data?: unknown
   headers?: Record<string, string>
+  // 'blob' for a binary answer such as a photo.
+  responseType?: 'blob'
 }
 
 export interface Response {
@@ -157,6 +159,27 @@ export function createClient(transport: Transport) {
         method: 'DELETE',
         url: `${graph}/contactFolders/${enc(folderId)}/contacts/${enc(id)}`,
         ...ifMatch(etag)
+      }),
+
+    // A photo is read as a blob and written as the raw image, JPEG or PNG
+    // of at most 1 MB, with the image's own content type.
+    getContactPhoto: (folderId: string, id: string) =>
+      send<Blob>({
+        method: 'GET',
+        url: `${graph}/contactFolders/${enc(folderId)}/contacts/${enc(id)}/photo/$value`,
+        responseType: 'blob'
+      }),
+    setContactPhoto: (folderId: string, id: string, image: Blob) =>
+      send<unknown>({
+        method: 'PUT',
+        url: `${graph}/contactFolders/${enc(folderId)}/contacts/${enc(id)}/photo/$value`,
+        data: image,
+        headers: { 'Content-Type': image.type }
+      }),
+    deleteContactPhoto: (folderId: string, id: string) =>
+      send<void>({
+        method: 'DELETE',
+        url: `${graph}/contactFolders/${enc(folderId)}/contacts/${enc(id)}/photo/$value`
       })
   }
 }

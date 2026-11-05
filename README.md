@@ -188,6 +188,12 @@ fields that changed, together with the contact's ETag, so a contact that was cha
 elsewhere in the meantime is not overwritten. A birthday without a year is shown in the
 details and kept as it is unless a date is picked.
 
+The details show the contact's photo, or its initials when there is none. Where the user
+may write, a photo is added, changed or removed from there. The service takes JPEG and
+PNG images of at most 1 MB, and the browser refuses anything else before it uploads.
+The image is read through the authenticated client and shown from a local object URL,
+so the photo needs no extra route and no token in a URL.
+
 Development needs Node 24:
 
 ```sh

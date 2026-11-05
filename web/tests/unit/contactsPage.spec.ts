@@ -12,27 +12,34 @@ const listContacts = vi.fn()
 const createContact = vi.fn()
 const updateContact = vi.fn()
 const deleteContact = vi.fn()
+const getContact = vi.fn()
 vi.mock('../../src/composables/useApi', () => {
   const client = {
     listContactFolders: () => Promise.resolve(folders.value),
     listContacts: (id: string) => listContacts(id),
     createContact: (...a: unknown[]) => createContact(...a),
     updateContact: (...a: unknown[]) => updateContact(...a),
-    deleteContact: (...a: unknown[]) => deleteContact(...a)
+    deleteContact: (...a: unknown[]) => deleteContact(...a),
+    getContact: (...a: unknown[]) => getContact(...a),
+    getContactPhoto: () => Promise.resolve(new Blob(['x'], { type: 'image/png' }))
   }
   return { useApi: () => ({ client, run: (_t: string, f: (c: unknown) => unknown) => f(client) }) }
 })
 
 import ContactsPage from '../../src/pages/ContactsPage.vue'
+import ContactPhoto from '../../src/contacts/ContactPhoto.vue'
 
 const mountOptions = { global: { mocks: { $gettext: (s: string) => s } } }
 const [personal, team] = folders.value
 
 beforeEach(() => {
+  URL.createObjectURL = vi.fn(() => 'blob:photo')
+  URL.revokeObjectURL = vi.fn()
   listContacts.mockReset()
   createContact.mockReset()
   updateContact.mockReset()
   deleteContact.mockReset()
+  getContact.mockReset()
   listContacts.mockImplementation((id: string) =>
     Promise.resolve(
       id === personal.id ? contacts.value : [{ ...contact, id: 'team.marie', parentFolderId: id }]
@@ -202,6 +209,28 @@ describe('the contacts page', () => {
       expect(w.find('[data-testid="contact-edit"]').exists()).toBe(false)
       expect(w.find('[data-testid="contact-delete"]').exists()).toBe(false)
       expect(w.find('[data-testid="contact-new"]').attributes('disabled')).toBeDefined()
+    })
+  })
+
+  describe('photos', () => {
+    it('shows the photo control of the selected contact and reloads the contact after a change', async () => {
+      getContact.mockResolvedValue({
+        ...contact,
+        'groupware.hasPhoto': true,
+        '@odata.etag': 'W/"new"'
+      })
+      const w = await open()
+      await w
+        .findAll('[data-testid="contact-item"]')
+        .find((i) => i.text().includes('Marie'))!
+        .trigger('click')
+      const photo = w.findComponent(ContactPhoto)
+      expect(photo.exists()).toBe(true)
+      expect(photo.props('canEdit')).toBe(true)
+      photo.vm.$emit('changed')
+      await flushPromises()
+      expect(getContact).toHaveBeenCalledWith(contact.parentFolderId, contact.id)
+      expect(w.findComponent(ContactPhoto).props('contact')['groupware.hasPhoto']).toBe(true)
     })
   })
 })

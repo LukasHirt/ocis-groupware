@@ -276,6 +276,29 @@ describe('contacts', () => {
   })
 })
 
+describe('contact photos', () => {
+  const base = `${graph}/me/contactFolders/f1/contacts/k1/photo/$value`
+  it('reads a photo as a blob', async () => {
+    const blob = new Blob(['x'], { type: 'image/png' })
+    const { client, calls } = fake({ [`GET ${base}`]: { status: 200, data: blob } })
+    expect(await client.getContactPhoto('f1', 'k1')).toBe(blob)
+    expect(calls[0].responseType).toBe('blob')
+  })
+
+  it('uploads a photo with its content type and removes it', async () => {
+    const bytes = new Blob(['x'], { type: 'image/jpeg' })
+    const { client, calls } = fake({
+      [`PUT ${base}`]: { status: 200, data: {} },
+      [`DELETE ${base}`]: { status: 204, data: undefined }
+    })
+    await client.setContactPhoto('f1', 'k1', bytes)
+    await client.deleteContactPhoto('f1', 'k1')
+    expect(calls[0].data).toBe(bytes)
+    expect(calls[0].headers).toEqual({ 'Content-Type': 'image/jpeg' })
+    expect(calls[1].method).toBe('DELETE')
+  })
+})
+
 describe('errors', () => {
   it('carries status, code and message of the Graph error body', async () => {
     const { client } = fake({

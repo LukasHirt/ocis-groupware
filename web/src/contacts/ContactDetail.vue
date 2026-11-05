@@ -1,5 +1,6 @@
 <template>
   <article class="contact-detail" data-testid="contact-detail">
+    <slot name="photo" />
     <h2 class="oc-h3">{{ name || $gettext('Unnamed contact') }}</h2>
     <p v-if="subtitle" class="oc-text-muted">{{ subtitle }}</p>
     <dl class="contact-fields">

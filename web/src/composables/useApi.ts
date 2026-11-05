@@ -17,7 +17,8 @@ export function useApi() {
       url: req.url,
       params: req.params,
       data: req.data,
-      headers: req.headers
+      headers: req.headers,
+      responseType: req.responseType
     })
   )
 

@@ -112,6 +112,14 @@
           @cancel="editing = null"
         />
         <contact-detail v-else-if="selected" :contact="selected">
+          <template #photo>
+            <contact-photo
+              :contact="selected"
+              :name="contactName(selected) || $gettext('Unnamed contact')"
+              :can-edit="canEdit(selected)"
+              @changed="reload(selected)"
+            />
+          </template>
           <div v-if="canEdit(selected)" class="oc-mt-m" data-testid="contact-actions">
             <button
               class="oc-button oc-button-m oc-button-passive oc-mr-s"
@@ -158,6 +166,7 @@ import { useGettext } from 'vue3-gettext'
 import PageLayout from '../components/PageLayout.vue'
 import ContactDetail from '../contacts/ContactDetail.vue'
 import ContactForm from '../contacts/ContactForm.vue'
+import ContactPhoto from '../contacts/ContactPhoto.vue'
 import { contactName, filterContacts, sortContacts, type SortKey } from '../contacts/model'
 import { useApi } from '../composables/useApi'
 import type { ContactInput, GraphContact, GraphContactFolder } from '../api/types'
@@ -230,6 +239,15 @@ function startNew() {
 
 function replaceContact(updated: GraphContact) {
   contacts.value = contacts.value.map((c) => (c.id === updated.id ? updated : c))
+}
+
+// reload reads one contact again, for a change that was made by another
+// call than the form, such as a new photo.
+async function reload(contact: GraphContact) {
+  const fresh = await run($gettext('Could not load the contact'), (c) =>
+    c.getContact(contact.parentFolderId ?? '', contact.id)
+  )
+  if (fresh) replaceContact(fresh)
 }
 
 async function saveNew(input: ContactInput, targetId: string) {
