@@ -64,6 +64,7 @@ type Handler struct {
 	ids            *provision.Identities
 	calendars      CalendarSource
 	contactFolders ContactFolderSource
+	imports        *importSlots
 	routes         []route
 	extRoutes      []route
 }
@@ -99,7 +100,7 @@ func New(cfg Config, opts ...Option) (*Handler, error) {
 	case cfg.Shares != nil && cfg.Directory == nil:
 		return nil, errors.New("graphapi: shares need a directory")
 	}
-	a := &Handler{cfg: cfg, logger: cfg.Logger}
+	a := &Handler{cfg: cfg, logger: cfg.Logger, imports: newImportSlots()}
 	if a.logger == nil {
 		a.logger = slog.New(slog.DiscardHandler)
 	}

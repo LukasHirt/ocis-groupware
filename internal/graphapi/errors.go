@@ -19,6 +19,7 @@ const (
 	codeUnsupported     = "unsupportedMediaType"
 	codeTooLarge        = "requestEntityTooLarge"
 	codeNameExists      = "nameAlreadyExists"
+	codeTooManyRequests = "activityLimitReached"
 	codeGeneral         = "generalException"
 )
 

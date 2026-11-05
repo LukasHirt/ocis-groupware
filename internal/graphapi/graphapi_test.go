@@ -33,6 +33,8 @@ type fixture struct {
 	st      *filestore.Store
 	reg     *principals.Registry
 	handler http.Handler
+	// h is the facade itself, behind handler.
+	h *Handler
 	// verifier maps bearer tokens to claims. Tests add users to it.
 	verifier *fakeVerifier
 }
@@ -72,7 +74,7 @@ func newFixtureWith(t *testing.T, regOpts []principals.Option, mods ...func(*Con
 	mux := http.NewServeMux()
 	mux.Handle(Prefix+"/", h)
 	mux.Handle(GroupwarePrefix+"/", h.Groupware())
-	return &fixture{st: st, reg: reg, verifier: v, handler: auth.Middleware(v, testLogger())(mux)}
+	return &fixture{st: st, reg: reg, verifier: v, h: h, handler: auth.Middleware(v, testLogger())(mux)}
 }
 
 func (f *fixture) do(method, target, token, body string) *httptest.ResponseRecorder {

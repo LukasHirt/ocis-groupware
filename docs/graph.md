@@ -217,7 +217,8 @@ roles, such as `delegateWithPrivateEventAccess`, do not exist here.
 An import answers with a report that has one entry per object in the file: its position, its
 UID, the name it got in the collection, and `created`, `updated` or `failed` with a reason. An
 object with the UID of a stored one replaces it in place. A bad object does not fail the file.
-A read-only collection is `403`.
+A read-only collection is `403`. The service runs at most one import per user and four at
+once; another one is `429` with `Retry-After: 5`.
 
 ## Calling the API from a script
 

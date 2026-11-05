@@ -1211,6 +1211,14 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
+        "429":
+          description: "An import of this user is already running, or four imports are running in the service. Try again after the Retry-After delay (5 seconds)."
+          headers:
+            Retry-After:
+              schema: {type: integer}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
   "/groupware/v1/calendars/{id}/export":
     get:
       summary: "Export the calendar as one ICS file"
@@ -1255,6 +1263,14 @@ paths:
         "501": {$ref: "#/components/responses/NotImplemented"}
         "413":
           description: "The file is larger than 20 MB."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "429":
+          description: "An import of this user is already running, or four imports are running in the service. Try again after the Retry-After delay (5 seconds)."
+          headers:
+            Retry-After:
+              schema: {type: integer}
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
