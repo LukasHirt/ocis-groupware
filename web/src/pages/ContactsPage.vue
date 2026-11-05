@@ -37,6 +37,42 @@
             </button>
           </li>
         </ul>
+        <book-tools
+          :folder="currentFolder"
+          @create="createBook"
+          @rename="renameBook"
+          @remove="deleteBook"
+          @download="downloadBook"
+          @import="importBook"
+        />
+        <div
+          v-if="importReport"
+          class="oc-mt-s"
+          role="status"
+          data-testid="import-report"
+        >
+          <p class="oc-mb-xs">
+            {{
+              $gettext('Import finished: %{created} created, %{updated} updated, %{failed} failed.', {
+                created: String(importReport.created),
+                updated: String(importReport.updated),
+                failed: String(importReport.failed)
+              })
+            }}
+          </p>
+          <ul v-if="importReport.failed > 0" class="oc-list oc-text-small">
+            <li v-for="r in failedImports" :key="r.index">
+              {{ $gettext('Card %{n}: %{error}', { n: String(r.index + 1), error: r.error ?? '' }) }}
+            </li>
+          </ul>
+          <button
+            class="oc-button oc-button-s oc-button-passive"
+            data-testid="import-report-close"
+            @click="importReport = null"
+          >
+            {{ $gettext('Close') }}
+          </button>
+        </div>
 
         <h2 class="oc-h5 oc-mt-m">{{ $gettext('Groups') }}</h2>
         <ul class="oc-list">
@@ -270,6 +306,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useGettext } from 'vue3-gettext'
 import PageLayout from '../components/PageLayout.vue'
 import ContactDetail from '../contacts/ContactDetail.vue'
+import BookTools from '../contacts/BookTools.vue'
 import ContactForm from '../contacts/ContactForm.vue'
 import ContactGroups from '../contacts/ContactGroups.vue'
 import ContactPhoto from '../contacts/ContactPhoto.vue'
@@ -283,7 +320,7 @@ import {
 } from '../contacts/groups'
 import { contactName, filterContacts, sortContacts, type SortKey } from '../contacts/model'
 import { useApi } from '../composables/useApi'
-import type { ContactInput, GraphContact, GraphContactFolder } from '../api/types'
+import type { ContactInput, ImportReport, GraphContact, GraphContactFolder } from '../api/types'
 
 defineOptions({ name: 'ContactsPage' })
 
@@ -300,6 +337,7 @@ const query = ref('')
 const sortKey = ref<SortKey>('name')
 const selectedId = ref<string | null>(null)
 
+const currentFolder = computed(() => folders.value.find((f) => f.id === folderId.value) ?? null)
 const group = ref<GroupFilter>(null)
 const groups = computed(() => listGroups(contacts.value))
 const groupCards = computed(() => listGroupCards(contacts.value))
@@ -326,6 +364,10 @@ const canEdit = (c: GraphContact) =>
   !!folders.value.find((f) => f.id === c.parentFolderId)?.['groupware.canEdit']
 
 // Another contact, or another address book, ends an edit in progress.
+watch(folderId, () => {
+  importReport.value = null
+})
+
 watch([selectedId, folderId], () => {
   renaming.value = false
   confirmingGroupDelete.value = false
@@ -428,6 +470,68 @@ async function deleteGroup() {
   const ok = await changeGroup((cats) => removeFromGroup(cats, name))
   confirmingGroupDelete.value = false
   if (ok) group.value = null
+}
+
+const importReport = ref<ImportReport | null>(null)
+const failedImports = computed(() => importReport.value?.results.filter((r) => r.status === 'failed') ?? [])
+
+// downloadBook saves the chosen address book as a .vcf file. The file comes
+// through the authenticated client, so it is handed to the browser as an
+// object URL on a link that is clicked once.
+async function downloadBook() {
+  const current = currentFolder.value
+  if (!current) return
+  const blob = await run($gettext('Could not download the address book'), (c) =>
+    c.exportAddressBook(current.id)
+  )
+  if (!blob) return
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${current.displayName}.vcf`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+async function importBook(file: File) {
+  const current = currentFolder.value
+  if (!current) return
+  const report = await run($gettext('Could not import the file'), (c) =>
+    c.importAddressBook(current.id, file)
+  )
+  if (!report) return
+  importReport.value = report
+  await loadContacts()
+}
+
+async function createBook(name: string) {
+  const created = await run($gettext('Could not create the address book'), (c) =>
+    c.createContactFolder({ displayName: name })
+  )
+  if (!created) return
+  folders.value = [...folders.value, created]
+  await selectFolder(created.id)
+}
+
+async function renameBook(name: string) {
+  const current = currentFolder.value
+  if (!current) return
+  const updated = await run($gettext('Could not rename the address book'), (c) =>
+    c.updateContactFolder(current.id, { displayName: name })
+  )
+  if (updated) folders.value = folders.value.map((f) => (f.id === updated.id ? updated : f))
+}
+
+async function deleteBook() {
+  const current = currentFolder.value
+  if (!current) return
+  const done = await run($gettext('Could not delete the address book'), async (c) => {
+    await c.deleteContactFolder(current.id)
+    return true
+  })
+  if (!done) return
+  folders.value = folders.value.filter((f) => f.id !== current.id)
+  await selectFolder(null)
 }
 
 async function saveNew(input: ContactInput, targetId: string) {

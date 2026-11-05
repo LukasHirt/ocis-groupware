@@ -214,3 +214,20 @@ export interface GraphErrorBody {
     innerError?: { 'request-id'?: string; date?: string }
   }
 }
+
+// What an import did with each object of the file. Index counts from 0.
+export interface ImportResult {
+  index: number
+  uid: string
+  name?: string
+  status: 'created' | 'updated' | 'failed'
+  error?: string
+}
+
+export interface ImportReport {
+  total: number
+  created: number
+  updated: number
+  failed: number
+  results: ImportResult[]
+}
