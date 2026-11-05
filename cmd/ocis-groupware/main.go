@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -25,15 +26,35 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "ocis-groupware:", err)
-		os.Exit(1)
-	}
+	os.Exit(realMain(os.Args[1:], os.Stdout, os.Stderr))
 }
 
-func run() error {
-	configPath := flag.String("config", "", "path to a groupware.yaml config file")
-	flag.Parse()
+// realMain runs the service, or the admin command when args start with
+// "admin", and returns the exit code.
+func realMain(args []string, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "admin" {
+		return runAdmin(args[1:], stdout, stderr)
+	}
+	if err := run(args, stderr); err != nil {
+		if errors.Is(err, errUsage) {
+			return 2
+		}
+		_, _ = fmt.Fprintln(stderr, "ocis-groupware:", err)
+		return 1
+	}
+	return 0
+}
+
+// errUsage means the arguments were wrong and the usage has been printed.
+var errUsage = errors.New("usage error")
+
+func run(args []string, stderr io.Writer) error {
+	flags := flag.NewFlagSet("ocis-groupware", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	configPath := flags.String("config", "", "path to a groupware.yaml config file")
+	if err := flags.Parse(args); err != nil {
+		return errUsage
+	}
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {

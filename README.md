@@ -47,9 +47,10 @@ know it and ignore it, so a downgrade lets disabled users sign in again.
 
 The service also creates `admin.sock` in the data directory, a unix socket that serves the
 admin API: listing users, disabling and enabling them, and purging a disabled user's data.
-There is no token. The socket has mode 0600 and the data directory is private to the
-service's user, so only that user and root can connect, for example with
-`curl --unix-socket /data/admin.sock http://admin/v1/principals`. The file is removed on
+The `admin` command (see [Administration](#administration)) uses it; so can
+`curl --unix-socket /data/admin.sock http://admin/v1/principals`. There is no token. The
+socket has mode 0600 and the data directory is private to the service's user, so only
+that user and root can connect. The file is removed on
 shutdown and a leftover from a crash is replaced on the next start. The service refuses to
 start when it cannot create the socket, which happens on a filesystem without unix socket
 support (some bind mounts of Docker Desktop) or when the path is longer than the platform
@@ -108,6 +109,51 @@ without touching the others.
 ocis-groupware contacts the issuer on the first authenticated request, and retries after
 a failure, so it can start before oCIS is ready. While the issuer is
 unreachable, authenticated requests get `503`.
+
+## Administration
+
+The same binary administers a running service through the admin socket. It reads the
+configuration the way the service does, so in the container it needs no arguments
+beyond the command:
+
+```sh
+docker exec <container> /ocis-groupware admin principals list
+docker exec <container> /ocis-groupware admin principals disable alice
+docker exec <container> /ocis-groupware admin principals enable alice
+docker exec <container> /ocis-groupware admin principals purge alice
+docker exec <container> /ocis-groupware admin principals purge alice --yes
+```
+
+Outside the container, pass `--config <file>` or set `GROUPWARE_DATA_DIR` (or
+`GROUPWARE_ADMIN_SOCKET`); `--socket <path>` names the socket directly. The command
+exits with 1 and says so when the service is not running: it has no way to open the
+data directory itself.
+
+`list` prints one user per line with the username, display name, state, creation time and
+sub; `--json` prints the admin API's answer as it is. A user whose username was taken
+over by a newer account shows `-` as username, and `--sub <sub>` reaches it where a
+username is needed.
+
+`disable` refuses every sign-in of the user, with app passwords and with bearer tokens
+alike, and takes effect at once. Nothing is deleted, and `enable` lets the user back in
+with every device still paired. Both are safe to repeat.
+
+`purge` deletes a disabled user's calendars, contacts and app passwords, and the user's
+directory with them. Without `--yes` it only shows what would go and exits with 1:
+
+```
+would purge alice (sub 4c510ada-c86b-4815-8820-42cdf82c3d51): 2 calendars, 1 address book, 3 app passwords
+add --yes to delete this data; it cannot be undone
+```
+
+A user that is not disabled is refused, so the account cannot collect new data while
+you decide. Purging does not keep the user out: if the account still exists in oCIS and
+signs in again, it gets a fresh, empty profile with default collections. To keep someone
+out, use `disable`. `purge --sub <sub> --yes` also removes a user directory that lost its
+`principal.json`, say after an interrupted purge; such a directory does not appear in
+`list`.
+
+Every change is logged by the service at Info with the sub and username.
 
 ## Docker
 
