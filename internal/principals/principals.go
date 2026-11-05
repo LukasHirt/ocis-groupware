@@ -119,6 +119,10 @@ type Registry struct {
 	// the app password and storing it in the cache. Tests use it to revoke
 	// the password in exactly that gap.
 	beforeCachePut func()
+	// beforeOwnerDirRemoved, if set, runs in Purge after the principal's
+	// files are removed and before its owner directory is. Tests use it to
+	// fail a purge in exactly that gap.
+	beforeOwnerDirRemoved func() error
 }
 
 // Option configures a Registry.
