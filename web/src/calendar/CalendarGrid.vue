@@ -19,7 +19,8 @@ import type {
   DatesSetArg,
   EventClickArg,
   EventInput,
-  EventMountArg
+  EventMountArg,
+  ViewMountArg
 } from '@fullcalendar/core'
 import type { ViewState, ViewType } from './view'
 
@@ -39,6 +40,8 @@ const props = defineProps<{
   autoHeight?: boolean
   // A narrow window: the month shows a dot for each event and no text.
   compact?: boolean
+  // A phone: the title of the range is short enough for one line.
+  shortTitle?: boolean
 }>()
 const emit = defineEmits<{
   // The visible range changed; both ends are ISO instants.
@@ -86,6 +89,17 @@ onBeforeUnmount(() => {
   observer?.disconnect()
 })
 
+function scrollToWorkday() {
+  requestAnimationFrame(() => {
+    const body = root.value?.closest('.gw-body')
+    const lane = root.value?.querySelector('.fc-timegrid-slot-lane[data-time="07:00:00"]')
+    if (!body || !lane) {
+      return
+    }
+    body.scrollTop += lane.getBoundingClientRect().top - body.getBoundingClientRect().top
+  })
+}
+
 const timeFormat = { hour: 'numeric', minute: '2-digit' } as const
 
 // The label read out for an event: its title, when it is and which calendar.
@@ -110,16 +124,23 @@ const options = computed<CalendarOptions>(() => ({
   // The page draws the toolbar with the buttons of the design system.
   headerToolbar: false,
   views: {
-    dayGridMonth: { dayHeaderFormat: { weekday: 'short' } },
+    dayGridMonth: {
+      dayHeaderFormat: { weekday: 'short' },
+      ...(props.shortTitle ? { titleFormat: { month: 'short', year: 'numeric' } } : {})
+    },
     timeGridWeek: { dayHeaderFormat: { weekday: 'short', day: 'numeric' } },
-    timeGridDay: { dayHeaderFormat: { weekday: 'long', day: 'numeric' } }
+    timeGridDay: {
+      dayHeaderFormat: { weekday: 'long', day: 'numeric' },
+      ...(props.shortTitle ? { titleFormat: { month: 'short', day: 'numeric', year: 'numeric' } } : {})
+    }
   },
   firstDay: props.firstDay ?? 1,
   weekNumbers: props.weekNumbers ?? false,
   weekText: $gettext('W'),
   weekTextLong: $gettext('Week'),
   allDayText: $gettext('All day'),
-  moreLinkText: (n: number) => $gettext('+%{n} more', { n: String(n) }),
+  // The cells of a narrow month have room for the number only.
+  moreLinkText: (n: number) => (props.compact ? `+${n}` : $gettext('+%{n} more', { n: String(n) })),
   noEventsText: $gettext('No events'),
   slotLabelFormat: timeFormat,
   eventTimeFormat: timeFormat,
@@ -139,6 +160,14 @@ const options = computed<CalendarOptions>(() => ({
   eventClick: (arg: EventClickArg) => {
     arg.jsEvent.preventDefault()
     emit('open', arg.event.id)
+  },
+  // The page scrolls instead of the grid when the grid has the height of its
+  // rows, so the grid is not opened at its scroll time by the library: the
+  // page is scrolled to the working day, where the events are.
+  viewDidMount: (arg: ViewMountArg) => {
+    if (props.autoHeight && arg.view.type.startsWith('timeGrid')) {
+      scrollToWorkday()
+    }
   },
   // A truncated title stays readable through the tooltip, and the label of
   // the link says what a screen reader needs.

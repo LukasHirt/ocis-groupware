@@ -139,6 +139,7 @@
         :initial-view="phone ? 'timeGridDay' : 'dayGridMonth'"
         :auto-height="phone"
         :compact="compact"
+        :short-title="phone"
         :time-zone="settings.timeZone"
         :first-day="settings.firstDay"
         :week-numbers="settings.weekNumbers"
