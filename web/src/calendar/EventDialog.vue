@@ -544,7 +544,7 @@ function submit() {
 .gw-event-repeat-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: var(--oc-space-small);
   margin-bottom: var(--oc-space-small);
 }
@@ -552,11 +552,37 @@ function submit() {
 .gw-event-repeat-row > div {
   min-width: 0;
 }
+/* A select of the row and a field next to it have the same height and the
+   same top, whatever their label. */
+.gw-event-repeat-row .oc-text-input,
+.gw-event-repeat-row .vs__dropdown-toggle {
+  height: 2.25rem;
+  box-sizing: border-box;
+}
+.gw-event-repeat-row .v-select {
+  margin-top: 0;
+}
+/* The unit stands beside the field it belongs to, level with its input. */
 .gw-event-unit {
-  padding-bottom: var(--oc-space-small);
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  height: 2.25rem;
 }
 .gw-narrow {
   width: 6rem;
+}
+/* The pattern's numbers are typed or kept as they are; the spin buttons of the
+   browser add nothing and differ from one browser to the next. */
+.gw-event-repeat input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.gw-event-repeat input[type='number']::-webkit-inner-spin-button,
+.gw-event-repeat input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
 }
 .gw-event-chips {
   display: flex;

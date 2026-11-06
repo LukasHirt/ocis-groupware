@@ -433,6 +433,45 @@ test('a weekly pattern is set with the weekday buttons', async ({ page }) => {
   await expect(page.getByRole('dialog')).toBeHidden()
 })
 
+test('the recurrence fields line up and show no native spinner', async ({ page }) => {
+  await openCalendar(page)
+  await page.getByTestId('event-add').click()
+  const box = async (locator: ReturnType<Page['locator']>) => {
+    const b = await locator.first().boundingBox()
+    expect(b).not.toBeNull()
+    return b!
+  }
+  const middle = async (locator: ReturnType<Page['locator']>) => {
+    const b = await box(locator)
+    return b.y + b.height / 2
+  }
+
+  // "Every 1 week(s)": the unit is centred on the input.
+  await pickOption(page, 'repeat-frequency', 'Weekly')
+  const interval = textField(page, 'repeat-interval')
+  const unit = page.locator('.gw-event-unit')
+  await interval.scrollIntoViewIfNeeded()
+  expect(Math.abs((await middle(interval)) - (await middle(unit)))).toBeLessThanOrEqual(2)
+  expect((await box(unit)).x).toBeGreaterThan((await box(interval)).x)
+
+  // "Ends" and "Times": both controls have the same top and height.
+  await pickOption(page, 'repeat-end', 'After a number of times')
+  const ends = selectBox(page, 'repeat-end').locator('.vs__dropdown-toggle')
+  const times = textField(page, 'repeat-count')
+  const a = await box(ends)
+  const b = await box(times)
+  expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1)
+  expect(Math.abs(a.height - b.height)).toBeLessThanOrEqual(1)
+
+  // The numbers are plain fields: the spin buttons of the browser are not drawn.
+  for (const field of [interval, times]) {
+    expect(await field.evaluate((el) => getComputedStyle(el).appearance)).toBe('textfield')
+  }
+
+  await page.getByTestId('dialog-cancel').click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+})
+
 test('Escape closes every dialog of the calendar', async ({ page }) => {
   await openCalendar(page)
   const dialog = page.getByRole('dialog')
