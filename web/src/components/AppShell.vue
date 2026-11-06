@@ -6,7 +6,7 @@
     <div class="gw-main oc-width-expand oc-height-1-1">
       <div class="gw-app-bar oc-py-s oc-px-m">
         <div class="oc-flex oc-flex-between oc-flex-middle">
-          <div class="oc-flex oc-flex-middle">
+          <div class="gw-app-bar-lead oc-flex oc-flex-middle">
             <portal-target name="app.runtime.mobile.nav" />
             <template v-if="$slots.list && !listVisible">
               <oc-button
@@ -148,10 +148,27 @@ const listVisible = computed(() => props.listOpen && !folded.value)
   min-width: 0;
   min-height: 0;
 }
+/* The title may shrink and end in an ellipsis; the controls around it keep
+   their size. */
+.gw-app-bar-lead {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.gw-app-bar-lead > * {
+  flex: none;
+}
+.gw-app-bar-lead > .gw-app-title {
+  flex: 0 1 auto;
+}
 .gw-app-title {
   font-size: var(--oc-font-size-large);
   font-weight: var(--oc-font-weight-semibold);
   margin: 0;
+  /* A title stays on one line and ends in an ellipsis when it does not fit. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* The second row of the app bar wraps onto a further line on a narrow window,
    with the buttons keeping their labels on one line each. */

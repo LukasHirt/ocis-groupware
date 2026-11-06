@@ -472,6 +472,64 @@ test('the recurrence fields line up and show no native spinner', async ({ page }
   await expect(page.getByRole('dialog')).toBeHidden()
 })
 
+test('on a phone the title stays on one line and the day view shows the events', async ({ page }) => {
+  // The menu folds away in a narrow window, so the page is opened wide.
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await openCalendar(page)
+  const event = page.locator('.fc-event', { hasText: 'Phone check' })
+  await page.getByTestId('event-add').click()
+  await textField(page, 'event-subject').fill('Phone check')
+  await textField(page, 'event-start-date').fill(today())
+  await textField(page, 'event-start-time').fill('09:00')
+  await textField(page, 'event-end-date').fill(today())
+  await textField(page, 'event-end-time').fill('10:00')
+  await page.getByTestId('dialog-confirm').click()
+  await expect(event).toHaveCount(1)
+  await settled(page)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  const title = page.getByTestId('calendar-title')
+  const oneLine = async () => {
+    const box = await title.evaluate((el) => {
+      const css = getComputedStyle(el)
+      return { height: el.getBoundingClientRect().height, line: parseFloat(css.lineHeight) || parseFloat(css.fontSize) * 1.5 }
+    })
+    expect(box.height).toBeLessThanOrEqual(box.line * 1.2)
+  }
+  const setView = async (label: 'Month' | 'Week' | 'Day') => {
+    await page.locator('#gw-view-toggle').click()
+    await page.locator('#gw-view-drop').getByRole('button', { name: label, exact: true }).click()
+    await expect(page.locator('.gw-events-progress')).toHaveCount(0)
+  }
+  for (const view of ['Month', 'Week', 'Day'] as const) {
+    await setView(view)
+    await expect(title).not.toBeEmpty()
+    await oneLine()
+  }
+
+  // A title that is too long for the bar is cut with an ellipsis and does not
+  // push the bar wider than the window, as a wider font would.
+  await title.evaluate((el) => (el.textContent = 'A title that is much too long to fit next to the buttons'))
+  const bar = await page.locator('.gw-app-bar').evaluate((el) => ({ content: el.scrollWidth, box: el.clientWidth }))
+  expect(bar.content).toBeLessThanOrEqual(bar.box)
+  await oneLine()
+
+  // The day view opens at the working day, so the event and its title are on
+  // the screen without scrolling.
+  const timed = page.locator('.fc-timeGridDay-view .fc-event', { hasText: 'Phone check' })
+  await expect(timed).toBeVisible()
+  await expect(timed).toBeInViewport({ ratio: 1 })
+  await expect(timed.locator('.fc-event-title')).toHaveText('Phone check')
+
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.getByRole('button', { name: 'Month', exact: true }).click()
+  await settled(page)
+  await event.click()
+  await page.getByTestId('event-delete').click()
+  await page.getByTestId('dialog-confirm').click()
+  await expect(event).toHaveCount(0)
+})
+
 test('Escape closes every dialog of the calendar', async ({ page }) => {
   await openCalendar(page)
   const dialog = page.getByRole('dialog')
