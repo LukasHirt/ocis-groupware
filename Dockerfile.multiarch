@@ -1,0 +1,75 @@
+FROM docker.io/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9 AS source
+
+ARG GIT_REF="main"
+# Optional exact commit to build. CI passes the commit the verified release tag
+# points to, which pins the clone to it (a tag moved after it was resolved
+# cannot change what gets built) and, because it is referenced in the clone
+# layer below, busts the build cache whenever it changes. Leave empty to clone
+# GIT_REF as-is.
+ARG GIT_SHA=""
+
+RUN git clone --depth 1 --branch "${GIT_REF}" https://github.com/owncloud/ocis-groupware.git /src && \
+    if [ -n "${GIT_SHA}" ]; then \
+      git -C /src fetch --depth 1 origin "${GIT_SHA}" && \
+      git -C /src checkout --detach FETCH_HEAD; \
+    fi
+
+
+FROM docker.io/node:26.12.1-bookworm-slim@sha256:88e480776c6149ff1d098cd304f44bf18057fb5d284a3329b78162d29821e28c AS web
+
+COPY --from=source /src/web /src/web
+
+WORKDIR /src/web
+RUN npm ci --no-audit --no-fund && npm run build
+
+
+FROM docker.io/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9 AS build
+
+ARG TARGETARCH
+
+COPY --from=source /src /src
+# The binary embeds the web app, so it has to be built first.
+COPY --from=web /src/web/dist /src/web/dist
+
+WORKDIR /src
+RUN go mod download && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
+      go build -trimpath -ldflags="-s -w" -o /out/ocis-groupware ./cmd/ocis-groupware
+# Distroless has no shell, so the data directory is created here and copied over with its owner.
+RUN mkdir /out/data
+
+
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+
+ARG VERSION=""
+ARG REVISION=""
+
+LABEL maintainer="ownCloud GmbH <devops@owncloud.com>" \
+  org.opencontainers.image.title="oCIS Groupware" \
+  org.opencontainers.image.vendor="ownCloud GmbH" \
+  org.opencontainers.image.authors="ownCloud GmbH" \
+  org.opencontainers.image.description="oCIS Groupware - calendar and contacts for ownCloud Infinite Scale (CalDAV/CardDAV, Graph API, web UI)" \
+  org.opencontainers.image.licenses="Apache-2.0" \
+  org.opencontainers.image.documentation="https://github.com/owncloud/ocis-groupware" \
+  org.opencontainers.image.url="https://hub.docker.com/r/owncloud/ocis-groupware" \
+  org.opencontainers.image.source="https://github.com/owncloud/ocis-groupware" \
+  org.opencontainers.image.version="${VERSION:-main-${REVISION}}" \
+  org.opencontainers.image.revision="${REVISION}"
+
+# The nonroot base image runs as uid/gid 65532. Upstream's Helm chart, docs and
+# existing /data volumes rely on that uid, so do not change it.
+COPY --from=build /out/ocis-groupware /ocis-groupware
+COPY --from=build --chown=65532:65532 /out/data /data
+
+ENV GROUPWARE_DATA_DIR=/data
+
+VOLUME [ "/data" ]
+
+# The debug listener (/metrics, /healthz) binds to the loopback interface by
+# default, which cannot be reached from outside a container. Listen on all
+# interfaces here and do not publish this port beyond the monitoring network.
+ENV GROUPWARE_DEBUG_ADDR=:9180
+
+EXPOSE 8080/tcp 9180/tcp
+
+ENTRYPOINT ["/ocis-groupware"]
