@@ -115,6 +115,53 @@ else
   echo "ok hub_unreachable_fails"
 fi
 
+# A pull request must always build something: when the newest tag does not
+# verify, fall back to upstream main instead of an empty matrix.
+expect pr_mode_unverified_newest_builds_main pr "v0.1.0 v0.2.0" "0.1.0 0.2.0" "v0.2.0" \
+  '[{"version":"main","ref":"main","sha":"mainsha","latest":false}]'
+
+# Docker Hub answers served by a local fixture server: a page that is not the
+# expected JSON, or an error after the first page, must fail the run instead
+# of making releases look unpublished.
+HUB="${TMP}/hub"
+mkdir -p "$HUB"
+PORT=$((20000 + RANDOM % 20000))
+python3 -m http.server "$PORT" --bind 127.0.0.1 --directory "$HUB" >/dev/null 2>&1 &
+SERVER=$!
+disown "$SERVER"
+trap 'kill "$SERVER" 2>/dev/null || true; rm -rf "$TMP"' EXIT
+for _ in $(seq 1 50); do
+  curl -s -o /dev/null "http://127.0.0.1:${PORT}/" && break
+  sleep 0.1
+done
+echo '<html>maintenance</html>' >"${HUB}/html"
+printf '{"results":[{"name":"0.1.0"}],"next":"http://127.0.0.1:%s/missing"}' "$PORT" >"${HUB}/page1"
+
+hub_fails() { # hub_fails <name> <first page path>
+  local name=$1 out
+  if out=$(MODE=pending UPSTREAM_TAGS="v0.1.0" UPSTREAM_MAIN_SHA=mainsha VERIFY_TAG="$STUB" \
+    DOCKERHUB_TAGS_URL="http://127.0.0.1:${PORT}/$2" CURL_RETRY=0 \
+    "$RESOLVER" 2>"${TMP}/stderr"); then
+    echo "FAIL ${name}: resolver succeeded with: ${out}"
+    failures=$((failures + 1))
+  else
+    echo "ok ${name}"
+  fi
+}
+# An existing repository without any tag yet is a valid, empty listing.
+echo '{"count":0,"next":null,"results":[]}' >"${HUB}/empty"
+if out=$(MODE=pending UPSTREAM_TAGS="v0.1.0" UPSTREAM_MAIN_SHA=mainsha VERIFY_TAG="$STUB" \
+  DOCKERHUB_TAGS_URL="http://127.0.0.1:${PORT}/empty" CURL_RETRY=0 \
+  "$RESOLVER" 2>"${TMP}/stderr") && [ "$out" = "[$(entry 0.1.0 true)]" ]; then
+  echo "ok hub_empty_repository_builds_all"
+else
+  echo "FAIL hub_empty_repository_builds_all: ${out:-<failed>}"
+  sed 's/^/  /' "${TMP}/stderr"
+  failures=$((failures + 1))
+fi
+hub_fails hub_malformed_page_fails html
+hub_fails hub_error_after_first_page_fails page1
+
 if [ "$failures" -ne 0 ]; then
   echo "${failures} test(s) failed"
   exit 1

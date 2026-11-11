@@ -12,7 +12,8 @@
 #   rebuild  the same, plus the newest release even if it is already
 #            published, so base-image and toolchain fixes reach it
 #   pr       only the newest release, published or not, so a pull request
-#            always builds something; upstream main while there is no release
+#            always builds something; upstream main while there is no
+#            release or the newest one does not verify
 #
 # Every missing release is a candidate - there is deliberately no "keep only
 # the highest version" reduction, which would permanently drop a release when
@@ -75,8 +76,15 @@ published_tags() {
       rm -f "$body"
       return 1
     fi
-    jq -r '.results[].name' "$body"
-    url=$(jq -r '.next' "$body")
+    # -e: a 200 that is not the expected JSON (a maintenance page, a
+    # truncated body) must fail too. Command substitution does not inherit
+    # errexit, so check each jq call explicitly.
+    if ! jq -e '.results | type == "array"' "$body" >/dev/null ||
+      ! jq -r '.results[].name' "$body" || ! url=$(jq -r '.next // ""' "$body"); then
+      echo "::error::Docker Hub returned an unexpected response for ${url}" >&2
+      rm -f "$body"
+      return 1
+    fi
     first=false
   done
   rm -f "$body"
@@ -100,25 +108,27 @@ else
 fi
 
 # 4. Verify each candidate and emit the matrix.
-MATRIX=$({
-  if [ "$MODE" = pr ] && [ -z "$HIGHEST" ]; then
-    if [ -z "${UPSTREAM_MAIN_SHA:-}" ]; then
-      UPSTREAM_MAIN_SHA=$(git ls-remote "$UPSTREAM_URL" refs/heads/main | cut -f1)
-    fi
-    [ -n "$UPSTREAM_MAIN_SHA" ] || {
-      echo "::error::could not resolve upstream main" >&2
-      exit 1
-    }
-    jq -n --arg sha "$UPSTREAM_MAIN_SHA" '{version: "main", ref: "main", sha: $sha, latest: false}'
+MATRIX=$(while IFS= read -r version; do
+  [ -z "$version" ] && continue
+  sha=$("$VERIFY_TAG" "v${version}") || continue
+  latest=false
+  [ "$version" = "$HIGHEST" ] && latest=true
+  jq -n --arg version "$version" --arg ref "v${version}" --arg sha "$sha" --argjson latest "$latest" \
+    '{version: $version, ref: $ref, sha: $sha, latest: $latest}'
+done <<<"$CANDIDATES" | jq -s -c .)
+
+# A pull request always builds something, so Dockerfile changes are checked:
+# when there is no release, or the newest one does not verify, it builds
+# upstream main instead (never pushed).
+if [ "$MODE" = pr ] && [ "$MATRIX" = "[]" ]; then
+  if [ -z "${UPSTREAM_MAIN_SHA:-}" ]; then
+    UPSTREAM_MAIN_SHA=$(git ls-remote "$UPSTREAM_URL" refs/heads/main | cut -f1)
   fi
-  while IFS= read -r version; do
-    [ -z "$version" ] && continue
-    sha=$("$VERIFY_TAG" "v${version}") || continue
-    latest=false
-    [ "$version" = "$HIGHEST" ] && latest=true
-    jq -n --arg version "$version" --arg ref "v${version}" --arg sha "$sha" --argjson latest "$latest" \
-      '{version: $version, ref: $ref, sha: $sha, latest: $latest}'
-  done <<<"$CANDIDATES"
-} | jq -s -c .)
+  if [ -z "$UPSTREAM_MAIN_SHA" ]; then
+    echo "::error::could not resolve upstream main" >&2
+    exit 1
+  fi
+  MATRIX=$(jq -n -c --arg sha "$UPSTREAM_MAIN_SHA" '[{version: "main", ref: "main", sha: $sha, latest: false}]')
+fi
 echo "Pending builds (${MODE}): ${MATRIX}" >&2
 echo "$MATRIX"

@@ -62,7 +62,7 @@ polls. Its `prepare` job runs `scripts/resolve-pending-releases.sh`, which:
 |---------|--------|--------|
 | `schedule` `0 */6 * * *`, `workflow_dispatch` without `rebuild-newest` | `pending` | every release not yet on Docker Hub |
 | `push` to `main`, `schedule` `0 3 * * 0`, `workflow_dispatch` with `rebuild-newest` | `rebuild` | the same, plus the newest release |
-| `pull_request` | `pr` | the newest release, or upstream `main` while there is none; never pushed |
+| `pull_request` | `pr` | the newest release, or upstream `main` while there is none or it does not verify; never pushed |
 
 `build` calls the reusable `docker-build-native.yml` workflow from
 [`owncloud-docker/ubuntu`](https://github.com/owncloud-docker/ubuntu) per matrix leg

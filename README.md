@@ -37,11 +37,12 @@ repository under `deploy/helm/ocis-groupware`.
 |-----|---------|
 | `latest` | The highest released version |
 | `X.Y.Z` | A specific release (e.g. `0.1.0`), rebuilt in place while it is the newest one |
-| `X.Y.Z-YYYYMMDD` | Immutable build of a release on a given day (e.g. `0.1.0-20261111`) |
+| `X.Y.Z-YYYYMMDD` | The build of a release on a given day (e.g. `0.1.0-20261111`); never touched again after that day |
 
 > **Note:** oCIS Groupware is pre-1.0. Only plain `vX.Y.Z` upstream release tags are
 > built; there are no floating `X.Y` or `X` tags. For production, pin an `X.Y.Z` or
-> `X.Y.Z-YYYYMMDD` tag instead of `latest`.
+> `X.Y.Z-YYYYMMDD` tag instead of `latest`. A second rebuild on the same day replaces
+> that day's `X.Y.Z-YYYYMMDD` tag; pin by digest if you need the exact bytes.
 
 ```bash
 docker pull owncloud/ocis-groupware:latest
@@ -128,7 +129,7 @@ pushes to `main`, a schedule and by hand:
 1. **Test** — lints the scripts and tests the release resolution logic.
 2. **Resolve** — works out which releases to build (see
   [How New Releases Get Built](#how-new-releases-get-built)). A pull request always builds
-  the newest release, or upstream `main` while there is none, without publishing it.
+  the newest release (or upstream `main` while there is none, or it does not verify), without publishing it.
 3. **Build** — multi-arch image (`linux/amd64`, `linux/arm64`), built natively on each
   architecture.
 4. **Trivy scan** — fails on HIGH/CRITICAL CVEs that have a fix; accepted exceptions are
