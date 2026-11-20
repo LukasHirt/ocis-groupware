@@ -1,4 +1,4 @@
-FROM docker.io/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9 AS source
+FROM docker.io/golang:1.27.4-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea AS source
 
 ARG GIT_REF="main"
 # Optional exact commit to build. CI passes the commit the verified release tag
@@ -15,7 +15,7 @@ RUN git clone --depth 1 --branch "${GIT_REF}" https://github.com/owncloud/ocis-g
     fi
 
 
-FROM docker.io/node:26.12.1-bookworm-slim@sha256:88e480776c6149ff1d098cd304f44bf18057fb5d284a3329b78162d29821e28c AS web
+FROM docker.io/node:26.13.1-bookworm-slim@sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c0161664a011f7ff6b0f1 AS web
 
 COPY --from=source /src/web /src/web
 
@@ -23,7 +23,7 @@ WORKDIR /src/web
 RUN npm ci --no-audit --no-fund && npm run build
 
 
-FROM docker.io/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9 AS build
+FROM docker.io/golang:1.27.4-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea AS build
 
 ARG TARGETARCH
 
